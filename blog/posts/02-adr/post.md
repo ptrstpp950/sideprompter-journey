@@ -106,8 +106,7 @@ So, here’s a quick summary of why Tauri was the top choice according to ADRs c
 
 ## Side Note
 
-I tried a few other prompts, and the answers were always pretty much the same. The only different suggestion came from one Gemini response, which recommended .NET MAUI (you can see that [here](https://g.co/gemini/share/d28074df8490)).
-
+I tried a few other prompts, and the answers were always pretty much the same. The only different suggestion came from one Gemini response, which recommended .NET MAUI (you can see that [here](https://g.co/gemini/share/d28074df8490)), but I used a limited prompt in this research.
 
 ## Next Steps
 
