@@ -5,7 +5,7 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn set_window_protection(window: tauri::Window) -> Result<String, String> {
+fn set_window_protection(window: tauri::Window, enable: bool) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
         use cocoa::appkit::NSWindow;
@@ -15,8 +15,10 @@ fn set_window_protection(window: tauri::Window) -> Result<String, String> {
             match window.ns_window() {
                 Some(ns_window) => {
                     let ns_window: id = ns_window as id;
-                    let _: () = msg_send![ns_window, setLevel: 5];
-                    Ok("Window level set successfully (macOS)".to_string())
+                    // Example: setLevel 5 for enable, 0 for disable (customize as needed)
+                    let level = if enable { 5 } else { 0 };
+                    let _: () = msg_send![ns_window, setLevel: level];
+                    Ok(format!("Window level set to {} (macOS)", level))
                 },
                 None => Err("Failed to get ns_window (macOS)".to_string()),
             }
@@ -24,15 +26,16 @@ fn set_window_protection(window: tauri::Window) -> Result<String, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE};
+        use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WDA_NONE};
         unsafe {
             match window.hwnd() {
                 Ok(hwnd) => {
-                    let result = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+                    let affinity = if enable { WDA_EXCLUDEFROMCAPTURE } else { WDA_NONE };
+                    let result = SetWindowDisplayAffinity(hwnd, affinity);
                     if result.is_err() {
                         Err("SetWindowDisplayAffinity failed (Windows)".to_string())
                     } else {
-                        Ok("Display affinity set successfully (Windows)".to_string())
+                        Ok(format!("{}", if enable { "WDA_EXCLUDEFROMCAPTURE" } else { "WDA_NONE" }))
                     }
                 },
                 Err(e) => Err(format!("Failed to get hwnd (Windows): {}", e)),
