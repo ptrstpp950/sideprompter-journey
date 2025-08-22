@@ -1,6 +1,10 @@
 #  Tales from Side Prompter: Chapter 2 - Choosing the Tech to Shape Our Destiny
 
-The moment has come to make a critical decision: the technology stack for SidePrompter. In my career, I’ve seen two ways of selecting technology:
+
+
+The moment has come to make a critical decision: the technology stack for SidePrompter (read more: [Chapter 1 - A Spark Ignites, A Project Awakens](https://sideprompter.substack.com/p tales-from-side-prompter-chapter-2)).
+
+In my career, I’ve seen two ways of selecting technology:
 - **Informal:** Pick something that feels right and move fast, often because a book, podcast, or presentation recommended it.
 - **Formal:** Evaluate options against a set of criteria and make a data-driven decision.
 
