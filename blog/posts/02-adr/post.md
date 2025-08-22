@@ -2,7 +2,7 @@
 
 
 
-The moment has come to make a critical decision: the technology stack for SidePrompter (read more: [Chapter 1 - A Spark Ignites, A Project Awakens](https://sideprompter.substack.com/p tales-from-side-prompter-chapter-2)).
+The moment has come to make a critical decision: the technology stack for SidePrompter (read more: [Chapter 1 - A Spark Ignites, A Project Awakens](https://sideprompter.substack.com/p/tales-from-side-prompter-chapter-1)).
 
 In my career, I’ve seen two ways of selecting technology:
 - **Informal:** Pick something that feels right and move fast, often because a book, podcast, or presentation recommended it.
