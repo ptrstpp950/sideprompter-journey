@@ -1,0 +1,26 @@
+﻿@page "/"
+@using SidePrompterMauiApp.Services
+@inject IWindowProtectionService WindowProtection
+
+<h3>Window Protection</h3>
+
+<button @onclick="Enable">Enable Protection</button>
+<button @onclick="Disable">Disable Protection</button>
+
+<p>@status</p>
+
+@code {
+    private string status = "";
+
+    private async Task Enable()
+    {
+        var r = await WindowProtection.SetWindowProtectionAsync(true);
+        status = $"{r.Success}: {r.Message}";
+    }
+
+    private async Task Disable()
+    {
+        var r = await WindowProtection.SetWindowProtectionAsync(false);
+        status = $"{r.Success}: {r.Message}";
+    }
+}
