@@ -11,10 +11,7 @@
           "build",
           "--manifest-path=./src-tauri/Cargo.toml",
           "--no-default-features"
-        ],
-        "env": {
-          "PATH": "/Users/ptsp/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
-        }
+        ]
       },
       "env": {
         "RUST_BACKTRACE": "1"
@@ -27,10 +24,7 @@
       "request": "launch",
       "name": "Tauri Production Debug",
       "cargo": {
-        "args": ["build", "--release", "--manifest-path=./src-tauri/Cargo.toml"],
-        "env": {
-          "PATH": "/Users/ptsp/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
-        }
+        "args": ["build", "--release", "--manifest-path=./src-tauri/Cargo.toml"]
       },
       "env": {
         "RUST_BACKTRACE": "1"

@@ -12,7 +12,11 @@
       "command": "npm",
       "args": ["run", "dev"],
       "options": {
-        "cwd": "${workspaceFolder}"
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh",
+          "args": ["-Command"]
+        }
       },
       "group": "build",
       "presentation": {
