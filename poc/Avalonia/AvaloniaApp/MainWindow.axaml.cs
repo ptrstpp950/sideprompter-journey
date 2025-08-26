@@ -1,40 +1,51 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Platform;
 using System;
+using System.Threading.Tasks;
+using Avalonia.Threading;
 
 namespace AvaloniaApp;
 
 public partial class MainWindow : Window
 {
+    private readonly AudioTranscriptionService _transcriptionService;
+    private bool _isTranscribing;
+
     public MainWindow()
     {
         InitializeComponent();
-    UpdateStateUI();
+        _transcriptionService = new AudioTranscriptionService();
+        _transcriptionService.MessageGenerated += OnMessageGenerated;
     }
 
-    private bool _toggled;
-
-    private void OnChangeTextClicked(object? sender, RoutedEventArgs e)
+    private void OnMessageGenerated(string message)
     {
-        _toggled = !_toggled;
-        UpdateStateUI();
-    // Apply platform-specific privacy.
-    WindowPrivacy.SetProtected(this, _toggled);
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            MessageTextBlock.Text += message + Environment.NewLine;
+        });
     }
 
-    private void UpdateStateUI()
+    private async void ToggleButton_OnChecked(object? sender, RoutedEventArgs e)
     {
-        if (MessageTextBlock != null)
-            MessageTextBlock.Text = $"State: {(_toggled ? "On" : "Off")}";
-        if (ToggleButton != null)
-            ToggleButton.Content = _toggled ? "Turn Off" : "Turn On";
+        if (!_isTranscribing)
+        {
+            _isTranscribing = true;
+            ToggleButton.Content = "Stop Transcription";
+            MessageTextBlock.Text = "";
+            await Task.Run(_transcriptionService.StartProcessing);
+        }
     }
 
-    protected override void OnOpened(EventArgs e)
+
+
+    private void ToggleButton_OnUnchecked(object? sender, RoutedEventArgs e)
     {
-        base.OnOpened(e);
-    // Initial privacy state (off by default; change to true if you want it enabled from start)
-    WindowPrivacy.SetProtected(this, _toggled);
+        if (_isTranscribing)
+        {
+            _transcriptionService.StopProcessing();
+            _isTranscribing = false;
+            ToggleButton.Content = "Start Transcription";
+        }
     }
 }

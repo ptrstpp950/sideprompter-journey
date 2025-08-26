@@ -6,7 +6,10 @@
         x:Class="AvaloniaApp.MainWindow"
         Title="AvaloniaApp">
     <StackPanel Margin="20" Spacing="12">
-        <TextBlock x:Name="MessageTextBlock" Text="Welcome to Avalonia!" FontSize="20"/>
-    <Button x:Name="ToggleButton" Content="Turn On" Click="OnChangeTextClicked" Width="140"/>
+        <ToggleButton x:Name="ToggleButton" Content="Start Transcription" Width="200"
+                      Checked="ToggleButton_OnChecked" Unchecked="ToggleButton_OnUnchecked"/>
+        <ScrollViewer Height="300" VerticalScrollBarVisibility="Auto">
+            <TextBlock x:Name="MessageTextBlock" TextWrapping="Wrap" />
+        </ScrollViewer>
     </StackPanel>
 </Window>
