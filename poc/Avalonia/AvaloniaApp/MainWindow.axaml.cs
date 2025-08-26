@@ -21,8 +21,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         _transcriptionService = new AudioTranscriptionService();
         _transcriptionService.MessageGenerated += OnMessageGenerated;
-        _windowTextExtractionService = new WindowTextExtractionService();
-        
+#if MACOS || OSX || MACCATALYST
+        _windowTextExtractionService = new WindowTextExtractionServiceMac();
+#elif WINDOWS
+        _windowTextExtractionService = new WindowTextExtractionServiceWin();
+#else
+        _windowTextExtractionService = new NoopWindowTextExtractionService();
+#endif
         LanguageComboBox.ItemsSource = _supportedLanguages;
         LanguageComboBox.SelectedIndex = 0;
         

@@ -1,3 +1,4 @@
+#if WINDOWS
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Exceptions;
@@ -9,7 +10,7 @@ using System.Diagnostics;
 
 namespace AvaloniaApp
 {
-    public class WindowTextExtractionService : IWindowTextExtractionService
+    public class WindowTextExtractionServiceWin : IWindowTextExtractionService
     {
         public Task<string> GetActiveWindowTextAsync()
         {
@@ -114,3 +115,4 @@ namespace AvaloniaApp
         internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
     }
 }
+#endif
