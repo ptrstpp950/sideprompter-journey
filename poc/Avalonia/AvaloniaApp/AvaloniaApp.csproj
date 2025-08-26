@@ -13,6 +13,14 @@
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <TargetFramework>net9.0-macos</TargetFramework>
     <ApplicationId>com.sideprompter.app</ApplicationId>
+    <CFBundleIdentifier>com.sideprompter.app</CFBundleIdentifier>
+    <CFBundleName>AvaloniaApp</CFBundleName>
+    <CFBundleDisplayName>Avalonia App</CFBundleDisplayName>
+    <CFBundleVersion>1.0</CFBundleVersion>
+    <CFBundleShortVersionString>1.0</CFBundleShortVersionString>
+    <CFBundlePackageType>APPL</CFBundlePackageType>
+    <NSPrincipalClass>NSApplication</NSPrincipalClass>
+    <NSHighResolutionCapable>true</NSHighResolutionCapable>
   </PropertyGroup>
 
   <!-- Windows specific properties -->
@@ -37,6 +45,10 @@
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Whisper.net" Version="1.8.1" />
-    <PackageReference Include="Whisper.net.Runtime" Version="1.8.1" />
+    <PackageReference Include="Whisper.net.AllRuntimes" Version="1.8.1" />
+  </ItemGroup>
+  
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <None Update="Info.plist" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
