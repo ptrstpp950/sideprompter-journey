@@ -507,3 +507,6 @@ FodyWeavers.xsd
 
 .idea/
 models/
+
+# Environment variables
+.env
