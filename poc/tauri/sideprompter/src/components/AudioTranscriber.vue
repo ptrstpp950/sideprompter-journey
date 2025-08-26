@@ -50,11 +50,54 @@
       <div class="result-text">{{ transcriptionResult }}</div>
     </div>
 
-    <!-- Live Transcription (Future Feature) -->
+    <!-- Live Transcription -->
     <div class="live-section">
       <h3>Live Transcription</h3>
-      <p class="info">Live microphone and speaker transcription will be implemented with real-time audio capture.</p>
-      <button @click="testAudioCapture">Test Audio Capture</button>
+      <div class="live-controls">
+        <input 
+          type="number" 
+          v-model="transcriptionDuration" 
+          min="5" 
+          max="300" 
+          placeholder="Duration (seconds)"
+          style="width: 150px; margin-right: 10px;"
+        />
+        <button 
+          @click="testAudioSetup" 
+          :disabled="!modelPath"
+        >
+          Test Audio Setup
+        </button>
+        <button 
+          @click="startLiveTranscription" 
+          :disabled="!modelPath || isTranscribing"
+        >
+          {{ isTranscribing ? `Transcribing... (${timeRemaining}s)` : 'Start Live Transcription' }}
+        </button>
+        <button 
+          v-if="isTranscribing"
+          @click="stopLiveTranscription"
+        >
+          Stop
+        </button>
+      </div>
+      
+      <!-- Live Results -->
+      <div v-if="liveResults.length > 0" class="live-results">
+        <h4>Live Transcription Results</h4>
+        <div class="results-container">
+          <div 
+            v-for="result in liveResults" 
+            :key="result.timestamp"
+            class="transcription-item"
+            :class="{ 'mic-result': result.source === 'microphone', 'speaker-result': result.source === 'speaker' }"
+          >
+            <span class="timestamp">{{ formatTimestamp(result.timestamp) }}</span>
+            <span class="source-badge">{{ result.source === 'microphone' ? '🎤' : '🔊' }}</span>
+            <span class="text">{{ result.text }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Status/Logs -->
@@ -79,6 +122,14 @@ const transcriptionResult = ref('')
 const status = ref('')
 const isError = ref(false)
 const fileInput = ref<HTMLInputElement>()
+
+// Live transcription state
+const transcriptionDuration = ref(30)
+const isTranscribing = ref(false)
+const timeRemaining = ref(0)
+const liveResults = ref<Array<{text: string, source: string, timestamp: number}>>([])
+let transcriptionTimer: number | null = null
+let countdownTimer: number | null = null
 
 const modelsDir = 'models' // You might want to use a proper app data directory
 
@@ -135,13 +186,94 @@ async function listDevices() {
 
 async function testAudioCapture() {
   try {
-    const result = await invoke<string>('test_audio_capture')
+    const result = await invoke<string>('test_audio_capture_with_transcription', {
+      modelPath: modelPath.value
+    })
     status.value = result
     isError.value = false
   } catch (error) {
-    status.value = `Audio capture test failed: ${error}`
+    status.value = `Audio setup test failed: ${error}`
     isError.value = true
   }
+}
+
+async function testAudioSetup() {
+  if (!modelPath.value) {
+    status.value = 'Please download a model first'
+    isError.value = true
+    return
+  }
+  
+  try {
+    const result = await invoke<string>('test_audio_capture_with_transcription', {
+      modelPath: modelPath.value
+    })
+    status.value = result
+    isError.value = false
+  } catch (error) {
+    status.value = `Audio setup test failed: ${error}`
+    isError.value = true
+  }
+}
+
+async function startLiveTranscription() {
+  if (!modelPath.value) {
+    status.value = 'Please download a model first'
+    isError.value = true
+    return
+  }
+  
+  isTranscribing.value = true
+  timeRemaining.value = transcriptionDuration.value
+  liveResults.value = []
+  status.value = `Starting live transcription for ${transcriptionDuration.value} seconds...`
+  isError.value = false
+  
+  // Start countdown timer
+  countdownTimer = setInterval(() => {
+    timeRemaining.value--
+    if (timeRemaining.value <= 0) {
+      if (countdownTimer) clearInterval(countdownTimer)
+    }
+  }, 1000)
+  
+  try {
+    const results = await invoke<Array<{text: string, source: string, timestamp: number}>>(
+      'start_live_transcription',
+      {
+        modelPath: modelPath.value,
+        durationSeconds: transcriptionDuration.value
+      }
+    )
+    
+    liveResults.value = results
+    status.value = `Live transcription completed. Found ${results.length} transcriptions.`
+  } catch (error) {
+    status.value = `Live transcription failed: ${error}`
+    isError.value = true
+  } finally {
+    isTranscribing.value = false
+    timeRemaining.value = 0
+    if (countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+  }
+}
+
+function stopLiveTranscription() {
+  isTranscribing.value = false
+  timeRemaining.value = 0
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+  status.value = 'Live transcription stopped'
+}
+
+function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp)
+  return date.toLocaleTimeString()
 }
 
 function selectFile(event: Event) {
@@ -276,5 +408,61 @@ button:disabled {
 
 input[type="file"] {
   margin: 10px 0;
+}
+
+.live-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.live-results {
+  margin-top: 20px;
+}
+
+.results-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.transcription-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.transcription-item:last-child {
+  border-bottom: none;
+}
+
+.transcription-item.mic-result {
+  background-color: #f0f8ff;
+}
+
+.transcription-item.speaker-result {
+  background-color: #f5f5dc;
+}
+
+.timestamp {
+  font-size: 0.8em;
+  color: #666;
+  margin-right: 10px;
+  min-width: 80px;
+}
+
+.source-badge {
+  font-size: 1.2em;
+  margin-right: 10px;
+}
+
+.text {
+  flex: 1;
+  font-family: monospace;
 }
 </style>

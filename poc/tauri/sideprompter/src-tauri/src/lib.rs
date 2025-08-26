@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 mod audio_utils;
 mod audio_capture;
 mod whisper_downloader;
+mod live_transcription;
 
 use whisper_downloader::{WhisperModelDownloader, WhisperModelType};
+use live_transcription::LiveTranscriptionSession;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TranscriptionResult {
@@ -30,18 +32,76 @@ async fn download_whisper_model(model_type: String, models_dir: String) -> Resul
 }
 
 #[tauri::command]
-async fn test_audio_capture() -> Result<String, String> {
+async fn test_audio_capture_with_transcription(model_path: String) -> Result<String, String> {
     use cpal::traits::{DeviceTrait, HostTrait};
+    use audio_capture::{AudioCapture, AudioTranscriber};
     
-    let host = cpal::default_host();
-    
-    // Get default input device (microphone)
-    if let Some(device) = host.default_input_device() {
-        let name = device.name().unwrap_or("Unknown".to_string());
-        return Ok(format!("Found microphone: {}", name));
+    // Validate model exists
+    if !Path::new(&model_path).exists() {
+        return Err("Model file not found".to_string());
     }
     
-    Err("No input device found".to_string())
+    let host = cpal::default_host();
+    let mut status = String::new();
+    
+    // Check devices
+    if let Some(device) = host.default_input_device() {
+        let name = device.name().unwrap_or("Unknown".to_string());
+        status.push_str(&format!("✅ Found microphone: {}\n", name));
+    } else {
+        return Err("No input device found".to_string());
+    }
+    
+    // Try to initialize audio capture and transcriber
+    match AudioCapture::new() {
+        Ok(_capture) => {
+            status.push_str("✅ Audio capture initialized successfully\n");
+        }
+        Err(e) => {
+            return Err(format!("Failed to initialize audio capture: {}", e));
+        }
+    }
+    
+    // Try to initialize transcriber
+    match AudioTranscriber::new(&model_path) {
+        Ok(_transcriber) => {
+            status.push_str("✅ Whisper transcriber initialized successfully\n");
+        }
+        Err(e) => {
+            return Err(format!("Failed to initialize transcriber: {}", e));
+        }
+    }
+    
+    status.push_str("\n🎤 Ready for live transcription!\n");
+    status.push_str("Use 'start_live_transcription' command to begin capturing and transcribing audio.");
+    
+    Ok(status)
+}
+
+#[tauri::command]
+async fn start_live_transcription(model_path: String, duration_seconds: u64) -> Result<Vec<TranscriptionResult>, String> {
+    // Validate model exists
+    if !Path::new(&model_path).exists() {
+        return Err("Model file not found".to_string());
+    }
+    
+    // Run the live transcription in a blocking task to handle threading properly
+    let result = tokio::task::spawn_blocking(move || -> Result<Vec<TranscriptionResult>, String> {
+        let events = LiveTranscriptionSession::start(&model_path, duration_seconds)?;
+        
+        // Convert to the expected format
+        let results: Vec<TranscriptionResult> = events.into_iter().map(|event| {
+            TranscriptionResult {
+                text: event.text,
+                source: event.source,
+                timestamp: event.timestamp,
+            }
+        }).collect();
+        
+        Ok(results)
+    }).await.map_err(|e| format!("Task execution failed: {}", e))??;
+    
+    Ok(result)
 }
 
 #[tauri::command]
@@ -204,7 +264,8 @@ pub fn run() {
             transcribe_audio, 
             check_whisper_model,
             download_whisper_model,
-            test_audio_capture,
+            test_audio_capture_with_transcription,
+            start_live_transcription,
             list_audio_devices
         ])
         .run(tauri::generate_context!())
