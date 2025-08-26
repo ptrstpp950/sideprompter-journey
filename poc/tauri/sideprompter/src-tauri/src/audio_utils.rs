@@ -4,12 +4,6 @@ use std::path::Path;
 /// Load audio file and convert to the format required by whisper-rs
 /// Whisper requires 16kHz, mono, f32 samples
 pub fn load_audio_file(path: &str) -> Result<Vec<f32>, String> {
-    // This is a placeholder implementation
-    // In a real application, you would use a library like:
-    // - hound for WAV files
-    // - symphonia for general audio format support
-    // - ffmpeg-next for comprehensive format support
-    
     let path = Path::new(path);
     
     // Check if file exists
@@ -33,21 +27,43 @@ pub fn load_audio_file(path: &str) -> Result<Vec<f32>, String> {
 }
 
 fn load_wav_file(path: &Path) -> Result<Vec<f32>, String> {
-    // Placeholder for WAV file loading
-    // You would implement this using a library like 'hound'
-    Err("WAV file loading not yet implemented. Please add 'hound' dependency and implement WAV decoding.".to_string())
+    let mut reader = hound::WavReader::open(path)
+        .map_err(|e| format!("Failed to open WAV file: {}", e))?;
     
-    // Example implementation would look like:
-    // use hound::WavReader;
-    // let mut reader = WavReader::open(path)
-    //     .map_err(|e| format!("Failed to open WAV file: {}", e))?;
-    // 
-    // let samples: Result<Vec<f32>, _> = reader
-    //     .samples::<i16>()
-    //     .map(|s| s.map(|s| s as f32 / 32768.0))
-    //     .collect();
-    // 
-    // samples.map_err(|e| format!("Failed to read samples: {}", e))
+    let spec = reader.spec();
+    
+    // Read samples based on bit depth
+    let samples: Result<Vec<f32>, _> = match spec.bits_per_sample {
+        16 => {
+            reader.samples::<i16>()
+                .map(|s| s.map(|s| s as f32 / 32768.0))
+                .collect()
+        },
+        32 => {
+            if spec.sample_format == hound::SampleFormat::Float {
+                reader.samples::<f32>().collect()
+            } else {
+                reader.samples::<i32>()
+                    .map(|s| s.map(|s| s as f32 / 2147483648.0))
+                    .collect()
+            }
+        },
+        _ => return Err(format!("Unsupported bit depth: {}", spec.bits_per_sample))
+    };
+    
+    let mut audio_data = samples.map_err(|e| format!("Failed to read samples: {}", e))?;
+    
+    // Convert stereo to mono if needed
+    if spec.channels == 2 {
+        audio_data = stereo_to_mono(&audio_data);
+    }
+    
+    // Resample to 16kHz if needed
+    if spec.sample_rate != 16000 {
+        audio_data = resample_audio(&audio_data, spec.sample_rate, 16000);
+    }
+    
+    Ok(audio_data)
 }
 
 /// Convert stereo audio to mono by averaging channels

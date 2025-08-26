@@ -1,8 +1,20 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::path::Path;
 use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy};
+use serde::{Deserialize, Serialize};
 
 mod audio_utils;
+mod audio_capture;
+mod whisper_downloader;
+
+use whisper_downloader::{WhisperModelDownloader, WhisperModelType};
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TranscriptionResult {
+    pub text: String,
+    pub source: String, // "mic" or "speaker"
+    pub timestamp: u64,
+}
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -10,10 +22,61 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
+async fn download_whisper_model(model_type: String, models_dir: String) -> Result<String, String> {
+    let model_enum = WhisperModelType::from_string(&model_type)
+        .ok_or_else(|| format!("Invalid model type: {}", model_type))?;
+    
+    WhisperModelDownloader::download_model(model_enum, &models_dir).await
+}
+
+#[tauri::command]
+async fn test_audio_capture() -> Result<String, String> {
+    use cpal::traits::{DeviceTrait, HostTrait};
+    
+    let host = cpal::default_host();
+    
+    // Get default input device (microphone)
+    if let Some(device) = host.default_input_device() {
+        let name = device.name().unwrap_or("Unknown".to_string());
+        return Ok(format!("Found microphone: {}", name));
+    }
+    
+    Err("No input device found".to_string())
+}
+
+#[tauri::command]
+async fn list_audio_devices() -> Result<Vec<String>, String> {
+    use cpal::traits::{DeviceTrait, HostTrait};
+    
+    let host = cpal::default_host();
+    let mut devices = Vec::new();
+    
+    // List input devices
+    if let Ok(input_devices) = host.input_devices() {
+        for device in input_devices {
+            if let Ok(name) = device.name() {
+                devices.push(format!("Input: {}", name));
+            }
+        }
+    }
+    
+    // List output devices (for reference)
+    if let Ok(output_devices) = host.output_devices() {
+        for device in output_devices {
+            if let Ok(name) = device.name() {
+                devices.push(format!("Output: {}", name));
+            }
+        }
+    }
+    
+    Ok(devices)
+}
+
+#[tauri::command]
 fn set_window_protection(window: tauri::Window, enable: bool) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
-       /* use cocoa::appkit::NSWindow;
+        /* use cocoa::appkit::NSWindow;
         use cocoa::base::id;
         use objc::{msg_send, sel, sel_impl, runtime::YES};
         unsafe {
@@ -48,7 +111,6 @@ fn set_window_protection(window: tauri::Window, enable: bool) -> Result<String, 
                 Err(e) => Err(format!("Failed to get hwnd (Windows): {}", e)),
             }
         }
-        //Ok("Not implemented on windows yet".to_string())
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -89,7 +151,6 @@ async fn transcribe_audio(audio_path: String, model_path: String) -> Result<Stri
         let audio_data = audio_utils::load_audio_file(&audio_path)?;
         
         // Ensure audio is in the correct format for whisper (16kHz, mono)
-        // Note: You may need to implement resampling if the audio isn't 16kHz
         let audio_data = if audio_data.len() % 2 == 0 {
             // Assume stereo, convert to mono
             audio_utils::stereo_to_mono(&audio_data)
@@ -141,7 +202,10 @@ pub fn run() {
             greet, 
             set_window_protection, 
             transcribe_audio, 
-            check_whisper_model
+            check_whisper_model,
+            download_whisper_model,
+            test_audio_capture,
+            list_audio_devices
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import WhisperDemo from "./components/WhisperDemo.vue";
+import AudioTranscriber from "./components/AudioTranscriber.vue";
 
 const windowProtectionEnabled = ref(false);
 
@@ -33,6 +34,13 @@ function openNewWindow() {
 <template>
   <main class="container">
     <h1>Welcome to SidePrompter</h1>
+
+    <!-- Audio Transcription Section -->
+    <section class="audio-section">
+      <AudioTranscriber />
+    </section>
+
+    <hr style="margin: 2em 0;" />
 
     <p>PoC verification #1</p>
     <div>
