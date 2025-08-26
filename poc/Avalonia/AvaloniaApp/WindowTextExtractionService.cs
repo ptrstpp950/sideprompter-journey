@@ -1,175 +1,116 @@
+using FlaUI.Core;
+using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Exceptions;
+using FlaUI.UIA3;
 using System;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace AvaloniaApp
 {
     public class WindowTextExtractionService : IWindowTextExtractionService
     {
-        #region Win32 API
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll")]
-        private static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
-
-        [DllImport("user32.dll")]
-        private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-
-        [DllImport("user32.dll")]
-        private static extern bool EnumChildWindows(IntPtr hwndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
-
-        [DllImport("user32.dll")]
-        private static extern int SendMessage(IntPtr hWnd, uint Msg, int wParam, StringBuilder lParam);
-
-        [DllImport("user32.dll")]
-        private static extern int SendMessage(IntPtr hWnd, uint Msg, int wParam, IntPtr lParam);
-
-        [DllImport("user32.dll")]
-        private static extern uint GetWindowLong(IntPtr hWnd, int nIndex);
-
-        [DllImport("user32.dll")]
-        private static extern bool IsWindowVisible(IntPtr hWnd);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
-
-        private const uint WM_GETTEXT = 0x000D;
-        private const uint WM_GETTEXTLENGTH = 0x000E;
-        private const int GWL_STYLE = -16;
-        private const int ES_READONLY = 0x0800;
-        private const int WS_VISIBLE = 0x10000000;
-
-        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-
-        #endregion
-
-        /// <summary>
-        /// Gets the title of the current active window in the system
-        /// </summary>
-        /// <returns>The title of the active window</returns>
-        public string GetActiveWindowTitle()
+        public Task<string> GetActiveWindowTextAsync()
         {
-            if (!OperatingSystem.IsWindows())
-                return "Not supported on this platform";
-
-            IntPtr handle = GetForegroundWindow();
-            StringBuilder title = new StringBuilder(256);
-            GetWindowText(handle, title, title.Capacity);
-            return title.ToString();
-        }
-
-        /// <summary>
-        /// Gets the text from the current active window in the system
-        /// </summary>
-        /// <returns>The text content of the active window, or empty string if no text could be extracted</returns>
-        public async Task<string> GetActiveWindowTextAsync()
-        {
-            if (!OperatingSystem.IsWindows())
-                return "Text extraction not supported on this platform";
-
-            return await Task.Run(() => {
-                StringBuilder result = new StringBuilder();
-
+            return Task.Run(() =>
+            {
                 try
                 {
-                    IntPtr foregroundWindow = GetForegroundWindow();
-                    if (foregroundWindow == IntPtr.Zero)
-                        return string.Empty;
-
-                    // Get process ID for the foreground window
-                    GetWindowThreadProcessId(foregroundWindow, out int processId);
-                    string processName = GetProcessNameById(processId);
-                    result.AppendLine($"[Window: {GetActiveWindowTitle()}, Process: {processName}]");
-
-                    // Extract text from the foreground window and its child windows
-                    StringBuilder windowText = new StringBuilder(4096);
-                    
-                    // Try to get text directly from the window first
-                    int length = SendMessage(foregroundWindow, WM_GETTEXT, windowText.Capacity, windowText);
-                    if (length > 0)
+                    using (var automation = new UIA3Automation())
                     {
-                        result.AppendLine(windowText.ToString());
-                    }
-                    
-                    // Find all child windows and extract text from them
-                    List<string> childTexts = new List<string>();
-                    EnumChildWindows(foregroundWindow, (childHwnd, lParam) => {
-                        // Get class name to identify edit controls, etc.
-                        StringBuilder className = new StringBuilder(100);
-                        GetClassName(childHwnd, className, className.Capacity);
-                        string classNameStr = className.ToString().ToLower();
-
-                        // Check if the window is visible
-                        if (IsWindowVisible(childHwnd))
+                        var window = automation.FromHandle(Win32.GetForegroundWindow());
+                        if (window != null)
                         {
-                            // Get text length
-                            int textLen = SendMessage(childHwnd, WM_GETTEXTLENGTH, 0, IntPtr.Zero);
-                            //if (textLen > 0)
-                            {
-                                // Common text control classes
-                                /*if (classNameStr.Contains("edit") ||
-                                    classNameStr.Contains("text") ||
-                                    classNameStr.Contains("rich") ||
-                                    classNameStr.Contains("scintilla") ||   // For VS Code, Notepad++, etc.
-                                    classNameStr == "monaco")               // For web-based editors
-                                */
-                                {
-                                    StringBuilder text = new StringBuilder(textLen + 1);
-                                    SendMessage(childHwnd, WM_GETTEXT, text.Capacity, text);
-                                    string textContent = text.ToString().Trim();
-                                    if (!string.IsNullOrEmpty(textContent))
-                                    {
-                                        childTexts.Add(textContent);
-                                    }
-                                }
-                            }
+                            var sb = new StringBuilder();
+                            sb.AppendLine($"[Window: {window.Name}, Process: {window.Properties.ProcessId.ValueOrDefault}]");
+                            AppendText(window, sb, 0);
+                            return sb.ToString();
                         }
-                        return true; // Continue enumeration
-                    }, IntPtr.Zero);
-
-                    // Add child window texts
-                    foreach (string text in childTexts)
-                    {
-                        result.AppendLine(text);
-                    }
-
-                    // Special handling for specific applications
-                    if (processName.Equals("devenv", StringComparison.OrdinalIgnoreCase) ||    // Visual Studio
-                        processName.Equals("code", StringComparison.OrdinalIgnoreCase) ||      // VS Code
-                        processName.Equals("notepad", StringComparison.OrdinalIgnoreCase) ||
-                        processName.Equals("notepad++", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // These applications may need specialized approaches for certain UI frameworks
-                        // Additional custom handling could be added here
                     }
                 }
                 catch (Exception ex)
                 {
-                    return $"Error extracting text: {ex.Message}";
+                    // Log or handle the exception
+                    Console.WriteLine($"Error extracting window text: {ex.Message}");
                 }
-
-                return result.ToString();
+                return string.Empty;
             });
         }
 
-        private string GetProcessNameById(int processId)
+        public string GetActiveWindowTitle()
         {
             try
             {
-                using (var process = Process.GetProcessById(processId))
+                using (var automation = new UIA3Automation())
                 {
-                    return process.ProcessName;
+                    var window = automation.FromHandle(Win32.GetForegroundWindow());
+                    return window?.Name ?? string.Empty;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                return "Unknown";
+                // Log or handle the exception
+                Console.WriteLine($"Error getting window title: {ex.Message}");
+                return string.Empty;
             }
         }
+
+        private void AppendText(AutomationElement element, StringBuilder sb, int indent)
+        {
+            if (element == null) return;
+
+            try
+            {
+                var indentStr = new string(' ', indent * 2);
+
+                // Extract basic properties
+                var name = element.Name;
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    sb.AppendLine($"{indentStr}Name: {name}");
+                }
+
+                // Extract text using ValuePattern
+                if (element.Patterns.Value.IsSupported)
+                {
+                    var value = element.Patterns.Value.Pattern.Value;
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        sb.AppendLine($"{indentStr}Value: {value}");
+                    }
+                }
+
+                // Extract text using TextPattern (for documents, web pages, etc.)
+                if (element.Patterns.Text.IsSupported)
+                {
+                    var text = element.Patterns.Text.Pattern.DocumentRange.GetText(-1).Trim();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        sb.AppendLine($"{indentStr}Text: {text}");
+                    }
+                }
+
+                // Recursively process children
+                foreach (var child in element.FindAllChildren())
+                {
+                    AppendText(child, sb, indent + 1);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Ignore elements that can't be accessed
+                Console.WriteLine($"Could not access element: {ex.Message}");
+            }
+        }
+    }
+
+    internal static class Win32
+    {
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern IntPtr GetForegroundWindow();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
     }
 }
