@@ -1,0 +1,51 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": ".NET MAUI Debug (maccatalyst)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/SidePrompterMauiApp/bin/Debug/net9.0-maccatalyst/maccatalyst-x64/SidePrompterMauiApp.dll",
+      "cwd": "${workspaceFolder}/SidePrompterMauiApp",
+      "stopAtEntry": false,
+      "console": "internalConsole"
+    },
+    {
+      "name": "MAUI MacCatalyst (x64 direct)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build:maccatalyst",
+      "program": "${workspaceFolder}/SidePrompterMauiApp/bin/Debug/net9.0-maccatalyst/maccatalyst-x64/SidePrompterMauiApp.app/Contents/MacOS/SidePrompterMauiApp",
+      "cwd": "${workspaceFolder}/SidePrompterMauiApp",
+      "console": "internalConsole",
+      "justMyCode": true
+    },
+    {
+      "name": "MAUI MacCatalyst (attach after Run target)",
+      "type": "coreclr",
+      "request": "attach",
+      "preLaunchTask": "run:maccatalyst",
+      "processId": "${command:pickProcess}",
+      "justMyCode": true
+    },
+    {
+      "name": "MAUI MacCatalyst (dotnet run)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build:maccatalyst",
+      "program": "dotnet",
+      "args": [
+        "run",
+        "-f",
+        "net9.0-maccatalyst",
+        "--no-build",
+        "--project",
+        "${workspaceFolder}/SidePrompterMauiApp/SidePrompterMauiApp.csproj"
+      ],
+      "cwd": "${workspaceFolder}/SidePrompterMauiApp",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

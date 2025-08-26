@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/SidePrompterMauiApp/SidePrompterMauiApp.csproj"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build:maccatalyst",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "-f",
+        "net9.0-maccatalyst",
+        "${workspaceFolder}/SidePrompterMauiApp/SidePrompterMauiApp.csproj"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "run:maccatalyst",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "-t:Run",
+        "-f",
+        "net9.0-maccatalyst",
+        "${workspaceFolder}/SidePrompterMauiApp/SidePrompterMauiApp.csproj"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "clean",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "clean",
+        "${workspaceFolder}/SidePrompterMauiApp/SidePrompterMauiApp.csproj"
+      ]
+    }
+  ]
+}
