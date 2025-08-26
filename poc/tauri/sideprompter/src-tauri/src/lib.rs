@@ -48,6 +48,7 @@ fn set_window_protection(window: tauri::Window, enable: bool) -> Result<String, 
                 Err(e) => Err(format!("Failed to get hwnd (Windows): {}", e)),
             }
         }
+        //Ok("Not implemented on windows yet".to_string())
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
