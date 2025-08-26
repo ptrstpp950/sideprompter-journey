@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using System;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ public partial class MainWindow : Window
     private readonly AudioTranscriptionService _transcriptionService;
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
+    private HotKeyService? _hotKeyService;
 
     public MainWindow()
     {
@@ -19,6 +21,19 @@ public partial class MainWindow : Window
         _transcriptionService.MessageGenerated += OnMessageGenerated;
         LanguageComboBox.ItemsSource = _supportedLanguages;
         LanguageComboBox.SelectedIndex = 0;
+        
+        // Register global ALT+? hotkey
+        _hotKeyService = new HotKeyService(this);
+        
+        try
+        {
+            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
+        }
+        catch (Exception ex)
+        {
+            // Log the error but continue execution
+            Console.WriteLine($"Failed to register global hotkey: {ex.Message}");
+        }
     }
 
     private void OnMessageGenerated(string message)
@@ -51,5 +66,24 @@ public partial class MainWindow : Window
             _isTranscribing = false;
             ToggleButton.Content = "Start Transcription";
         }
+    }
+
+    private void OnHotKeyPressed()
+    {
+        // Toggle the transcription state when ALT+? is pressed
+        if (_isTranscribing)
+        {
+            ToggleButton.IsChecked = false;
+        }
+        else
+        {
+            ToggleButton.IsChecked = true;
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _hotKeyService?.Dispose();
+        base.OnClosed(e);
     }
 }
