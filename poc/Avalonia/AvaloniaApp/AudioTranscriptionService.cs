@@ -4,9 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Azure;
-using Azure.AI.OpenAI;
-using Azure.AI.OpenAI.Chat;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using OpenAI.Chat;
@@ -18,8 +15,18 @@ namespace AvaloniaApp;
 public class AudioTranscriptionService
 {
     private CancellationTokenSource? _cancellationTokenSource;
+    private readonly ChatCompletionService _chatCompletionService;
 
     public event Action<string>? MessageGenerated;
+
+    public AudioTranscriptionService()
+    {
+        // TODO: Move configuration to a more appropriate place
+        var endpoint = "https://openai-ptsp.openai.azure.com/";
+        var deploymentName = "gpt-5-nano";
+        var apiKey = "[TODO]";
+        _chatCompletionService = new ChatCompletionService(endpoint, apiKey, deploymentName);
+    }
 
     private static bool IsEmptyOrSound(string text)
     {
@@ -52,46 +59,13 @@ public class AudioTranscriptionService
     private async Task RunTranscriptionLoop(CancellationToken cancellationToken)
     {
         var lang = "en";
-        // Azure OpenAI Configuration
-        var endpoint = new Uri("https://openai-ptsp.openai.azure.com/");
-        var deploymentName = "gpt-5-nano";
-        var apiKey = "[TODO]";
-
-        AzureOpenAIClient azureClient = new(
-            endpoint,
-            new AzureKeyCredential(apiKey));
-        var chatClient = azureClient.GetChatClient(deploymentName);
-
-        var requestOptions = new ChatCompletionOptions()
-        {
-            MaxOutputTokenCount = 10000,
-        };
-
-        // The SetNewMaxCompletionTokensPropertyEnabled() method is an [Experimental] opt-in to use
-        // the new max_completion_tokens JSON property instead of the legacy max_tokens property.
-        // This extension method will be removed and unnecessary in a future service API version;
-        // please disable the [Experimental] warning to acknowledge.
-#pragma warning disable AOAI001
-        requestOptions.SetNewMaxCompletionTokensPropertyEnabled(true);
-#pragma warning restore AOAI001
-
+        
         // 1. Whisper Model Loading
         var type = GgmlType.Tiny;
         var modelName = "ggml-" + type + ".bin";
         var modelPath = Path.GetFullPath(Path.Combine("./models", modelName));
 
-        List<ChatMessage> messages = new List<ChatMessage>()
-        {
-            new SystemChatMessage("You are a helpful assistant. Tasks:" +
-                                  "- main goal is to provide me a 1-5 smart questions that I can ask " +
-                                  "- less questions is better but try to make them IQ 150 " +
-                                  "- please use language that chat is done " +
-                                  // "- add short explanation why question is valid" +
-                                  "- sentence started with [m] is my text, [o] is others" +
-                                  "- focus on [o] and don't repeat what [m] already asked " +
-                                  "- questions should be in format '[q][matching indicator in %] text'" +
-                                  "- for debug purposes add below each question reason why this question is relevant in format '[d] text'"),
-        };
+        var messages = _chatCompletionService.Initialize();
 
         if (!Directory.Exists(Path.GetDirectoryName(modelPath)))
         {
@@ -102,7 +76,7 @@ public class AudioTranscriptionService
         if (!File.Exists(modelPath))
         {
             MessageGenerated?.Invoke($"Downloading Whisper model '{modelName}' to '{modelPath}' ...");
-            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(type);
+            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(type, cancellationToken: cancellationToken);
             await using var fileStream = File.Create(modelPath);
             await modelStream.CopyToAsync(fileStream, cancellationToken);
             MessageGenerated?.Invoke("Model downloaded.");
@@ -182,8 +156,8 @@ public class AudioTranscriptionService
                     timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
                     try
                     {
-                        var response = await chatClient.CompleteChatAsync(messages, requestOptions, timeoutCts.Token);
-                        MessageGenerated?.Invoke(response.Value.Content[0].Text);
+                        var response = await _chatCompletionService.GetCompletionAsync(messages, timeoutCts.Token);
+                        MessageGenerated?.Invoke(response);
                     }
                     catch (OperationCanceledException)
                     {
@@ -216,7 +190,7 @@ public class AudioTranscriptionService
              string prefix,
              float[] buffer, int bufferSize, WhisperProcessor processor,
              CancellationToken cancellationTokenSource,
-             List<ChatMessage> messages, int streamOffset, Action<string> logOutput)
+             IList<ChatMessage> messages, int streamOffset, Action<string> logOutput)
     {
         // MIC
         var temp = new float[16000];
@@ -230,39 +204,43 @@ public class AudioTranscriptionService
 
         Array.Copy(temp, 0, buffer, streamOffset, read);
         streamOffset += read;
-        if (streamOffset >= bufferSize)
+        if (streamOffset < bufferSize)
+            return new StreamOffsetStruct()
+            {
+                StreamOffset = streamOffset,
+                StreamRead = read
+            };
+        
+        var stream = new MemoryStream();
+        var writer = new WaveFileWriter(stream, new WaveFormat(16000, 16, 1));
+        for (var i = 0; i < streamOffset; i++)
         {
-            var stream = new MemoryStream();
-            var writer = new WaveFileWriter(stream, new WaveFormat(16000, 16, 1));
-            for (var i = 0; i < streamOffset; i++)
-            {
-                var pcm = (short)(buffer[i] * 32767);
-                writer.WriteByte((byte)(pcm & 0xFF));
-                writer.WriteByte((byte)((pcm >> 8) & 0xFF));
-            }
-
-            writer.Flush();
-            stream.Position = 0;
-
-            await foreach (var result in processor.ProcessAsync(stream,
-                               cancellationTokenSource))
-            {
-                if (IsEmptyOrSound(result.Text))
-                    continue;
-
-                var msg = $"{prefix} {result.Text}";
-                // Only add if not a duplicate of the last message
-                if (messages.Count != 0 && messages[^1] is UserChatMessage last &&
-                    last.Content[0].Text.EndsWith(result.Text)) continue;
-                messages.Add(new UserChatMessage(msg));
-                logOutput(msg);
-
-            }
-
-            await writer.DisposeAsync();
-            await stream.DisposeAsync();
-            streamOffset = 0;
+            var pcm = (short)(buffer[i] * 32767);
+            writer.WriteByte((byte)(pcm & 0xFF));
+            writer.WriteByte((byte)((pcm >> 8) & 0xFF));
         }
+
+        writer.Flush();
+        stream.Position = 0;
+
+        await foreach (var result in processor.ProcessAsync(stream,
+                           cancellationTokenSource))
+        {
+            if (IsEmptyOrSound(result.Text))
+                continue;
+
+            var msg = $"{prefix} {result.Text}";
+            // Only add if not a duplicate of the last message
+            if (messages.Count != 0 && messages[^1] is UserChatMessage last &&
+                last.Content[0].Text.EndsWith(result.Text)) continue;
+            messages.Add(new UserChatMessage(msg));
+            logOutput(msg);
+
+        }
+
+        await writer.DisposeAsync();
+        await stream.DisposeAsync();
+        streamOffset = 0;
 
         return new StreamOffsetStruct()
         {
