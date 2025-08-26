@@ -38,12 +38,12 @@ public class AudioTranscriptionService
         return text.Length == 0;
     }
 
-    public async Task StartProcessing()
+    public async Task StartProcessing(string language)
     {
         _cancellationTokenSource = new CancellationTokenSource();
         try
         {
-            await RunTranscriptionLoop(_cancellationTokenSource.Token);
+            await RunTranscriptionLoop(_cancellationTokenSource.Token, language);
         }
         catch (Exception ex)
         {
@@ -56,9 +56,8 @@ public class AudioTranscriptionService
         _cancellationTokenSource?.Cancel();
     }
 
-    private async Task RunTranscriptionLoop(CancellationToken cancellationToken)
+    private async Task RunTranscriptionLoop(CancellationToken cancellationToken, string lang)
     {
-        var lang = "en";
         
         // 1. Whisper Model Loading
         var type = GgmlType.Tiny;
@@ -92,11 +91,14 @@ public class AudioTranscriptionService
         micCapture.WaveFormat = new WaveFormat(16000, 16, 1);
 
         using var speakerCapture = new WasapiLoopbackCapture();
+        speakerCapture.WaveFormat = new WaveFormat(16000, 16, 1);
 
         var micProvider = new BufferedWaveProvider(micCapture.WaveFormat) { DiscardOnBufferOverflow = true };
+        micProvider.DiscardOnBufferOverflow = true;
         micCapture.DataAvailable += (s, e) => micProvider.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
         var speakerProvider = new BufferedWaveProvider(speakerCapture.WaveFormat) { DiscardOnBufferOverflow = true };
+        speakerProvider.DiscardOnBufferOverflow = true;
         speakerCapture.DataAvailable += (s, e) => speakerProvider.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
         var micSampler = micProvider.ToSampleProvider();

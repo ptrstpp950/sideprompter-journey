@@ -6,6 +6,8 @@
         x:Class="AvaloniaApp.MainWindow"
         Title="AvaloniaApp">
     <StackPanel Margin="20" Spacing="12">
+        <TextBlock Text="Select Language:"/>
+        <ComboBox x:Name="LanguageComboBox" Width="200"/>
         <ToggleButton x:Name="ToggleButton" Content="Start Transcription" Width="200"
                       Checked="ToggleButton_OnChecked" Unchecked="ToggleButton_OnUnchecked"/>
         <ScrollViewer Height="300" VerticalScrollBarVisibility="Auto">

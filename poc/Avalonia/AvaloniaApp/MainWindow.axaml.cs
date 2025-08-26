@@ -10,12 +10,15 @@ public partial class MainWindow : Window
 {
     private readonly AudioTranscriptionService _transcriptionService;
     private bool _isTranscribing;
+    private readonly string[] _supportedLanguages = { "en", "pl" };
 
     public MainWindow()
     {
         InitializeComponent();
         _transcriptionService = new AudioTranscriptionService();
         _transcriptionService.MessageGenerated += OnMessageGenerated;
+        LanguageComboBox.ItemsSource = _supportedLanguages;
+        LanguageComboBox.SelectedIndex = 0;
     }
 
     private void OnMessageGenerated(string message)
@@ -33,7 +36,8 @@ public partial class MainWindow : Window
             _isTranscribing = true;
             ToggleButton.Content = "Stop Transcription";
             MessageTextBlock.Text = "";
-            await Task.Run(_transcriptionService.StartProcessing);
+            var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "en";
+            await Task.Run(() => _transcriptionService.StartProcessing(selectedLanguage));
         }
     }
 
