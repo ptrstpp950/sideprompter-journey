@@ -2,16 +2,49 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
         x:Class="AvaloniaApp.MainWindow"
         Title="AvaloniaApp">
-    <StackPanel Margin="20" Spacing="12">
-        <TextBlock Text="Select Language:"/>
-        <ComboBox x:Name="LanguageComboBox" Width="200"/>
-        <ToggleButton x:Name="ToggleButton" Content="Start Transcription" Width="200"
-                      Checked="ToggleButton_OnChecked" Unchecked="ToggleButton_OnUnchecked"/>
-        <ScrollViewer Height="300" VerticalScrollBarVisibility="Auto">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <TabControl Grid.Row="0">
+            <TabItem Header="Transcription">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Select Language:"/>
+                    <ComboBox x:Name="LanguageComboBox" Width="200"/>
+                    <ToggleButton x:Name="ToggleButton" Content="Start Transcription" Width="200"
+                                Checked="ToggleButton_OnChecked" Unchecked="ToggleButton_OnUnchecked"/>
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Window Text">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Extract text from active window:"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ActiveWindowTitleBlock" Text="No window selected" Grid.Column="0"/>
+                        <Button x:Name="RefreshWindowButton" Content="Refresh" Grid.Column="1"
+                                Click="RefreshWindowButton_OnClick" Width="100"/>
+                    </Grid>
+                    <Button x:Name="GetWindowTextButton" Content="Get Window Text" Width="200"
+                            Click="GetWindowTextButton_OnClick"/>
+                    <CheckBox x:Name="PrivacyModeCheckBox" Content="Privacy Mode (Hide this window from capture)"
+                            Checked="PrivacyMode_OnToggled" Unchecked="PrivacyMode_OnToggled"/>
+                    <TextBlock Text="Register ALT+W to extract window text:"/>
+                    <Button x:Name="RegisterHotkeyButton" Content="Register Hotkey" Width="200"
+                            Click="RegisterHotkeyButton_OnClick"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+        
+        <ScrollViewer Grid.Row="1" Height="400" VerticalScrollBarVisibility="Auto" Margin="0,20,0,0">
             <TextBlock x:Name="MessageTextBlock" TextWrapping="Wrap" />
         </ScrollViewer>
-    </StackPanel>
+    </Grid>
 </Window>
