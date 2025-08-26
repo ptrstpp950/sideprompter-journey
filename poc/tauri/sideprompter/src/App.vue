@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-
+import WhisperDemo from "./components/WhisperDemo.vue";
 
 const windowProtectionEnabled = ref(false);
 
@@ -50,6 +49,11 @@ function openNewWindow() {
       <div class="button-row">
         <button @click="openNewWindow" style="margin-top: 2em;">Open New Window</button>
       </div>
+    </div>
+    
+    <!-- Whisper Demo Section -->
+    <div style="margin-top: 3em;">
+      <WhisperDemo />
     </div>
   </main>
 </template>

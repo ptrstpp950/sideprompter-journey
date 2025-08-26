@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Tauri Development Debug",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=./src-tauri/Cargo.toml",
+          "--no-default-features"
+        ],
+        "env": {
+          "PATH": "/Users/ptsp/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+        }
+      },
+      "env": {
+        "RUST_BACKTRACE": "1"
+      },
+      // task for the `beforeDevCommand` if used, must be configured in `.vscode/tasks.json`
+      "preLaunchTask": "ui:dev"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Tauri Production Debug",
+      "cargo": {
+        "args": ["build", "--release", "--manifest-path=./src-tauri/Cargo.toml"],
+        "env": {
+          "PATH": "/Users/ptsp/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+        }
+      },
+      "env": {
+        "RUST_BACKTRACE": "1"
+      },
+      // task for the `beforeBuildCommand` if used, must be configured in `.vscode/tasks.json`
+      "preLaunchTask": "ui:build"
+    }
+  ]
+}
