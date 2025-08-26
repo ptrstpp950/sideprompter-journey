@@ -36,6 +36,24 @@ impl LiveTranscriptionSession {
         
         let (mic_sender, mic_receiver) = mpsc::channel::<Vec<f32>>();
         
+        // Setup speaker capture (loopback device)
+        let speaker_device = Self::get_loopback_device(&host);
+        let speaker_setup = if let Some(device) = speaker_device {
+            match device.default_input_config() {
+                Ok(config) => {
+                    let (sender, receiver) = mpsc::channel::<Vec<f32>>();
+                    Some((device, config, sender, receiver))
+                }
+                Err(e) => {
+                    println!("Warning: Failed to get speaker config: {}", e);
+                    None
+                }
+            }
+        } else {
+            println!("Warning: No loopback device found for speaker capture");
+            None
+        };
+        
         // Create mic stream
         let transcriber_mic = transcriber.clone();
         let results_mic = results.clone();
@@ -44,6 +62,62 @@ impl LiveTranscriptionSession {
         thread::spawn(move || {
             Self::process_audio_stream(mic_receiver, transcriber_mic, results_mic, is_running_mic, "microphone");
         });
+        
+        // Create speaker stream if available
+        let speaker_stream = if let Some((device, config, sender, receiver)) = speaker_setup {
+            let transcriber_speaker = transcriber.clone();
+            let results_speaker = results.clone();
+            let is_running_speaker = is_running.clone();
+            
+            thread::spawn(move || {
+                Self::process_audio_stream(receiver, transcriber_speaker, results_speaker, is_running_speaker, "speaker");
+            });
+            
+            // Build speaker stream
+            match config.sample_format() {
+                cpal::SampleFormat::F32 => {
+                    let sender_clone = sender.clone();
+                    match device.build_input_stream(
+                        &config.config(),
+                        move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                            sender_clone.send(data.to_vec()).ok();
+                        },
+                        |err| eprintln!("Speaker stream error: {}", err),
+                        None,
+                    ) {
+                        Ok(stream) => Some(stream),
+                        Err(e) => {
+                            println!("Warning: Failed to build speaker stream: {}", e);
+                            None
+                        }
+                    }
+                },
+                cpal::SampleFormat::I16 => {
+                    let sender_clone = sender.clone();
+                    match device.build_input_stream(
+                        &config.config(),
+                        move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                            let samples: Vec<f32> = data.iter().map(|&x| x as f32 / 32768.0).collect();
+                            sender_clone.send(samples).ok();
+                        },
+                        |err| eprintln!("Speaker stream error: {}", err),
+                        None,
+                    ) {
+                        Ok(stream) => Some(stream),
+                        Err(e) => {
+                            println!("Warning: Failed to build speaker stream: {}", e);
+                            None
+                        }
+                    }
+                },
+                _ => {
+                    println!("Warning: Unsupported speaker sample format");
+                    None
+                }
+            }
+        } else {
+            None
+        };
         
         let mic_stream = match mic_config.sample_format() {
             cpal::SampleFormat::F32 => {
@@ -74,6 +148,17 @@ impl LiveTranscriptionSession {
         
         mic_stream.play().map_err(|e| format!("Failed to start mic stream: {}", e))?;
         
+        // Start speaker stream if available
+        if let Some(ref stream) = speaker_stream {
+            stream.play().map_err(|e| format!("Failed to start speaker stream: {}", e))?;
+            println!("✅ Speaker capture started successfully");
+        } else {
+            println!("⚠️ Speaker capture not available - enable 'Stereo Mix' in sound settings for full functionality");
+        }
+        
+        println!("🎤 Microphone capture started successfully");
+        println!("🎧 Transcribing for {} seconds...", duration_seconds);
+        
         // Let it run for the specified duration
         thread::sleep(Duration::from_secs(duration_seconds));
         
@@ -85,7 +170,49 @@ impl LiveTranscriptionSession {
         
         // Return results
         let final_results = results.lock().unwrap().clone();
+        println!("📝 Transcription completed with {} results", final_results.len());
         Ok(final_results)
+    }
+    
+    fn get_loopback_device(host: &cpal::Host) -> Option<cpal::Device> {
+        // On Windows, try to find a loopback device
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(devices) = host.input_devices() {
+                for device in devices {
+                    if let Ok(name) = device.name() {
+                        let name_lower = name.to_lowercase();
+                        if name_lower.contains("stereo mix") || 
+                           name_lower.contains("what u hear") ||
+                           name_lower.contains("loopback") ||
+                           name_lower.contains("wave out mix") {
+                            println!("🔊 Found loopback device: {}", name);
+                            return Some(device);
+                        }
+                    }
+                }
+            }
+            None
+        }
+        
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, we might need to use different approaches
+            // For now, return None - could implement with Core Audio later
+            None
+        }
+        
+        #[cfg(target_os = "linux")]
+        {
+            // On Linux, could use PulseAudio monitor sources
+            // For now, return None - could implement later
+            None
+        }
+        
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            None
+        }
     }
     
     fn process_audio_stream(
