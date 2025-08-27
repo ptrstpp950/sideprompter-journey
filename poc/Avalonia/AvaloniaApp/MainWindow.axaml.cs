@@ -13,7 +13,7 @@ public partial class MainWindow : Window
     private readonly IWindowTextExtractionService _windowTextExtractionService;
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
-    private HotKeyService? _hotKeyService;
+    private readonly IHotKeyService? _hotKeyService;
     private int? _windowTextHotkeyId;
 
     public MainWindow()
@@ -32,10 +32,9 @@ public partial class MainWindow : Window
         LanguageComboBox.SelectedIndex = 0;
         
         // Register global ALT+? hotkey
-        _hotKeyService = new HotKeyService(this);
-        
         try
         {
+            _hotKeyService = HotKeyServiceFactory.Create(this);
             _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
         }
         catch (Exception ex)

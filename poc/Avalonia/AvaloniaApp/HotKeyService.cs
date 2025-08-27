@@ -8,7 +8,30 @@ using System.Runtime.InteropServices;
 
 namespace AvaloniaApp
 {
-    public class HotKeyService : IDisposable
+    public interface IHotKeyService : IDisposable
+    {
+        int RegisterGlobalHotKey(Key key, KeyModifiers modifiers, Action action);
+        void UnregisterGlobalHotKey(int id);
+    }
+
+    public static class HotKeyServiceFactory
+    {
+        public static IHotKeyService Create(Window window)
+        {
+#if MACOS || OSX || MACCATALYST
+            if (OperatingSystem.IsMacOS())
+                return new HotKeyServiceMac(window);
+#endif
+#if WINDOWS         
+            if (OperatingSystem.IsWindows())
+                return new HotKeyServiceWindows(window);
+#endif     
+            throw new PlatformNotSupportedException("Global hotkeys are not supported on this platform.");
+        }
+    }
+
+#if WINDOWS
+    public class HotKeyServiceWindows : IHotKeyService
     {
         private const int WM_HOTKEY = 0x0312;
         
@@ -22,7 +45,7 @@ namespace AvaloniaApp
         private IntPtr _prevWndProc;
         private Win32WindowProc? _wndProc;
         
-        public HotKeyService(Window window)
+        public HotKeyServiceWindows(Window window)
         {
             _window = window;
             SetupMessageHook();
@@ -55,7 +78,7 @@ namespace AvaloniaApp
 
         public int RegisterGlobalHotKey(Key key, KeyModifiers modifiers, Action action)
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(HotKeyService));
+            if (_isDisposed) throw new ObjectDisposedException(nameof(HotKeyServiceWindows));
             if (!OperatingSystem.IsWindows() || _hwnd == IntPtr.Zero)
                 throw new PlatformNotSupportedException("Global hotkeys are only supported on Windows.");
 
@@ -204,4 +227,5 @@ namespace AvaloniaApp
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
     }
+#endif
 }
