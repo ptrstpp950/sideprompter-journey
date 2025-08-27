@@ -24,7 +24,7 @@ public class AudioTranscriptionService
         // TODO: Move configuration to a more appropriate place
         var endpoint = "https://openai-ptsp.openai.azure.com/";
         var deploymentName = "gpt-5-nano";
-        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? throw new InvalidOperationException("OPENAI_API_KEY not found.");
+        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "NO_API_KEY";
         _chatCompletionService = new ChatCompletionService(endpoint, apiKey, deploymentName);
     }
 

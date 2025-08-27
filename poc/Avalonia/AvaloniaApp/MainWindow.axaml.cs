@@ -34,8 +34,13 @@ public partial class MainWindow : Window
         // Register global ALT+? hotkey
         try
         {
-            _hotKeyService = HotKeyServiceFactory.Create(this);
-            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
+#if MACOS || OSX || MACCATALYST
+            _hotKeyService = new HotKeyServiceMac(this);
+            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+#elif WINDOWS
+            _hotKeyService = new HotKeyServiceWindows(this);
+            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+#endif
         }
         catch (Exception ex)
         {

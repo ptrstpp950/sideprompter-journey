@@ -45,10 +45,36 @@
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Whisper.net" Version="1.8.1" />
-    <PackageReference Include="Whisper.net.AllRuntimes" Version="1.8.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.8.1" />
   </ItemGroup>
   
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
-    <None Update="Info.plist" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Info.plist">
+      <Link>Info.plist</Link>
+    </None>
   </ItemGroup>
+
+  <!-- Copy Whisper.NET native libraries to the correct location for macOS -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libwhisper.dylib" 
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-whisper.dylib" 
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-base-whisper.dylib" 
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-cpu-whisper.dylib" 
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-blas-whisper.dylib" 
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="!$([MSBuild]::IsOSPlatform('OSX'))">
+    <Compile Remove="HotKeyService.cs" />
+  </ItemGroup>
+
 </Project>
