@@ -36,10 +36,10 @@ public partial class MainWindow : Window
         {
 #if MACOS || OSX || MACCATALYST
             _hotKeyService = new HotKeyServiceMac(this);
-            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
 #elif WINDOWS
             _hotKeyService = new HotKeyServiceWindows(this);
-            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
 #endif
         }
         catch (Exception ex)
