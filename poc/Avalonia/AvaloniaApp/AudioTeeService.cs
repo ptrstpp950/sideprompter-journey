@@ -316,8 +316,6 @@ public class AudioTeeService : IDisposable
             var totalBytesReceived = 0;
             var totalNonZeroBytes = 0;
             var chunksReceived = 0;
-            var lastChunkHash = 0;
-            var duplicateChunkCount = 0;
 
             while (!cancellationToken.IsCancellationRequested && !process.HasExited)
             {
@@ -336,14 +334,13 @@ public class AudioTeeService : IDisposable
                 chunksReceived++;
 
                 // Calculate a simple hash of the chunk to detect duplicates
-                var chunkHash = 0;
-                var nonZeroBytes = 0;
+                
+                /*var nonZeroBytes = 0;
                 for (int i = 0; i < bytesRead; i++)
                 {
                     if (buffer[i] != 0)
                     {
                         nonZeroBytes++;
-                        chunkHash = (chunkHash * 31 + buffer[i]) & 0x7FFFFFFF; // Simple hash
                     }
                 }
                 if (nonZeroBytes == 0)
@@ -352,18 +349,7 @@ public class AudioTeeService : IDisposable
                     continue;
                 }
 
-                totalNonZeroBytes += nonZeroBytes;
-
-                // Check for duplicate chunks
-                if (chunkHash == lastChunkHash && chunkHash != 0)
-                {
-                    duplicateChunkCount++;
-                }
-                else
-                {
-                    duplicateChunkCount = 0;
-                }
-                lastChunkHash = chunkHash;
+                totalNonZeroBytes += nonZeroBytes;*/
                 
                 // Create audio chunk with a copy of the data
                 var audioData = new byte[bytesRead];
@@ -372,7 +358,7 @@ public class AudioTeeService : IDisposable
                 var chunk = new AudioChunk(audioData, DateTime.UtcNow);
 
                 // Periodic debug info (every 50 chunks, when we first get non-zero data, or when detecting duplicates)
-                if (chunksReceived % 50 == 0 || (nonZeroBytes > 0 && totalNonZeroBytes == nonZeroBytes) || duplicateChunkCount > 0)
+                /*if (chunksReceived % 50 == 0 || (nonZeroBytes > 0 && totalNonZeroBytes == nonZeroBytes))
                 {
                     var logMessage = new LogMessage
                     {
@@ -380,35 +366,7 @@ public class AudioTeeService : IDisposable
                         MessageType = MessageType.Debug,
                         Message = $"Audio stats - Chunks: {chunksReceived}, Total bytes: {totalBytesReceived}, Non-zero bytes: {totalNonZeroBytes}, Current chunk: {bytesRead} bytes ({nonZeroBytes} non-zero), Hash: {chunkHash:X8}, Duplicates: {duplicateChunkCount}"
                     };
-                    //LogReceived?.Invoke(this, logMessage);
-
-                    // Warn about duplicate chunks and potentially restart if severely stuck
-                    if (duplicateChunkCount > 5)
-                    {
-                        var duplicateWarning = new LogMessage
-                        {
-                            Timestamp = DateTime.UtcNow,
-                            MessageType = MessageType.Info,
-                            Message = $"Detected {duplicateChunkCount} duplicate chunks - AudioTee binary might be stuck or looping"
-                        };
-                        LogReceived?.Invoke(this, duplicateWarning);
-
-                        // If we have too many duplicates, the process might be stuck
-                        if (duplicateChunkCount > 20)
-                        {
-                            var restartWarning = new LogMessage
-                            {
-                                Timestamp = DateTime.UtcNow,
-                                MessageType = MessageType.Error,
-                                Message = "AudioTee appears to be stuck with repeated data - this may require a restart"
-                            };
-                            LogReceived?.Invoke(this, restartWarning);
-                            
-                            // You could implement an auto-restart here if needed
-                            // break; // Exit the loop to restart the process
-                        }
-                    }
-
+                    
                     // If we've received many chunks but all zeros, suggest permission issue
                     if (chunksReceived > 10 && totalNonZeroBytes == 0)
                     {
@@ -420,7 +378,7 @@ public class AudioTeeService : IDisposable
                         };
                         LogReceived?.Invoke(this, permissionWarning);
                     }
-                }
+                }*/
 
                 DataReceived?.Invoke(this, chunk);
             }
