@@ -77,4 +77,19 @@
     <Compile Remove="HotKeyService.cs" />
   </ItemGroup>
 
+  <!-- Copy AudioTee binary to output directory -->
+  <ItemGroup>
+    <None Include="libs/audioteejs/bin/audiotee" 
+          CopyToOutputDirectory="PreserveNewest"
+          TargetPath="libs/audioteejs/bin/audiotee"
+          Visible="false" />
+  </ItemGroup>
+
+  <!-- For macOS app bundles, copy to Resources folder -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <BundleResource Include="libs/audioteejs/bin/audiotee">
+      <LogicalName>libs/audioteejs/bin/audiotee</LogicalName>
+    </BundleResource>
+  </ItemGroup>
+
 </Project>

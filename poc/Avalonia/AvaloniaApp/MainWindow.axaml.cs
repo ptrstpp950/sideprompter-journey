@@ -9,7 +9,7 @@ namespace AvaloniaApp;
 
 public partial class MainWindow : Window
 {
-    private readonly AudioTranscriptionService _transcriptionService;
+    private readonly AudioTeeTranscriptionService _transcriptionService;
     private readonly IWindowTextExtractionService _windowTextExtractionService;
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
@@ -19,8 +19,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _transcriptionService = new AudioTranscriptionService();
+        _transcriptionService = new AudioTeeTranscriptionService();
         _transcriptionService.MessageGenerated += OnMessageGenerated;
+        _transcriptionService.StatusChanged += OnMessageGenerated;
+        
 #if MACOS || OSX || MACCATALYST
         _windowTextExtractionService = new WindowTextExtractionServiceMac();
 #elif WINDOWS
@@ -155,11 +157,11 @@ public partial class MainWindow : Window
 
 
 
-    private void ToggleButton_OnUnchecked(object? sender, RoutedEventArgs e)
+    private async void ToggleButton_OnUnchecked(object? sender, RoutedEventArgs e)
     {
         if (_isTranscribing)
         {
-            _transcriptionService.StopProcessing();
+            await _transcriptionService.StopProcessing();
             _isTranscribing = false;
             ToggleButton.Content = "Start Transcription";
         }
