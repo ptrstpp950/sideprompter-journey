@@ -168,9 +168,7 @@ public class AudioTeeService : IDisposable
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true,
-                // Ensure we don't buffer the output
-                Environment = { ["PYTHONUNBUFFERED"] = "1" }
+                CreateNoWindow = true
             };
 
             _process = new Process { StartInfo = processStartInfo };
@@ -190,11 +188,11 @@ public class AudioTeeService : IDisposable
             //_process.BeginErrorReadLine();
             
             // Handle stdout for audio data
-            var stdoutTask = Task.Run(() => HandleStdoutAsync(_process, _cancellationTokenSource.Token), 
+            _ = Task.Run(() => HandleStdoutAsync(_process, _cancellationTokenSource.Token), 
                 _cancellationTokenSource.Token);
 
             // Handle stderr for logs
-            var stderrTask = Task.Run(() => HandleStderrAsync(_process, _cancellationTokenSource.Token), 
+            _ = Task.Run(() => HandleStderrAsync(_process, _cancellationTokenSource.Token), 
                 _cancellationTokenSource.Token);
 
 
@@ -313,10 +311,7 @@ public class AudioTeeService : IDisposable
         {
             await using var stream = process.StandardOutput.BaseStream;
             var buffer = new byte[10*1024];
-            var totalBytesReceived = 0;
-            var totalNonZeroBytes = 0;
-            var chunksReceived = 0;
-
+            
             while (!cancellationToken.IsCancellationRequested && !process.HasExited)
             {
                 // Clear the buffer to ensure we're not reading stale data
@@ -329,57 +324,13 @@ public class AudioTeeService : IDisposable
                     await Task.Delay(10, cancellationToken);
                     continue;
                 }
-
-                totalBytesReceived += bytesRead;
-                chunksReceived++;
-
-                // Calculate a simple hash of the chunk to detect duplicates
-                
-                /*var nonZeroBytes = 0;
-                for (int i = 0; i < bytesRead; i++)
-                {
-                    if (buffer[i] != 0)
-                    {
-                        nonZeroBytes++;
-                    }
-                }
-                if (nonZeroBytes == 0)
-                {
-                    await Task.Delay(10, cancellationToken);
-                    continue;
-                }
-
-                totalNonZeroBytes += nonZeroBytes;*/
                 
                 // Create audio chunk with a copy of the data
                 var audioData = new byte[bytesRead];
                 Array.Copy(buffer, 0, audioData, 0, bytesRead);
 
                 var chunk = new AudioChunk(audioData, DateTime.UtcNow);
-
-                // Periodic debug info (every 50 chunks, when we first get non-zero data, or when detecting duplicates)
-                /*if (chunksReceived % 50 == 0 || (nonZeroBytes > 0 && totalNonZeroBytes == nonZeroBytes))
-                {
-                    var logMessage = new LogMessage
-                    {
-                        Timestamp = DateTime.UtcNow,
-                        MessageType = MessageType.Debug,
-                        Message = $"Audio stats - Chunks: {chunksReceived}, Total bytes: {totalBytesReceived}, Non-zero bytes: {totalNonZeroBytes}, Current chunk: {bytesRead} bytes ({nonZeroBytes} non-zero), Hash: {chunkHash:X8}, Duplicates: {duplicateChunkCount}"
-                    };
-                    
-                    // If we've received many chunks but all zeros, suggest permission issue
-                    if (chunksReceived > 10 && totalNonZeroBytes == 0)
-                    {
-                        var permissionWarning = new LogMessage
-                        {
-                            Timestamp = DateTime.UtcNow,
-                            MessageType = MessageType.Info,
-                            Message = "Receiving only zero bytes - this usually indicates missing System Audio Recording permission. Check Settings > Privacy & Security > Screen & System Audio Recording > System Audio Recording Only"
-                        };
-                        LogReceived?.Invoke(this, permissionWarning);
-                    }
-                }*/
-
+                
                 DataReceived?.Invoke(this, chunk);
             }
         }
