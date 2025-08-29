@@ -1,13 +1,29 @@
-
 import AppKit
 import Foundation
 
+func getAllText(from element: AXUIElement, allText: inout [String]) {
+    var children: AnyObject?
+    let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children)
+
+    if result == .success, let children = children as? [AXUIElement] {
+        for child in children {
+            var textValue: AnyObject?
+            let textResult = AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &textValue)
+            if textResult == .success, let text = textValue as? String, !text.isEmpty {
+                allText.append(text)
+            }
+            getAllText(from: child, allText: &allText)
+        }
+    }
+}
+
+
 // Check for accessibility permissions first.
-guard AXIsProcessTrusted() else {
+/*guard AXIsProcessTrusted() else {
     let errorData = "Accessibility permissions are not granted. Please grant them in System Settings.\n".data(using: .utf8)!
     FileHandle.standardError.write(errorData)
     exit(1)
-}
+}*/
 
 guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
     let errorData = "Could not get frontmost application.\n".data(using: .utf8)!
@@ -34,24 +50,13 @@ if windowResult != .success {
 
 let windowElement = focusedWindow as! AXUIElement
 
-var focusedElement: AnyObject?
-let focusedResult = AXUIElementCopyAttributeValue(windowElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
+var allText = [String]()
+getAllText(from: windowElement, allText: &allText)
 
-if focusedResult != .success {
-    let errorData = "Could not get focused UI element.\n".data(using: .utf8)!
+if allText.isEmpty {
+    let errorData = "Could not find any text in the active window.\n".data(using: .utf8)!
     FileHandle.standardError.write(errorData)
     exit(1)
-}
-
-let uiElement = focusedElement as! AXUIElement
-
-var textValue: AnyObject?
-let textResult = AXUIElementCopyAttributeValue(uiElement, kAXValueAttribute as CFString, &textValue)
-
-if textResult == .success, let text = textValue as? String {
-    print(text)
 } else {
-    let errorData = "Could not get text from the focused element.\n".data(using: .utf8)!
-    FileHandle.standardError.write(errorData)
-    exit(1)
+    print(allText.joined(separator: "\n"))
 }
