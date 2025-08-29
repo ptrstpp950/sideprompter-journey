@@ -71,12 +71,16 @@
   <!-- Copy AudioTee binary to output directory -->
   <ItemGroup>
     <None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" />
+    <None Include="libs/activeWindowTextGetter/bin/activeWindowTextGetter" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/activeWindowTextGetter/bin/activeWindowTextGetter" Visible="false" />
   </ItemGroup>
 
   <!-- For macOS app bundles, copy to Resources folder -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <BundleResource Include="libs/audioteejs/bin/audiotee">
       <LogicalName>libs/audioteejs/bin/audiotee</LogicalName>
+    </BundleResource>
+    <BundleResource Include="libs/activeWindowTextGetter/bin/activeWindowTextGetter">
+      <LogicalName>libs/activeWindowTextGetter/bin/activeWindowTextGetter</LogicalName>
     </BundleResource>
   </ItemGroup>
 

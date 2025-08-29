@@ -34,6 +34,8 @@
                     </Grid>
                     <Button x:Name="GetWindowTextButton" Content="Get Window Text" Width="200"
                             Click="GetWindowTextButton_OnClick"/>
+                    <Button x:Name="GetWindowTextCliButton" Content="Get Window Text (CLI)" Width="200"
+                            Click="GetWindowTextCliButton_OnClick"/>
                     <CheckBox x:Name="PrivacyModeCheckBox" Content="Privacy Mode (Hide this window from capture)"
                             Checked="PrivacyMode_OnToggled" Unchecked="PrivacyMode_OnToggled"/>
                     <TextBlock Text="Register ALT+W to extract window text:"/>

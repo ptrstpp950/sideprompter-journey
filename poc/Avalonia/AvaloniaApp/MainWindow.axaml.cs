@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 
@@ -67,6 +68,87 @@ public partial class MainWindow : Window
         await ExtractAndDisplayWindowText();
     }
     
+    private async void GetWindowTextCliButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        await ExtractAndDisplayWindowTextViaCli();
+    }
+    
+    private async Task ExtractAndDisplayWindowTextViaCli()
+    {
+        try
+        {
+            AddMessage("--- Running CLI tool to extract window text ---");
+            
+            var binaryPath = GetActiveWindowTextGetterBinaryPath();
+            
+            var processStartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = binaryPath,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = new System.Diagnostics.Process { StartInfo = processStartInfo };
+            process.Start();
+
+            string output = await process.StandardOutput.ReadToEndAsync();
+            string error = await process.StandardError.ReadToEndAsync();
+            
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0)
+            {
+                AddMessage($"CLI Output:");
+                AddMessage(output);
+            }
+            else
+            {
+                AddMessage($"CLI Error (Exit Code: {process.ExitCode}):");
+                if (!string.IsNullOrEmpty(error))
+                    AddMessage(error);
+                if (!string.IsNullOrEmpty(output))
+                    AddMessage(output);
+            }
+            
+            AddMessage("--- End of CLI output ---");
+        }
+        catch (Exception ex)
+        {
+            AddMessage($"Error running CLI tool: {ex.Message}");
+        }
+    }
+    
+    private string GetActiveWindowTextGetterBinaryPath()
+    {
+        // For macOS app bundles, check Resources first
+        if (OperatingSystem.IsMacOS())
+        {
+            var resourcesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
+                "..", "Resources", "libs", "activeWindowTextGetter", "bin", "activeWindowTextGetter");
+            if (File.Exists(resourcesPath))
+                return resourcesPath;
+        }
+
+        // For regular builds, try the libs directory
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var libsPath = Path.Combine(baseDir, "libs", "activeWindowTextGetter", "bin", "activeWindowTextGetter");
+        
+        if (File.Exists(libsPath))
+            return libsPath;
+
+        // Fallback to looking in the current directory structure
+        var currentDir = Directory.GetCurrentDirectory();
+        var projectPath = Path.Combine(currentDir, "libs", "activeWindowTextGetter", "bin", "activeWindowTextGetter");
+        
+        if (File.Exists(projectPath))
+            return projectPath;
+
+        // Last resort - assume it's in PATH
+        return "activeWindowTextGetter";
+    }
+    
     private async Task ExtractAndDisplayWindowText()
     {
         try
@@ -127,7 +209,7 @@ public partial class MainWindow : Window
     
     private async void OnWindowTextHotkeyPressed()
     {
-        await ExtractAndDisplayWindowText();
+        await ExtractAndDisplayWindowTextViaCli();
     }
     
     private void PrivacyMode_OnToggled(object? sender, RoutedEventArgs e)
