@@ -37,8 +37,8 @@ public partial class MainWindow : Window
         try
         {
 #if MACOS || OSX || MACCATALYST
-            _hotKeyService = new HotKeyServiceMac(this);
-            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
+            _hotKeyService = new HotKeyServiceMacOptionTwo(this);
+            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
 #elif WINDOWS
             _hotKeyService = new HotKeyServiceWindows(this);
             _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
@@ -105,10 +105,9 @@ public partial class MainWindow : Window
         {
             if (_hotKeyService != null && _windowTextHotkeyId == null)
             {
-                _windowTextHotkeyId = _hotKeyService.RegisterGlobalHotKey(Key.W, KeyModifiers.Alt, OnWindowTextHotkeyPressed);
+                _windowTextHotkeyId = _hotKeyService.RegisterGlobalHotKey(Key.W, KeyModifiers.Meta, OnWindowTextHotkeyPressed);
                 AddMessage("Registered ALT+W hotkey for window text extraction");
-                var service = new HotKeyServiceMacOptionTwo(this);
-                service.Register();
+                
                 RegisterHotkeyButton.Content = "Unregister Hotkey";
             }
             else if (_hotKeyService != null && _windowTextHotkeyId != null)
