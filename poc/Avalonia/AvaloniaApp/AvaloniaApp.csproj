@@ -43,6 +43,7 @@
     <PackageReference Include="DotNetEnv" Version="3.1.1" />
     <PackageReference Include="FlaUI.Core" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <PackageReference Include="HotKeyManager.Binding" Version="2.0.0" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Whisper.net" Version="1.8.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.8.1" />
@@ -56,21 +57,11 @@
 
   <!-- Copy Whisper.NET native libraries to the correct location for macOS -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libwhisper.dylib" 
-          CopyToOutputDirectory="PreserveNewest"
-          Visible="false" />
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-whisper.dylib" 
-          CopyToOutputDirectory="PreserveNewest"
-          Visible="false" />
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-base-whisper.dylib" 
-          CopyToOutputDirectory="PreserveNewest"
-          Visible="false" />
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-cpu-whisper.dylib" 
-          CopyToOutputDirectory="PreserveNewest"
-          Visible="false" />
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-blas-whisper.dylib" 
-          CopyToOutputDirectory="PreserveNewest"
-          Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libwhisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-base-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-cpu-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-blas-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <ItemGroup Condition="!$([MSBuild]::IsOSPlatform('OSX'))">
@@ -79,10 +70,7 @@
 
   <!-- Copy AudioTee binary to output directory -->
   <ItemGroup>
-    <None Include="libs/audioteejs/bin/audiotee" 
-          CopyToOutputDirectory="PreserveNewest"
-          TargetPath="libs/audioteejs/bin/audiotee"
-          Visible="false" />
+    <None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" />
   </ItemGroup>
 
   <!-- For macOS app bundles, copy to Resources folder -->

@@ -107,6 +107,8 @@ public partial class MainWindow : Window
             {
                 _windowTextHotkeyId = _hotKeyService.RegisterGlobalHotKey(Key.W, KeyModifiers.Alt, OnWindowTextHotkeyPressed);
                 AddMessage("Registered ALT+W hotkey for window text extraction");
+                var service = new HotKeyServiceMacOptionTwo(this);
+                service.Register();
                 RegisterHotkeyButton.Content = "Unregister Hotkey";
             }
             else if (_hotKeyService != null && _windowTextHotkeyId != null)

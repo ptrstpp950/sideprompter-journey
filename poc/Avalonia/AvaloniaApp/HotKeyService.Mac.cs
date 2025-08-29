@@ -9,9 +9,37 @@ using Avalonia.Input;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Foundation;
+using HotKeyManager;
 
 namespace AvaloniaApp
 {
+    public class HotKeyServiceMacOptionTwo : NSObject
+    {
+        private readonly Window _window;
+        private readonly JFHotkeyManager _hotkeyManager;
+
+        public HotKeyServiceMacOptionTwo(Window window)
+        {
+            _window = window;
+            _hotkeyManager = new JFHotkeyManager();
+
+        }
+
+        public void Register()
+        {
+            _hotkeyManager.BindKeyRef(49, (uint)(EModifierKeys.CmdKey | EModifierKeys.ShiftKey), this, new ObjCRuntime.Selector("onHotkeyExecuted"));
+            _hotkeyManager.Bind("command /", this, new ObjCRuntime.Selector("onHotkeyExecuted"));
+
+        }
+        
+        [Export("onHotkeyExecuted")]
+        void OnHotkeyExecuted()
+        {
+            Console.WriteLine("aaaaa");
+            // do something
+        }
+    }
     public class HotKeyServiceMac : IHotKeyService
     {
         private readonly Dictionary<int, (Key key, KeyModifiers modifiers, Action action)> _registeredHotKeys = new Dictionary<int, (Key, KeyModifiers, Action)>();
