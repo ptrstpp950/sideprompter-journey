@@ -19,24 +19,27 @@ namespace AvaloniaApp
     {
         private readonly Window _window;
         private readonly JFHotkeyManager _hotkeyManager;
-        private readonly Dictionary<int, Action> _registeredHotKeys;
-        private int _nextHotKeyId = 1;
+        private Action? _startRecordingAction;
+        private Action? _windowCaptureAction;
+        private bool _startRecordingRegistered = false;
+        private bool _windowCaptureRegistered = false;
         private bool _disposed = false;
 
         public HotKeyServiceMacOptionTwo(Window window)
         {
             _window = window;
             _hotkeyManager = new JFHotkeyManager();
-            _registeredHotKeys = new Dictionary<int, Action>();
         }
 
-        public int RegisterGlobalHotKey(Key key, KeyModifiers modifiers, Action action)
+        public void RegisterStartRecordingHotKey(Key key, KeyModifiers modifiers, Action action)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(HotKeyServiceMacOptionTwo));
 
-            var hotKeyId = _nextHotKeyId++;
-            _registeredHotKeys[hotKeyId] = action;
+            if (_startRecordingRegistered)
+                throw new InvalidOperationException("Start recording hotkey is already registered");
+
+            _startRecordingAction = action;
 
             try
             {
@@ -44,30 +47,69 @@ namespace AvaloniaApp
                 var macModifiers = ConvertToMacModifiers(modifiers);
                 var keyCode = ConvertToMacKeyCode(key);
 
-                // For now, we'll use the generic callback method
-                // Note: This is a limitation of the current approach - all hotkeys will trigger the same callback
-                // In a production implementation, you might need to use a different strategy
-                var selector = new ObjCRuntime.Selector("onHotkeyExecuted");
+                var selector = new ObjCRuntime.Selector("onStartRecordingExecuted");
                 _hotkeyManager.BindKeyRef(keyCode, macModifiers, this, selector);
 
-                return hotKeyId;
+                _startRecordingRegistered = true;
             }
             catch (Exception ex)
             {
-                // If registration fails, remove from our tracking
-                _registeredHotKeys.Remove(hotKeyId);
-                throw new InvalidOperationException($"Failed to register hotkey {key}+{modifiers}: {ex.Message}", ex);
+                _startRecordingAction = null;
+                throw new InvalidOperationException($"Failed to register start recording hotkey {key}+{modifiers}: {ex.Message}", ex);
             }
         }
 
-        public void UnregisterGlobalHotKey(int id)
+        public void RegisterWindowCaptureHotKey(Key key, KeyModifiers modifiers, Action action)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(HotKeyServiceMacOptionTwo));
+
+            if (_windowCaptureRegistered)
+                throw new InvalidOperationException("Window capture hotkey is already registered");
+
+            _windowCaptureAction = action;
+
+            try
+            {
+                // Convert Avalonia Key and KeyModifiers to macOS equivalents
+                var macModifiers = ConvertToMacModifiers(modifiers);
+                var keyCode = ConvertToMacKeyCode(key);
+
+                var selector = new ObjCRuntime.Selector("onWindowCaptureExecuted");
+                _hotkeyManager.BindKeyRef(keyCode, macModifiers, this, selector);
+
+                _windowCaptureRegistered = true;
+            }
+            catch (Exception ex)
+            {
+                _windowCaptureAction = null;
+                throw new InvalidOperationException($"Failed to register window capture hotkey {key}+{modifiers}: {ex.Message}", ex);
+            }
+        }
+
+        public void UnregisterStartRecordingHotKey()
         {
             if (_disposed)
                 return;
 
-            if (_registeredHotKeys.ContainsKey(id))
+            if (_startRecordingRegistered)
             {
-                _registeredHotKeys.Remove(id);
+                _startRecordingAction = null;
+                _startRecordingRegistered = false;
+                // Note: JFHotkeyManager might not have an unbind method
+                // You may need to implement this based on the actual API
+            }
+        }
+
+        public void UnregisterWindowCaptureHotKey()
+        {
+            if (_disposed)
+                return;
+
+            if (_windowCaptureRegistered)
+            {
+                _windowCaptureAction = null;
+                _windowCaptureRegistered = false;
                 // Note: JFHotkeyManager might not have an unbind method
                 // You may need to implement this based on the actual API
             }
@@ -102,6 +144,7 @@ namespace AvaloniaApp
                 Key.Enter => 36,                // Return key
                 Key.Escape => 53,               // Escape key
                 Key.Tab => 48,                  // Tab key
+                Key.OemPeriod => 47,
                 Key.A => 0,                     // A key
                 Key.S => 1,                     // S key
                 Key.D => 2,                     // D key
@@ -111,43 +154,29 @@ namespace AvaloniaApp
             };
         }
 
-        [Export("onHotkeyExecuted")]
-        void OnHotkeyExecuted()
+        [Export("onStartRecordingExecuted")]
+        void OnStartRecordingExecuted()
         {
-            // Since the current HotKeyManager binding doesn't provide a way to identify which specific hotkey was pressed,
-            // we have a limitation: all registered hotkeys will trigger all actions
-            // This is a simplified implementation - in production you might need a different approach
-            
             try
             {
-                // Execute all registered actions
-                // Note: This is not ideal but works as a starting point
-                foreach (var action in _registeredHotKeys.Values.ToList())
-                {
-                    try
-                    {
-                        action?.Invoke();
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log the error but don't let one action failure stop others
-                        Console.WriteLine($"Error executing hotkey action: {ex.Message}");
-                    }
-                }
+                _startRecordingAction?.Invoke();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in OnHotkeyExecuted: {ex.Message}");
+                Console.WriteLine($"Error executing start recording hotkey action: {ex.Message}");
             }
         }
 
-        // Generic hotkey execution method - in a real implementation, 
-        // you'd need a more sophisticated way to route callbacks
-        private void ExecuteHotKeyAction(int hotKeyId)
+        [Export("onWindowCaptureExecuted")]
+        void OnWindowCaptureExecuted()
         {
-            if (_registeredHotKeys.TryGetValue(hotKeyId, out var action))
+            try
             {
-                action?.Invoke();
+                _windowCaptureAction?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error executing window capture hotkey action: {ex.Message}");
             }
         }
 
@@ -164,13 +193,9 @@ namespace AvaloniaApp
                 if (disposing)
                 {
                     // Unregister all hotkeys
-                    var hotKeyIds = new List<int>(_registeredHotKeys.Keys);
-                    foreach (var id in hotKeyIds)
-                    {
-                        UnregisterGlobalHotKey(id);
-                    }
+                    UnregisterStartRecordingHotKey();
+                    UnregisterWindowCaptureHotKey();
                     
-                    _registeredHotKeys.Clear();
                     _hotkeyManager?.Dispose();
                 }
                 

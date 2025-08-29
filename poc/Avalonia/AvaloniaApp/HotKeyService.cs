@@ -14,8 +14,10 @@ namespace AvaloniaApp
     {
         private const int WM_HOTKEY = 0x0312;
         
-        private readonly Dictionary<int, Action> _registeredHotKeys = new Dictionary<int, Action>();
-        private int _currentId = 0;
+        private Action? _startRecordingAction;
+        private Action? _windowCaptureAction;
+        private int _startRecordingId = -1;
+        private int _windowCaptureId = -1;
         private readonly Window _window;
         private bool _isDisposed = false;
         
@@ -46,22 +48,34 @@ namespace AvaloniaApp
         
         private IntPtr WindowProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
-            if (msg == WM_HOTKEY && _registeredHotKeys.TryGetValue((int)wParam, out var action))
+            if (msg == WM_HOTKEY)
             {
-                action?.Invoke();
-                return IntPtr.Zero;
+                int id = (int)wParam;
+                if (id == _startRecordingId)
+                {
+                    _startRecordingAction?.Invoke();
+                    return IntPtr.Zero;
+                }
+                else if (id == _windowCaptureId)
+                {
+                    _windowCaptureAction?.Invoke();
+                    return IntPtr.Zero;
+                }
             }
             
             return CallWindowProc(_prevWndProc, hwnd, msg, wParam, lParam);
         }
 
-        public int RegisterGlobalHotKey(Key key, KeyModifiers modifiers, Action action)
+        public void RegisterStartRecordingHotKey(Key key, KeyModifiers modifiers, Action action)
         {
             if (_isDisposed) throw new ObjectDisposedException(nameof(HotKeyServiceWindows));
             if (!OperatingSystem.IsWindows() || _hwnd == IntPtr.Zero)
                 throw new PlatformNotSupportedException("Global hotkeys are only supported on Windows.");
 
-            int id = ++_currentId;
+            if (_startRecordingId != -1)
+                throw new InvalidOperationException("Start recording hotkey is already registered");
+
+            int id = 1; // Fixed ID for start recording
             
             uint modifierFlags = 0;
             if (modifiers.HasFlag(KeyModifiers.Alt)) modifierFlags |= MOD_ALT;
@@ -73,25 +87,70 @@ namespace AvaloniaApp
 
             if (RegisterHotKey(_hwnd, id, modifierFlags, vk))
             {
-                _registeredHotKeys.Add(id, action);
-                return id;
+                _startRecordingAction = action;
+                _startRecordingId = id;
             }
             else
             {
                 int error = Marshal.GetLastWin32Error();
-                throw new InvalidOperationException($"Failed to register hot key. Error code: {error}");
+                throw new InvalidOperationException($"Failed to register start recording hot key. Error code: {error}");
             }
         }
 
-        public void UnregisterGlobalHotKey(int id)
+        public void RegisterWindowCaptureHotKey(Key key, KeyModifiers modifiers, Action action)
+        {
+            if (_isDisposed) throw new ObjectDisposedException(nameof(HotKeyServiceWindows));
+            if (!OperatingSystem.IsWindows() || _hwnd == IntPtr.Zero)
+                throw new PlatformNotSupportedException("Global hotkeys are only supported on Windows.");
+
+            if (_windowCaptureId != -1)
+                throw new InvalidOperationException("Window capture hotkey is already registered");
+
+            int id = 2; // Fixed ID for window capture
+            
+            uint modifierFlags = 0;
+            if (modifiers.HasFlag(KeyModifiers.Alt)) modifierFlags |= MOD_ALT;
+            if (modifiers.HasFlag(KeyModifiers.Control)) modifierFlags |= MOD_CONTROL;
+            if (modifiers.HasFlag(KeyModifiers.Shift)) modifierFlags |= MOD_SHIFT;
+            if (modifiers.HasFlag(KeyModifiers.Meta)) modifierFlags |= MOD_WIN;
+            
+            uint vk = KeyToVirtualKey(key);
+
+            if (RegisterHotKey(_hwnd, id, modifierFlags, vk))
+            {
+                _windowCaptureAction = action;
+                _windowCaptureId = id;
+            }
+            else
+            {
+                int error = Marshal.GetLastWin32Error();
+                throw new InvalidOperationException($"Failed to register window capture hot key. Error code: {error}");
+            }
+        }
+
+        public void UnregisterStartRecordingHotKey()
         {
             if (_isDisposed || !OperatingSystem.IsWindows() || _hwnd == IntPtr.Zero) 
                 return;
 
-            if (_registeredHotKeys.ContainsKey(id))
+            if (_startRecordingId != -1)
             {
-                UnregisterHotKey(_hwnd, id);
-                _registeredHotKeys.Remove(id);
+                UnregisterHotKey(_hwnd, _startRecordingId);
+                _startRecordingAction = null;
+                _startRecordingId = -1;
+            }
+        }
+
+        public void UnregisterWindowCaptureHotKey()
+        {
+            if (_isDisposed || !OperatingSystem.IsWindows() || _hwnd == IntPtr.Zero) 
+                return;
+
+            if (_windowCaptureId != -1)
+            {
+                UnregisterHotKey(_hwnd, _windowCaptureId);
+                _windowCaptureAction = null;
+                _windowCaptureId = -1;
             }
         }
 
@@ -102,10 +161,8 @@ namespace AvaloniaApp
                 if (OperatingSystem.IsWindows() && _hwnd != IntPtr.Zero)
                 {
                     // Unregister all hotkeys
-                    foreach (var id in _registeredHotKeys.Keys)
-                    {
-                        UnregisterHotKey(_hwnd, id);
-                    }
+                    UnregisterStartRecordingHotKey();
+                    UnregisterWindowCaptureHotKey();
                     
                     // Restore original window procedure
                     if (_prevWndProc != IntPtr.Zero)
@@ -114,7 +171,6 @@ namespace AvaloniaApp
                     }
                 }
                 
-                _registeredHotKeys.Clear();
                 _isDisposed = true;
             }
         }

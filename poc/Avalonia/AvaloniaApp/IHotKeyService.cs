@@ -6,7 +6,9 @@ namespace AvaloniaApp
 {
     public interface IHotKeyService : IDisposable
     {
-        int RegisterGlobalHotKey(Key key, KeyModifiers modifiers, Action action);
-        void UnregisterGlobalHotKey(int id);
+        void RegisterStartRecordingHotKey(Key key, KeyModifiers modifiers, Action action);
+        void RegisterWindowCaptureHotKey(Key key, KeyModifiers modifiers, Action action);
+        void UnregisterStartRecordingHotKey();
+        void UnregisterWindowCaptureHotKey();
     }
 }

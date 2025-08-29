@@ -13,8 +13,8 @@ public partial class MainWindow : Window
     private readonly IWindowTextExtractionService _windowTextExtractionService;
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
-    private readonly IHotKeyService? _hotKeyService;
-    private int? _windowTextHotkeyId;
+    private IHotKeyService? _hotKeyService;
+    private bool _windowCaptureHotkeyRegistered = false;
 
     public MainWindow()
     {
@@ -38,10 +38,10 @@ public partial class MainWindow : Window
         {
 #if MACOS || OSX || MACCATALYST
             _hotKeyService = new HotKeyServiceMacOptionTwo(this);
-            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+            _hotKeyService.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
 #elif WINDOWS
             _hotKeyService = new HotKeyServiceWindows(this);
-            _hotKeyService.RegisterGlobalHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
+            _hotKeyService.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
 #endif
         }
         catch (Exception ex)
@@ -103,18 +103,19 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (_hotKeyService != null && _windowTextHotkeyId == null)
+            if (_hotKeyService != null && !_windowCaptureHotkeyRegistered)
             {
-                _windowTextHotkeyId = _hotKeyService.RegisterGlobalHotKey(Key.W, KeyModifiers.Meta, OnWindowTextHotkeyPressed);
-                AddMessage("Registered ALT+W hotkey for window text extraction");
+                _hotKeyService.RegisterWindowCaptureHotKey(Key.OemPeriod, KeyModifiers.Meta, OnWindowTextHotkeyPressed);
+                _windowCaptureHotkeyRegistered = true;
+                AddMessage("Registered CMD+. hotkey for window text extraction");
                 
                 RegisterHotkeyButton.Content = "Unregister Hotkey";
             }
-            else if (_hotKeyService != null && _windowTextHotkeyId != null)
+            else if (_hotKeyService != null && _windowCaptureHotkeyRegistered)
             {
-                _hotKeyService.UnregisterGlobalHotKey(_windowTextHotkeyId.Value);
-                _windowTextHotkeyId = null;
-                AddMessage("Unregistered ALT+W hotkey");
+                _hotKeyService.UnregisterWindowCaptureHotKey();
+                _windowCaptureHotkeyRegistered = false;
+                AddMessage("Unregistered CMD+. hotkey");
                 RegisterHotkeyButton.Content = "Register Hotkey";
             }
         }
