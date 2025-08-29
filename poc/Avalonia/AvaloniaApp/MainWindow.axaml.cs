@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _transcriptionService = new AudioTeeTranscriptionService();
+        _transcriptionService = new AudioTeeTranscriptionService(new AudioTeeOptions(){SampleRate = 16000});
         _transcriptionService.MessageGenerated += OnMessageGenerated;
         _transcriptionService.StatusChanged += OnMessageGenerated;
         

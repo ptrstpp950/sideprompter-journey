@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using NAudio.Wave;
+using Whisper.net;
+using Whisper.net.Ggml;
+using OpenAI.Chat;
 
 namespace AvaloniaApp;
 
@@ -16,6 +20,9 @@ public class AudioTeeTranscriptionService : IDisposable
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
+    private WhisperFactory? _whisperFactory;
+    private WhisperProcessor? _whisperProcessor;
+    private readonly List<ChatMessage> _messages = new();
 
     public event Action<string>? MessageGenerated;
     public event Action<LogMessage>? LogReceived;
@@ -84,6 +91,15 @@ public class AudioTeeTranscriptionService : IDisposable
         
         try
         {
+            StatusChanged?.Invoke("Initializing Whisper model...");
+            
+            // Initialize Whisper model
+            await InitializeWhisperAsync(language, _cancellationTokenSource.Token);
+            
+            // Initialize chat completion messages
+            _messages.Clear();
+            _messages.AddRange(_chatCompletionService.Initialize());
+            
             StatusChanged?.Invoke("Starting AudioTee capture...");
             
             // Start the AudioTee service
@@ -128,7 +144,45 @@ public class AudioTeeTranscriptionService : IDisposable
         {
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
+            
+            // Clean up Whisper resources
+            _whisperProcessor?.Dispose();
+            _whisperProcessor = null;
+            _whisperFactory?.Dispose();
+            _whisperFactory = null;
         }
+    }
+
+    /// <summary>
+    /// Initialize the Whisper model for transcription
+    /// </summary>
+    private async Task InitializeWhisperAsync(string language, CancellationToken cancellationToken)
+    {
+        var type = GgmlType.Tiny;
+        var modelName = "ggml-" + type + ".bin";
+        var modelPath = Path.GetFullPath(Path.Combine("./models", modelName));
+
+        if (!Directory.Exists(Path.GetDirectoryName(modelPath)))
+        {
+            StatusChanged?.Invoke($"Creating directory for Whisper model: {Path.GetDirectoryName(modelPath)}");
+            Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
+        }
+
+        if (!File.Exists(modelPath))
+        {
+            StatusChanged?.Invoke($"Downloading Whisper model '{modelName}' to '{modelPath}' ...");
+            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(type, cancellationToken: cancellationToken);
+            await using var fileStream = File.Create(modelPath);
+            await modelStream.CopyToAsync(fileStream, cancellationToken);
+            StatusChanged?.Invoke("Model downloaded.");
+        }
+
+        _whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
+        _whisperProcessor = _whisperFactory.CreateBuilder()
+            .WithLanguage(language)
+            .Build();
+            
+        StatusChanged?.Invoke("Whisper model initialized");
     }
 
     private async Task ProcessAudioPeriodically(string language, CancellationToken cancellationToken)
@@ -172,22 +226,116 @@ public class AudioTeeTranscriptionService : IDisposable
     {
         try
         {
-            // TODO: Implement actual transcription using Whisper.NET or other service
-            // For now, just log that we received data
-            StatusChanged?.Invoke($"Processing {audioData.Length} bytes of audio...");
+            if (_whisperProcessor == null)
+            {
+                MessageGenerated?.Invoke("[Error] Whisper processor not initialized");
+                return;
+            }
+
+            // Skip processing if audio data is too small or all zeros
+            if (audioData.Length < 1000 || IsAllZeros(audioData))
+            {
+                return;
+            }
+
+            StatusChanged?.Invoke($"Transcribing {audioData.Length} bytes of audio...");
             
-            // Placeholder for actual transcription logic
-            // You would typically:
-            // 1. Convert raw PCM data to WAV format
-            // 2. Use Whisper.NET to transcribe
-            // 3. Send to chat completion service if needed
+            // Convert raw PCM data to WAV format
+            using var stream = new MemoryStream();
             
-            await Task.Delay(100); // Simulate processing time
+            // AudioTee outputs 16-bit signed PCM at the specified sample rate
+            // Default sample rate from AudioTee is typically 44100 or 48000, but we configured it for 16000
+            var sampleRate = 16000; // This should match your AudioTeeOptions.SampleRate
+            var channels = 1; // AudioTee outputs mono
+            var bitsPerSample = 16;
+            
+            using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
+            
+            // Write the raw PCM data directly
+            writer.Write(audioData, 0, audioData.Length);
+            writer.Flush();
+            
+            // Reset stream position for reading
+            stream.Position = 0;
+
+            // Process with Whisper
+            var hasTranscription = false;
+            await foreach (var result in _whisperProcessor.ProcessAsync(stream, CancellationToken.None))
+            {
+                var message = $"[AudioTee] {result.Text}";
+
+                if (IsEmptyOrSound(result.Text))
+                    continue;
+
+                hasTranscription = true;
+                
+                // Add to chat messages (avoid duplicates)
+                if (_messages.Count == 0 || !(_messages[^1] is UserChatMessage lastMsg) || 
+                    !lastMsg.Content[0].Text.EndsWith(result.Text.Trim()))
+                {
+                    _messages.Add(new UserChatMessage(message));
+                    MessageGenerated?.Invoke(message);
+                    
+                    // Periodically process with chat completion
+                    if (_messages.Count > 0 && _messages.Count % 5 == 0)
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                StatusChanged?.Invoke("Processing with chat completion...");
+                                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                                var response = await _chatCompletionService.GetCompletionAsync(_messages, timeoutCts.Token);
+                                MessageGenerated?.Invoke($"[AI] {response}");
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                MessageGenerated?.Invoke("[Error] Chat completion request timed out.");
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageGenerated?.Invoke($"[Error] Chat completion error: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+            }
+            
+            if (hasTranscription)
+            {
+                StatusChanged?.Invoke("Transcription completed");
+            }
         }
         catch (Exception ex)
         {
             MessageGenerated?.Invoke($"[Error] Transcription failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Check if audio data is all zeros (silence)
+    /// </summary>
+    private static bool IsAllZeros(byte[] data)
+    {
+        for (int i = 0; i < data.Length; i++)
+        {
+            if (data[i] != 0)
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Check if transcription result is empty or just sound indicators
+    /// </summary>
+    private static bool IsEmptyOrSound(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return true;
+        text = text.Trim();
+        if (text.StartsWith('[') && text.EndsWith(']'))
+            return true;
+        return text.Length == 0;
     }
 
     /// <summary>
@@ -216,6 +364,8 @@ public class AudioTeeTranscriptionService : IDisposable
     {
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
+        _whisperProcessor?.Dispose();
+        _whisperFactory?.Dispose();
         _audioTeeService?.Dispose();
     }
 }
