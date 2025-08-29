@@ -6,6 +6,7 @@ import PackageDescription
 
 let package = Package(
     name: "activeWindowTextGetter",
+    platforms: [.macOS(.v10_15)],
     targets: [
         .executableTarget(
             name: "activeWindowTextGetter"),
