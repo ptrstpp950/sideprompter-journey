@@ -67,7 +67,6 @@
   <!-- Copy AudioTee binary to output directory -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" />
-    <None Include="libs/activeWindowTextGetter/bin/activeWindowTextGetter" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/activeWindowTextGetter/bin/activeWindowTextGetter" Visible="false" />
   </ItemGroup>
 
   <!-- For macOS app bundles, copy to Resources folder -->
@@ -75,9 +74,10 @@
     <BundleResource Include="libs/audioteejs/bin/audiotee">
       <LogicalName>libs/audioteejs/bin/audiotee</LogicalName>
     </BundleResource>
-    <BundleResource Include="libs/activeWindowTextGetter/bin/activeWindowTextGetter">
-      <LogicalName>libs/activeWindowTextGetter/bin/activeWindowTextGetter</LogicalName>
-    </BundleResource>
   </ItemGroup>
+
+  <Target Name="BuildActiveWindowTextGetter" Condition="$([MSBuild]::IsOSPlatform('OSX'))" BeforeTargets="Build" Inputs="libs/activeWindowTextGetter/Sources/**/*.swift" Outputs="libs/activeWindowTextGetter/.build/release/activeWindowTextGetter">
+    <Exec Command="cd libs/activeWindowTextGetter &amp;&amp; swift build --configuration release" />
+  </Target>
 
 </Project>
