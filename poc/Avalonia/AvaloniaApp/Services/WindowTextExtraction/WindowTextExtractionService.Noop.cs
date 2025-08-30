@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
+using AvaloniaApp.Services.WindowTextExtraction;
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Services.WindowTextExtraction
 {
     /// <summary>
     /// Fallback implementation used on unsupported platforms.

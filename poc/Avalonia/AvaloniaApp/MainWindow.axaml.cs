@@ -5,6 +5,9 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using AvaloniaApp.Services.EnableWindowPrivacy;
+using AvaloniaApp.Services.HotKey;
+using AvaloniaApp.Services.WindowTextExtraction;
 
 namespace AvaloniaApp;
 
@@ -215,7 +218,7 @@ public partial class MainWindow : Window
     private void PrivacyMode_OnToggled(object? sender, RoutedEventArgs e)
     {
         bool isChecked = PrivacyModeCheckBox.IsChecked ?? false;
-        WindowPrivacy.SetProtected(this, isChecked);
+        EnableWindowPrivacyService.SetProtected(this, isChecked);
         AddMessage($"Privacy mode {(isChecked ? "enabled" : "disabled")}");
     }
 

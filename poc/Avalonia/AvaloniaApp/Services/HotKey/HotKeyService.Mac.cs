@@ -3,21 +3,17 @@
 
 #if MACOS || OSX || MACCATALYST
 
-using Avalonia;
+using System;
 using Avalonia.Controls;
 using Avalonia.Input;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
 using Foundation;
 using HotKeyManager;
+// ReSharper disable RedundantDefaultMemberInitializer
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Services.HotKey
 {
     public class HotKeyServiceMacOptionTwo : NSObject, IHotKeyService
     {
-        private readonly Window _window;
         private readonly JFHotkeyManager _hotkeyManager;
         private Action? _startRecordingAction;
         private Action? _windowCaptureAction;
@@ -25,9 +21,8 @@ namespace AvaloniaApp
         private bool _windowCaptureRegistered = false;
         private bool _disposed = false;
 
-        public HotKeyServiceMacOptionTwo(Window window)
+        public HotKeyServiceMacOptionTwo(Window _)
         {
-            _window = window;
             _hotkeyManager = new JFHotkeyManager();
         }
 
@@ -47,7 +42,7 @@ namespace AvaloniaApp
                 var macModifiers = ConvertToMacModifiers(modifiers);
                 var keyCode = ConvertToMacKeyCode(key);
 
-                var selector = new ObjCRuntime.Selector("onStartRecordingExecuted");
+                var selector = new ObjCRuntime.Selector(nameof(OnStartRecordingExecuted));
                 _hotkeyManager.BindKeyRef(keyCode, macModifiers, this, selector);
 
                 _startRecordingRegistered = true;
@@ -55,7 +50,8 @@ namespace AvaloniaApp
             catch (Exception ex)
             {
                 _startRecordingAction = null;
-                throw new InvalidOperationException($"Failed to register start recording hotkey {key}+{modifiers}: {ex.Message}", ex);
+                throw new InvalidOperationException(
+                    $"Failed to register start recording hotkey {key}+{modifiers}: {ex.Message}", ex);
             }
         }
 
@@ -75,7 +71,7 @@ namespace AvaloniaApp
                 var macModifiers = ConvertToMacModifiers(modifiers);
                 var keyCode = ConvertToMacKeyCode(key);
 
-                var selector = new ObjCRuntime.Selector("onWindowCaptureExecuted");
+                var selector = new ObjCRuntime.Selector(nameof(OnWindowCaptureExecuted));
                 _hotkeyManager.BindKeyRef(keyCode, macModifiers, this, selector);
 
                 _windowCaptureRegistered = true;
@@ -83,7 +79,8 @@ namespace AvaloniaApp
             catch (Exception ex)
             {
                 _windowCaptureAction = null;
-                throw new InvalidOperationException($"Failed to register window capture hotkey {key}+{modifiers}: {ex.Message}", ex);
+                throw new InvalidOperationException(
+                    $"Failed to register window capture hotkey {key}+{modifiers}: {ex.Message}", ex);
             }
         }
 
@@ -139,22 +136,23 @@ namespace AvaloniaApp
             // You'll need to expand this based on your needs
             return key switch
             {
-                Key.Space => 49,                // Space bar
-                Key.OemQuestion => 44,          // Forward slash key (/)
-                Key.Enter => 36,                // Return key
-                Key.Escape => 53,               // Escape key
-                Key.Tab => 48,                  // Tab key
+                Key.Space => 49, // Space bar
+                Key.OemQuestion => 44, // Forward slash key (/)
+                Key.Enter => 36, // Return key
+                Key.Escape => 53, // Escape key
+                Key.Tab => 48, // Tab key
                 Key.OemPeriod => 47,
-                Key.A => 0,                     // A key
-                Key.S => 1,                     // S key
-                Key.D => 2,                     // D key
-                Key.F => 3,                     // F key
+                Key.A => 0, // A key
+                Key.S => 1, // S key
+                Key.D => 2, // D key
+                Key.F => 3, // F key
                 // Add more key mappings as needed
-                _ => throw new NotSupportedException($"Key {key} is not supported in this implementation. Please add the mapping for this key.")
+                _ => throw new NotSupportedException(
+                    $"Key {key} is not supported in this implementation. Please add the mapping for this key.")
             };
         }
 
-        [Export("onStartRecordingExecuted")]
+        [Export(nameof(OnStartRecordingExecuted))]
         void OnStartRecordingExecuted()
         {
             try
@@ -167,7 +165,7 @@ namespace AvaloniaApp
             }
         }
 
-        [Export("onWindowCaptureExecuted")]
+        [Export(nameof(OnWindowCaptureExecuted))]
         void OnWindowCaptureExecuted()
         {
             try
@@ -188,19 +186,19 @@ namespace AvaloniaApp
 
         protected override void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (_disposed) 
+                return;
+            
+            if (disposing)
             {
-                if (disposing)
-                {
-                    // Unregister all hotkeys
-                    UnregisterStartRecordingHotKey();
-                    UnregisterWindowCaptureHotKey();
-                    
-                    _hotkeyManager?.Dispose();
-                }
-                
-                _disposed = true;
+                // Unregister all hotkeys
+                UnregisterStartRecordingHotKey();
+                UnregisterWindowCaptureHotKey();
+
+                _hotkeyManager.Dispose();
             }
+
+            _disposed = true;
         }
     }
 }

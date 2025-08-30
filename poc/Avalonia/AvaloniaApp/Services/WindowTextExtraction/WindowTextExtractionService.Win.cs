@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Services.WindowTextExtraction
 {
     public class WindowTextExtractionServiceWin : IWindowTextExtractionService
     {

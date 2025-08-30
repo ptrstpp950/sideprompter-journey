@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Services.WindowTextExtraction
 {
     public interface IWindowTextExtractionService
     {

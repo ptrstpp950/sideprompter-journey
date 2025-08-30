@@ -9,9 +9,10 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using AppKit;
+using AvaloniaApp.Services.WindowTextExtraction;
 using Foundation;     // Referenced for NSWorkspace / bundle metadata (optional fallback)
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Services.WindowTextExtraction
 {
     /// <summary>
     /// macOS Accessibility-based implementation. Requires the app to have the "Accessibility" permission
@@ -88,7 +89,7 @@ namespace AvaloniaApp
                 if (!string.IsNullOrWhiteSpace(title))
                     return title;
 
-                // Fallback: frontmost application name
+                // Fallback: front most application name
                 try
                 {
                     var ws = NSWorkspace.SharedWorkspace;
@@ -168,6 +169,7 @@ namespace AvaloniaApp
             }
         }
 
+        // ReSharper disable once InconsistentNaming
         private static string? CFStringToString(IntPtr cfString)
         {
             if (cfString == IntPtr.Zero) return null;
@@ -178,7 +180,8 @@ namespace AvaloniaApp
             CFStringGetCharacters(cfString, range, buffer);
             return new string(buffer);
         }
-
+        
+        // ReSharper disable once InconsistentNaming
         private static List<IntPtr> NSArrayToList(IntPtr nsArray)
         {
             var list = new List<IntPtr>();
@@ -197,10 +200,15 @@ namespace AvaloniaApp
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
+
             return list;
         }
 
+        // ReSharper disable once InconsistentNaming
         private static IntPtr CreateCFString(string value)
         {
             if (value == null) throw new ArgumentNullException(nameof(value));
@@ -230,6 +238,7 @@ namespace AvaloniaApp
         [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
         private static extern void CFStringGetCharacters(IntPtr handle, CFRange range, [Out] char[] buffer);
 
+        // ReSharper disable once InconsistentNaming
         [StructLayout(LayoutKind.Sequential)]
         private struct CFRange
         {

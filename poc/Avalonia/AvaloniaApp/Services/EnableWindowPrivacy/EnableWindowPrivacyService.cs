@@ -1,8 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
 using Avalonia.Controls;
+// ReSharper disable InconsistentNaming
 
-namespace AvaloniaApp;
+namespace AvaloniaApp.Services.EnableWindowPrivacy;
 
 /// <summary>
 /// Provides cross-platform helpers to toggle window privacy / capture exclusion.
@@ -10,7 +11,7 @@ namespace AvaloniaApp;
 /// Windows: uses SetWindowDisplayAffinity with WDA_EXCLUDEFROMCAPTURE (0x11) / WDA_NONE (0).
 /// Other platforms: no-op.
 /// </summary>
-public static class WindowPrivacy
+public static class EnableWindowPrivacyService
 {
     public static void SetProtected(Window window, bool protect)
     {

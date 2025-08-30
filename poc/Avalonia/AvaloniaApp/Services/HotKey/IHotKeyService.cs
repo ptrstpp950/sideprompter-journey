@@ -2,7 +2,7 @@
 using System;
 using Avalonia.Input;
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Services.HotKey
 {
     public interface IHotKeyService : IDisposable
     {
