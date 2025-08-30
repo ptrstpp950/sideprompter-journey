@@ -43,7 +43,7 @@
     <PackageReference Include="DotNetEnv" Version="3.1.1" />
     <PackageReference Include="FlaUI.Core" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
-    <PackageReference Include="HotKeyManager.Binding" Version="2.0.0" />
+    <PackageReference Include="HotKeyManager.Binding" Version="2.0.0" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Whisper.net" Version="1.8.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.8.1" />
@@ -64,12 +64,8 @@
     <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-blas-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
-  <ItemGroup Condition="!$([MSBuild]::IsOSPlatform('OSX'))">
-    <Compile Remove="HotKeyService.cs" />
-  </ItemGroup>
-
   <!-- Copy AudioTee binary to output directory -->
-  <ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" />
     <None Include="libs/activeWindowTextGetter/bin/activeWindowTextGetter" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/activeWindowTextGetter/bin/activeWindowTextGetter" Visible="false" />
   </ItemGroup>

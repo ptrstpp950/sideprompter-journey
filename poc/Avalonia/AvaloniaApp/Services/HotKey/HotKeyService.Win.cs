@@ -7,7 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Services.HotKey
 {
 
     public class HotKeyServiceWindows : IHotKeyService
