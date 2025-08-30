@@ -1,4 +1,4 @@
-# Tales from Side Prompter: Chapter 4 - The macOS Audio Problem and the Sidecar Solution
+# Tales from Side Prompter: Chapter 4 - The macOS Audio Saga
 
 *This week's progress: 1% success, 99% learning what not to do. 🤦*
 
