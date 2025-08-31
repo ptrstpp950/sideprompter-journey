@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using AvaloniaApp.Services.AudioTranscription.Helpers;
 using AvaloniaApp.Services.TranscriptionService;
-using NAudio.Wave;
 
-namespace AvaloniaApp;
+namespace AvaloniaApp.Services.AudioTranscription;
 
 public class MicrophoneTranscriptionService : IAudioTranscriptionService
 {
@@ -15,7 +15,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
     private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
 
-    public event Action<string>? TranscriptionReceived;
+    public event Action<TranscriptionMessage>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
     public event Action<string>? StatusChanged;
 
@@ -51,17 +51,12 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
 
     private void OnMicrophoneError(object? sender, Exception error)
     {
-        TranscriptionReceived?.Invoke($"[Microphone Error] {error.Message}");
+        LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = error.Message});
     }
 
     private void OnMicrophoneLog(object? sender, LogMessage log)
     {
         LogReceived?.Invoke(log);
-        
-        if (log.MessageType == MessageType.Error)
-        {
-            TranscriptionReceived?.Invoke($"[Microphone] {log.Message}");
-        }
     }
 
     public async Task StartProcessing(string language = "en", CancellationToken cancellationToken = default)
@@ -86,9 +81,8 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         }
         catch (Exception ex)
         {
-            TranscriptionReceived?.Invoke($"[Error] Failed to start processing: {ex.Message}");
+            LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
             _cancellationTokenSource = null;
-            throw;
         }
     }
 
@@ -108,7 +102,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         }
         catch (Exception ex)
         {
-            TranscriptionReceived?.Invoke($"[Error] Error stopping processing: {ex.Message}");
+            LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
         }
         finally
         {
@@ -148,7 +142,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
             }
             catch (Exception ex)
             {
-                TranscriptionReceived?.Invoke($"[Error] Error processing audio: {ex.Message}");
+                LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
             }
         }
     }
@@ -179,8 +173,8 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
             {
                 foreach (var result in results)
                 {
-                    var transcription = $"[Mic] {result.Text}";
-                    TranscriptionReceived?.Invoke(transcription);
+                    TranscriptionReceived?.Invoke(
+                        new TranscriptionMessage { MessageType = TranscriptionMessageType.Mic, Message = result.Text });
                 }
                 
                 StatusChanged?.Invoke("Transcription completed");
@@ -188,7 +182,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         }
         catch (Exception ex)
         {
-            TranscriptionReceived?.Invoke($"[Error] Transcription failed: {ex.Message}");
+            LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
         }
     }
 
@@ -196,6 +190,6 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
     {
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
-        _microphoneService?.Dispose();
+        _microphoneService.Dispose();
     }
 }

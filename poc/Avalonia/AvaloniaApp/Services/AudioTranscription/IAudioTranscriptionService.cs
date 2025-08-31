@@ -1,8 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using AvaloniaApp.Services.AudioTranscription.Helpers;
 
-namespace AvaloniaApp;
+namespace AvaloniaApp.Services.AudioTranscription;
 
 /// <summary>
 /// Interface for audio transcription services that capture and transcribe audio
@@ -12,7 +13,7 @@ public interface IAudioTranscriptionService : IDisposable
     /// <summary>
     /// Event fired when a transcription is received
     /// </summary>
-    event Action<string>? TranscriptionReceived;
+    event Action<TranscriptionMessage>? TranscriptionReceived;
     
     /// <summary>
     /// Event fired when a log message is received
@@ -40,4 +41,40 @@ public interface IAudioTranscriptionService : IDisposable
     /// Stop capturing and transcribing audio
     /// </summary>
     Task StopProcessing();
+}
+
+public class AudioChunk(byte[] data, DateTime timestamp)
+{
+    public Memory<byte> Data { get; } = data;
+    public DateTime Timestamp { get; } = timestamp;
+}
+
+
+public class LogMessage
+{
+    public DateTime Timestamp { get; set; }
+    public MessageType MessageType { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public object? Context { get; set; }
+}
+
+public class TranscriptionMessage
+{
+    public TranscriptionMessageType MessageType { get; set; }
+    public string Message { get; set; }
+}
+
+public enum TranscriptionMessageType
+{
+    Speaker,
+    Mic
+}
+public enum MessageType
+{
+    Info,
+    Error,
+    StreamStart,
+    StreamStop,
+    Transcription,
+    Chat
 }

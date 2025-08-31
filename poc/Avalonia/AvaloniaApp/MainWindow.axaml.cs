@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using AvaloniaApp.Services.AudioTranscription;
+using AvaloniaApp.Services.AudioTranscription.Helpers;
 using AvaloniaApp.Services.EnableWindowPrivacy;
 using AvaloniaApp.Services.HotKey;
 using AvaloniaApp.Services.TranscriptionService;
@@ -26,7 +28,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        InitializeServices();
+        
+        InitializeTranscriptionServices();
         
 #if MACOS || OSX || MACCATALYST
         _windowTextExtractionService = new WindowTextExtractionServiceMac();
@@ -59,23 +62,46 @@ public partial class MainWindow : Window
         UpdateActiveWindowTitle();
     }
 
-    private void InitializeServices()
+    private void InitializeTranscriptionServices()
     {
         var transcriptionService = new WhisperTranscriptionService();
         _audioTeeTranscriptionService = new AudioTeeTranscriptionService(transcriptionService, new AudioTeeOptions { SampleRate = 16000 });
         _audioTeeTranscriptionService.TranscriptionReceived += OnMessageGenerated;
-        _audioTeeTranscriptionService.StatusChanged += OnMessageGenerated;
+        _audioTeeTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
+        _audioTeeTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
 
         _microphoneTranscriptionService = new MicrophoneTranscriptionService(transcriptionService, new MicrophoneOptions { SampleRate = 16000 });
         _microphoneTranscriptionService.TranscriptionReceived += OnMessageGenerated;
-        _microphoneTranscriptionService.StatusChanged += OnMessageGenerated;
+        _microphoneTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
+        _microphoneTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
     }
 
-    private void OnMessageGenerated(string message)
+    private void TranscriptionServiceOnStatusChanged(string message)
     {
         Dispatcher.UIThread.InvokeAsync(() =>
         {
-            MessageTextBlock.Text += message + Environment.NewLine;
+            MessageTextBlock.Text += $"[Log][Status] {message}" + Environment.NewLine;
+        });    }
+
+    private void TranscriptionServiceOnLogReceived(LogMessage message)
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            MessageTextBlock.Text += $"[Log][{message.MessageType}] {message.Message}" + Environment.NewLine;
+        });
+    }
+
+    private void OnMessageGenerated(TranscriptionMessage message)
+    {
+        var type = message.MessageType switch
+        {
+            TranscriptionMessageType.Mic => "[m]",
+            TranscriptionMessageType.Speaker => "[o]",
+            _ => "[unknown] "
+        };
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            MessageTextBlock.Text += $"{type} {message.Message}" + Environment.NewLine;
         });
     }
     

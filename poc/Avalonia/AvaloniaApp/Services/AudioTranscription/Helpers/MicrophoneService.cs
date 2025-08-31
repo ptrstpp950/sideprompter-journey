@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using PortAudioSharp;
-using System.Runtime.InteropServices;
 
-namespace AvaloniaApp;
+namespace AvaloniaApp.Services.AudioTranscription.Helpers;
 
 /// <summary>
 /// Options for configuring Microphone capture

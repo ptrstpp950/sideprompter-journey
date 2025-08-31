@@ -1,14 +1,12 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp;
+namespace AvaloniaApp.Services.AudioTranscription.Helpers;
 
 /// <summary>
 /// Options for configuring AudioTee capture
@@ -88,7 +86,7 @@ public class AudioTeeService : IDisposable
     /// <summary>
     /// Start audio capture
     /// </summary>
-    public async Task StartAsync(CancellationToken cancellationToken = default)
+    public Task StartAsync(CancellationToken cancellationToken = default)
     {
         if (_isRunning)
             throw new InvalidOperationException("AudioTee is already running");
@@ -160,6 +158,8 @@ public class AudioTeeService : IDisposable
             ErrorOccurred?.Invoke(this, ex);
             throw;
         }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>

@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using AvaloniaApp.Services.AudioTranscription;
+using AvaloniaApp.Services.AudioTranscription.Helpers;
 using AvaloniaApp.Services.TranscriptionService;
-using NAudio.Wave;
 
 namespace AvaloniaApp;
 
@@ -18,7 +19,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
     private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
 
-    public event Action<string>? TranscriptionReceived;
+    public event Action<TranscriptionMessage>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
     public event Action<string>? StatusChanged;
     
@@ -59,18 +60,12 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
 
     private void OnAudioTeeError(object? sender, Exception error)
     {
-        TranscriptionReceived?.Invoke($"[AudioTee Error] {error.Message}");
+        LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = error.Message});
     }
 
     private void OnAudioTeeLog(object? sender, LogMessage log)
     {
         LogReceived?.Invoke(log);
-        
-        // Optionally forward important logs as messages
-        if (log.MessageType == MessageType.Error)
-        {
-            TranscriptionReceived?.Invoke($"[AudioTee] {log.Message}");
-        }
     }
 
     /// <summary>
@@ -103,7 +98,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
         }
         catch (Exception ex)
         {
-            TranscriptionReceived?.Invoke($"[Error] Failed to start processing: {ex.Message}");
+            LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
             _cancellationTokenSource = null;
             throw;
         }
@@ -128,7 +123,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
         }
         catch (Exception ex)
         {
-            TranscriptionReceived?.Invoke($"[Error] Error stopping processing: {ex.Message}");
+            LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
         }
         finally
         {
@@ -171,7 +166,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
             }
             catch (Exception ex)
             {
-                TranscriptionReceived?.Invoke($"[Error] Error processing audio: {ex.Message}");
+                LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
             }
         }
     }
@@ -198,8 +193,8 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
                     continue;
 
                 hasTranscription = true;
-                var transcription = $"[AudioTee] {result.Text}";
-                TranscriptionReceived?.Invoke(transcription);
+                TranscriptionReceived?.Invoke(
+                    new TranscriptionMessage { MessageType = TranscriptionMessageType.Speaker, Message = result.Text });
             }
             
             if (hasTranscription)
@@ -209,7 +204,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
         }
         catch (Exception ex)
         {
-            TranscriptionReceived?.Invoke($"[Error] Transcription failed: {ex.Message}");
+            LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
         }
     }
 

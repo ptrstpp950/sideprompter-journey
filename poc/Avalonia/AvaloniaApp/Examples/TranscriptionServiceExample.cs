@@ -1,5 +1,7 @@
 using System;
 using System.Threading.Tasks;
+using AvaloniaApp.Services.AudioTranscription;
+using AvaloniaApp.Services.AudioTranscription.Helpers;
 using AvaloniaApp.Services.TranscriptionService;
 using Whisper.net.Ggml;
 

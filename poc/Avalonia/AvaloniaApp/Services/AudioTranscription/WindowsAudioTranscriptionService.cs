@@ -7,21 +7,21 @@ using AvaloniaApp.Services.TranscriptionService;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
-namespace AvaloniaApp;
+namespace AvaloniaApp.Services.AudioTranscription;
 
-public class AudioTranscriptionService : IAudioTranscriptionService
+public class WindowsAudioTranscriptionService : IAudioTranscriptionService
 {
     private readonly ITranscriptionService _transcriptionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private List<string> _transcriptionHistory = new List<string>();
 
-    public event Action<string>? TranscriptionReceived;
+    public event Action<TranscriptionMessage>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
     public event Action<string>? StatusChanged;
 
     public bool IsRunning => _cancellationTokenSource != null;
 
-    public AudioTranscriptionService(ITranscriptionService transcriptionService)
+    public WindowsAudioTranscriptionService(ITranscriptionService transcriptionService)
     {
         _transcriptionService = transcriptionService;
     }
@@ -50,7 +50,8 @@ public class AudioTranscriptionService : IAudioTranscriptionService
         }
         catch (Exception ex)
         {
-            TranscriptionReceived?.Invoke($"[Error] {ex.Message}");
+            //TranscriptionReceived?.Invoke( ex.Message);
+            LogReceived?.Invoke(new LogMessage(){Message = ex.Message, MessageType = MessageType.Error});
         }
     }
 
@@ -64,7 +65,7 @@ public class AudioTranscriptionService : IAudioTranscriptionService
     {
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
-        (_transcriptionService as IDisposable)?.Dispose();
+        _transcriptionService.Dispose();
         _transcriptionHistory.Clear();
     }
 
@@ -81,11 +82,11 @@ public class AudioTranscriptionService : IAudioTranscriptionService
 
         var micProvider = new BufferedWaveProvider(micCapture.WaveFormat) { DiscardOnBufferOverflow = true };
         micProvider.DiscardOnBufferOverflow = true;
-        micCapture.DataAvailable += (s, e) => micProvider.AddSamples(e.Buffer, 0, e.BytesRecorded);
+        micCapture.DataAvailable += (_, e) => micProvider.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
         var speakerProvider = new BufferedWaveProvider(speakerCapture.WaveFormat) { DiscardOnBufferOverflow = true };
         speakerProvider.DiscardOnBufferOverflow = true;
-        speakerCapture.DataAvailable += (s, e) => speakerProvider.AddSamples(e.Buffer, 0, e.BytesRecorded);
+        speakerCapture.DataAvailable += (_, e) => speakerProvider.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
         var micSampler = micProvider.ToSampleProvider();
         if (micSampler.WaveFormat.Channels > 1)
@@ -114,14 +115,22 @@ public class AudioTranscriptionService : IAudioTranscriptionService
         {
             try
             {
-                Action<string> log = s =>
+                void LogMic(string msg)
                 {
-                    TranscriptionReceived?.Invoke(s);
-                };
-                var micResultTask = ReadFromSource(micSampler, "[m]", micBuffer, bufferSize,
-                    cancellationToken, _transcriptionHistory, micOffset, log);
-                var speakerResultTask = ReadFromSource(speakerSampler, "[o]", speakerBuffer, bufferSize,
-                    cancellationToken, _transcriptionHistory, speakerOffset, log);
+                    TranscriptionReceived?.Invoke(new TranscriptionMessage
+                        { MessageType = TranscriptionMessageType.Mic, Message = msg });
+                }
+                
+                void LogSpeaker(string msg)
+                {
+                    TranscriptionReceived?.Invoke(new TranscriptionMessage
+                        { MessageType = TranscriptionMessageType.Speaker, Message = msg });
+                }
+
+                var micResultTask = 
+                    ReadFromSource(micSampler,  micBuffer, bufferSize, _transcriptionHistory, micOffset, LogMic);
+                var speakerResultTask = 
+                    ReadFromSource(speakerSampler, speakerBuffer, bufferSize, _transcriptionHistory, speakerOffset, LogSpeaker);
 
                 await Task.WhenAll(micResultTask, speakerResultTask);
                 var micResult = micResultTask.Result;
@@ -143,15 +152,12 @@ public class AudioTranscriptionService : IAudioTranscriptionService
 
     private struct StreamOffsetStruct
     {
-        public int StreamRead;
         public int StreamOffset;
     }
 
     private async Task<StreamOffsetStruct> ReadFromSource(
              ISampleProvider sampler,
-             string prefix,
              float[] buffer, int bufferSize,
-             CancellationToken cancellationToken,
              IList<string> transcriptions, int streamOffset, Action<string> logOutput)
     {
         // MIC
@@ -161,7 +167,6 @@ public class AudioTranscriptionService : IAudioTranscriptionService
             return new StreamOffsetStruct()
             {
                 StreamOffset = streamOffset,
-                StreamRead = read
             };
 
         Array.Copy(temp, 0, buffer, streamOffset, read);
@@ -169,8 +174,7 @@ public class AudioTranscriptionService : IAudioTranscriptionService
         if (streamOffset < bufferSize)
             return new StreamOffsetStruct()
             {
-                StreamOffset = streamOffset,
-                StreamRead = read
+                StreamOffset = streamOffset
             };
         
         var stream = new MemoryStream();
@@ -195,15 +199,12 @@ public class AudioTranscriptionService : IAudioTranscriptionService
         {
             if (IsEmptyOrSound(result.Text))
                 continue;
-
-            var transcription = $"{prefix} {result.Text}";
             
             // Only add if not a duplicate of the last transcription
             if (transcriptions.Count > 0 && transcriptions[^1].EndsWith(result.Text))
                 continue;
                 
-            transcriptions.Add(transcription);
-            logOutput(transcription);
+            transcriptions.Add(result.Text);
         }
 
         await writer.DisposeAsync();
@@ -212,8 +213,7 @@ public class AudioTranscriptionService : IAudioTranscriptionService
 
         return new StreamOffsetStruct()
         {
-            StreamOffset = streamOffset,
-            StreamRead = read
+            StreamOffset = streamOffset
         };
     }
 }
