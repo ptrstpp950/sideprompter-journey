@@ -305,18 +305,18 @@ public class AudioTeeService : IDisposable
             while (!cancellationToken.IsCancellationRequested && !process.HasExited)
             {
                 var line = await reader.ReadLineAsync(cancellationToken);
-                if (line == null)
+                if (string.IsNullOrWhiteSpace(line))
                     break;
 
                 try
                 {
-                    // Try to parse as JSON log message
+                    // TODO: fix parsing. Structure is different
                     var logMessage = JsonSerializer.Deserialize<LogMessage>(line, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
                     });
                     
-                    if (logMessage != null)
+                    if (logMessage != null && string.IsNullOrWhiteSpace(logMessage.Message))
                     {
                         LogReceived?.Invoke(this, logMessage);
                     }
