@@ -6,38 +6,30 @@ using System.Threading.Tasks;
 using NAudio.Wave;
 using Whisper.net;
 using Whisper.net.Ggml;
-using OpenAI.Chat;
 
 namespace AvaloniaApp;
 
 /// <summary>
-/// Example service showing how to integrate AudioTee with transcription
+/// Service for integrating AudioTee with transcription
 /// </summary>
-public class AudioTeeTranscriptionService : IDisposable
+public class AudioTeeTranscriptionService : IAudioTranscriptionService
 {
     private readonly AudioTeeService _audioTeeService;
-    private readonly ChatCompletionService _chatCompletionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
     private WhisperFactory? _whisperFactory;
     private WhisperProcessor? _whisperProcessor;
-    private readonly List<ChatMessage> _messages = new();
 
-    public event Action<string>? MessageGenerated;
+    public event Action<string>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
     public event Action<string>? StatusChanged;
+    
+    public bool IsRunning => _cancellationTokenSource != null;
 
     public AudioTeeTranscriptionService(AudioTeeOptions? audioOptions = null)
     {
         _audioTeeService = new AudioTeeService(audioOptions);
-        
-        // TODO: Move configuration to a more appropriate place
-        var endpoint = "https://openai-ptsp.openai.azure.com/";
-        var deploymentName = "gpt-5-nano";
-        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "NO_API_KEY";
-        _chatCompletionService = new ChatCompletionService(endpoint, apiKey, deploymentName);
-
         SetupAudioTeeEvents();
     }
 
@@ -54,7 +46,7 @@ public class AudioTeeTranscriptionService : IDisposable
     {
         lock (_bufferLock)
         {
-            _audioBuffer.AddRange(chunk.Data.Span);
+            _audioBuffer.AddRange(chunk.Data.ToArray());
         }
         
         // You could implement real-time transcription here
@@ -64,7 +56,7 @@ public class AudioTeeTranscriptionService : IDisposable
 
     private void OnAudioTeeError(object? sender, Exception error)
     {
-        MessageGenerated?.Invoke($"[AudioTee Error] {error.Message}");
+        TranscriptionReceived?.Invoke($"[AudioTee Error] {error.Message}");
     }
 
     private void OnAudioTeeLog(object? sender, LogMessage log)
@@ -74,11 +66,10 @@ public class AudioTeeTranscriptionService : IDisposable
         // Optionally forward important logs as messages
         if (log.MessageType == MessageType.Error)
         {
-            MessageGenerated?.Invoke($"[AudioTee] {log.Message}");
+            TranscriptionReceived?.Invoke($"[AudioTee] {log.Message}");
         }
     }
 
-    
     /// <summary>
     /// Start capturing and processing audio
     /// </summary>
@@ -96,10 +87,6 @@ public class AudioTeeTranscriptionService : IDisposable
             // Initialize Whisper model
             await InitializeWhisperAsync(language, _cancellationTokenSource.Token);
             
-            // Initialize chat completion messages
-            _messages.Clear();
-            _messages.AddRange(_chatCompletionService.Initialize());
-            
             StatusChanged?.Invoke("Starting AudioTee capture...");
             
             // Start the AudioTee service
@@ -113,7 +100,7 @@ public class AudioTeeTranscriptionService : IDisposable
         }
         catch (Exception ex)
         {
-            MessageGenerated?.Invoke($"[Error] Failed to start processing: {ex.Message}");
+            TranscriptionReceived?.Invoke($"[Error] Failed to start processing: {ex.Message}");
             _cancellationTokenSource = null;
             throw;
         }
@@ -138,7 +125,7 @@ public class AudioTeeTranscriptionService : IDisposable
         }
         catch (Exception ex)
         {
-            MessageGenerated?.Invoke($"[Error] Error stopping processing: {ex.Message}");
+            TranscriptionReceived?.Invoke($"[Error] Error stopping processing: {ex.Message}");
         }
         finally
         {
@@ -217,7 +204,7 @@ public class AudioTeeTranscriptionService : IDisposable
             }
             catch (Exception ex)
             {
-                MessageGenerated?.Invoke($"[Error] Error processing audio: {ex.Message}");
+                TranscriptionReceived?.Invoke($"[Error] Error processing audio: {ex.Message}");
             }
         }
     }
@@ -228,7 +215,7 @@ public class AudioTeeTranscriptionService : IDisposable
         {
             if (_whisperProcessor == null)
             {
-                MessageGenerated?.Invoke("[Error] Whisper processor not initialized");
+                TranscriptionReceived?.Invoke("[Error] Whisper processor not initialized");
                 return;
             }
 
@@ -262,43 +249,12 @@ public class AudioTeeTranscriptionService : IDisposable
             var hasTranscription = false;
             await foreach (var result in _whisperProcessor.ProcessAsync(stream, CancellationToken.None))
             {
-                var message = $"[AudioTee] {result.Text}";
-
                 if (IsEmptyOrSound(result.Text))
                     continue;
 
                 hasTranscription = true;
-                
-                // Add to chat messages (avoid duplicates)
-                if (_messages.Count == 0 || !(_messages[^1] is UserChatMessage lastMsg) || 
-                    !lastMsg.Content[0].Text.EndsWith(result.Text.Trim()))
-                {
-                    _messages.Add(new UserChatMessage(message));
-                    MessageGenerated?.Invoke(message);
-                    
-                    // Periodically process with chat completion
-                    if (_messages.Count > 0 && _messages.Count % 5 == 0)
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                StatusChanged?.Invoke("Processing with chat completion...");
-                                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                                var response = await _chatCompletionService.GetCompletionAsync(_messages, timeoutCts.Token);
-                                MessageGenerated?.Invoke($"[AI] {response}");
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                MessageGenerated?.Invoke("[Error] Chat completion request timed out.");
-                            }
-                            catch (Exception ex)
-                            {
-                                MessageGenerated?.Invoke($"[Error] Chat completion error: {ex.Message}");
-                            }
-                        });
-                    }
-                }
+                var transcription = $"[AudioTee] {result.Text}";
+                TranscriptionReceived?.Invoke(transcription);
             }
             
             if (hasTranscription)
@@ -308,7 +264,7 @@ public class AudioTeeTranscriptionService : IDisposable
         }
         catch (Exception ex)
         {
-            MessageGenerated?.Invoke($"[Error] Transcription failed: {ex.Message}");
+            TranscriptionReceived?.Invoke($"[Error] Transcription failed: {ex.Message}");
         }
     }
 

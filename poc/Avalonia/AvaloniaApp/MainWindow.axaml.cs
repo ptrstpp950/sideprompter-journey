@@ -61,11 +61,11 @@ public partial class MainWindow : Window
     private void InitializeServices()
     {
         _audioTeeTranscriptionService = new AudioTeeTranscriptionService(new AudioTeeOptions { SampleRate = 16000 });
-        _audioTeeTranscriptionService.MessageGenerated += OnMessageGenerated;
+        _audioTeeTranscriptionService.TranscriptionReceived += OnMessageGenerated;
         _audioTeeTranscriptionService.StatusChanged += OnMessageGenerated;
 
         _microphoneTranscriptionService = new MicrophoneTranscriptionService(new MicrophoneOptions { SampleRate = 16000 });
-        _microphoneTranscriptionService.MessageGenerated += OnMessageGenerated;
+        _microphoneTranscriptionService.TranscriptionReceived += OnMessageGenerated;
         _microphoneTranscriptionService.StatusChanged += OnMessageGenerated;
     }
 

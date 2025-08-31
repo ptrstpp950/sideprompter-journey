@@ -6,34 +6,27 @@ using System.Threading.Tasks;
 using NAudio.Wave;
 using Whisper.net;
 using Whisper.net.Ggml;
-using OpenAI.Chat;
 
 namespace AvaloniaApp;
 
-public class MicrophoneTranscriptionService : IDisposable
+public class MicrophoneTranscriptionService : IAudioTranscriptionService
 {
     private readonly MicrophoneService _microphoneService;
-    private readonly ChatCompletionService _chatCompletionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
     private WhisperFactory? _whisperFactory;
     private WhisperProcessor? _whisperProcessor;
-    private readonly List<ChatMessage> _messages = new();
 
-    public event Action<string>? MessageGenerated;
+    public event Action<string>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
     public event Action<string>? StatusChanged;
+
+    public bool IsRunning => _cancellationTokenSource != null;
 
     public MicrophoneTranscriptionService(MicrophoneOptions? microphoneOptions = null)
     {
         _microphoneService = new MicrophoneService(microphoneOptions);
-        
-        var endpoint = "https://openai-ptsp.openai.azure.com/";
-        var deploymentName = "gpt-5-nano";
-        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "NO_API_KEY";
-        _chatCompletionService = new ChatCompletionService(endpoint, apiKey, deploymentName);
-
         SetupMicrophoneEvents();
     }
 
@@ -50,13 +43,13 @@ public class MicrophoneTranscriptionService : IDisposable
     {
         lock (_bufferLock)
         {
-            _audioBuffer.AddRange(chunk.Data.Span);
+            _audioBuffer.AddRange(chunk.Data.ToArray());
         }
     }
 
     private void OnMicrophoneError(object? sender, Exception error)
     {
-        MessageGenerated?.Invoke($"[Microphone Error] {error.Message}");
+        TranscriptionReceived?.Invoke($"[Microphone Error] {error.Message}");
     }
 
     private void OnMicrophoneLog(object? sender, LogMessage log)
@@ -65,7 +58,7 @@ public class MicrophoneTranscriptionService : IDisposable
         
         if (log.MessageType == MessageType.Error)
         {
-            MessageGenerated?.Invoke($"[Microphone] {log.Message}");
+            TranscriptionReceived?.Invoke($"[Microphone] {log.Message}");
         }
     }
 
@@ -81,9 +74,6 @@ public class MicrophoneTranscriptionService : IDisposable
             StatusChanged?.Invoke("Initializing Whisper model...");
             await InitializeWhisperAsync(language, _cancellationTokenSource.Token);
             
-            _messages.Clear();
-            _messages.AddRange(_chatCompletionService.Initialize());
-            
             StatusChanged?.Invoke("Starting Microphone capture...");
             await _microphoneService.StartAsync(_cancellationTokenSource.Token);
             
@@ -94,7 +84,7 @@ public class MicrophoneTranscriptionService : IDisposable
         }
         catch (Exception ex)
         {
-            MessageGenerated?.Invoke($"[Error] Failed to start processing: {ex.Message}");
+            TranscriptionReceived?.Invoke($"[Error] Failed to start processing: {ex.Message}");
             _cancellationTokenSource = null;
             throw;
         }
@@ -109,14 +99,14 @@ public class MicrophoneTranscriptionService : IDisposable
         {
             StatusChanged?.Invoke("Stopping Microphone capture...");
             
-            _cancellationTokenSource.Cancel();
+            await _cancellationTokenSource.CancelAsync();
             await _microphoneService.StopAsync();
             
             StatusChanged?.Invoke("Audio capture stopped");
         }
         catch (Exception ex)
         {
-            MessageGenerated?.Invoke($"[Error] Error stopping processing: {ex.Message}");
+            TranscriptionReceived?.Invoke($"[Error] Error stopping processing: {ex.Message}");
         }
         finally
         {
@@ -190,7 +180,7 @@ public class MicrophoneTranscriptionService : IDisposable
             }
             catch (Exception ex)
             {
-                MessageGenerated?.Invoke($"[Error] Error processing audio: {ex.Message}");
+                TranscriptionReceived?.Invoke($"[Error] Error processing audio: {ex.Message}");
             }
         }
     }
@@ -201,7 +191,7 @@ public class MicrophoneTranscriptionService : IDisposable
         {
             if (_whisperProcessor == null)
             {
-                MessageGenerated?.Invoke("[Error] Whisper processor not initialized");
+                TranscriptionReceived?.Invoke("[Error] Whisper processor not initialized");
                 return;
             }
 
@@ -228,41 +218,12 @@ public class MicrophoneTranscriptionService : IDisposable
             var hasTranscription = false;
             await foreach (var result in _whisperProcessor.ProcessAsync(stream, CancellationToken.None))
             {
-                var message = $"[Mic] {result.Text}";
-
                 if (IsEmptyOrSound(result.Text))
                     continue;
 
                 hasTranscription = true;
-                
-                if (_messages.Count == 0 || !(_messages[^1] is UserChatMessage lastMsg) || 
-                    !lastMsg.Content[0].Text.EndsWith(result.Text.Trim()))
-                {
-                    _messages.Add(new UserChatMessage(message));
-                    MessageGenerated?.Invoke(message);
-                    
-                    if (_messages.Count > 0 && _messages.Count % 5 == 0)
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                StatusChanged?.Invoke("Processing with chat completion...");
-                                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                                var response = await _chatCompletionService.GetCompletionAsync(_messages, timeoutCts.Token);
-                                MessageGenerated?.Invoke($"[AI] {response}");
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                MessageGenerated?.Invoke("[Error] Chat completion request timed out.");
-                            }
-                            catch (Exception ex)
-                            {
-                                MessageGenerated?.Invoke($"[Error] Chat completion error: {ex.Message}");
-                            }
-                        });
-                    }
-                }
+                var transcription = $"[Mic] {result.Text}";
+                TranscriptionReceived?.Invoke(transcription);
             }
             
             if (hasTranscription)
@@ -272,7 +233,7 @@ public class MicrophoneTranscriptionService : IDisposable
         }
         catch (Exception ex)
         {
-            MessageGenerated?.Invoke($"[Error] Transcription failed: {ex.Message}");
+            TranscriptionReceived?.Invoke($"[Error] Transcription failed: {ex.Message}");
         }
     }
 

@@ -41,54 +41,6 @@ public class AudioTeeOptions
     public IReadOnlyList<int>? ExcludeProcesses { get; set; }
 }
 
-/// <summary>
-/// Audio chunk data received from AudioTee
-/// </summary>
-public class AudioChunk
-{
-    public ReadOnlyMemory<byte> Data { get; }
-    public DateTime Timestamp { get; }
-
-    public AudioChunk(ReadOnlyMemory<byte> data, DateTime timestamp)
-    {
-        Data = data;
-        Timestamp = timestamp;
-    }
-}
-
-/// <summary>
-/// Log message types from AudioTee
-/// </summary>
-public enum MessageType
-{
-    Metadata,
-    StreamStart,
-    StreamStop,
-    Info,
-    Error,
-    Debug
-}
-
-/// <summary>
-/// Log levels
-/// </summary>
-public enum LogLevel
-{
-    Info,
-    Debug,
-    Error
-}
-
-/// <summary>
-/// Log message from AudioTee
-/// </summary>
-public class LogMessage
-{
-    public DateTime Timestamp { get; set; }
-    public MessageType MessageType { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public Dictionary<string, object>? Context { get; set; }
-}
 
 /// <summary>
 /// C# wrapper for the AudioTee macOS audio capture binary

@@ -1,31 +1,28 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using OpenAI.Chat;
 using Whisper.net;
 using Whisper.net.Ggml;
 
 namespace AvaloniaApp;
 
-public class AudioTranscriptionService
+public class AudioTranscriptionService : IAudioTranscriptionService
 {
     private CancellationTokenSource? _cancellationTokenSource;
-    private readonly ChatCompletionService _chatCompletionService;
+    private List<string> _transcriptionHistory = new List<string>();
 
-    public event Action<string>? MessageGenerated;
+    public event Action<string>? TranscriptionReceived;
+    public event Action<LogMessage>? LogReceived;
+    public event Action<string>? StatusChanged;
+
+    public bool IsRunning => _cancellationTokenSource != null;
 
     public AudioTranscriptionService()
     {
-        // TODO: Move configuration to a more appropriate place
-        var endpoint = "https://openai-ptsp.openai.azure.com/";
-        var deploymentName = "gpt-5-nano";
-        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "NO_API_KEY";
-        _chatCompletionService = new ChatCompletionService(endpoint, apiKey, deploymentName);
     }
 
     private static bool IsEmptyOrSound(string text)
@@ -38,47 +35,54 @@ public class AudioTranscriptionService
         return text.Length == 0;
     }
 
-    public async Task StartProcessing(string language)
+    public async Task StartProcessing(string language = "en", CancellationToken cancellationToken = default)
     {
-        _cancellationTokenSource = new CancellationTokenSource();
+        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
             await RunTranscriptionLoop(_cancellationTokenSource.Token, language);
         }
         catch (Exception ex)
         {
-            MessageGenerated?.Invoke($"[e] Error: {ex.Message}");
+            TranscriptionReceived?.Invoke($"[Error] {ex.Message}");
         }
     }
 
-    public void StopProcessing()
+    public Task StopProcessing()
     {
         _cancellationTokenSource?.Cancel();
+        return Task.CompletedTask;
+    }
+    
+    public void Dispose()
+    {
+        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource?.Dispose();
+        _transcriptionHistory.Clear();
     }
 
     private async Task RunTranscriptionLoop(CancellationToken cancellationToken, string lang)
     {
-        
         // 1. Whisper Model Loading
         var type = GgmlType.Tiny;
         var modelName = "ggml-" + type + ".bin";
         var modelPath = Path.GetFullPath(Path.Combine("./models", modelName));
 
-        var messages = _chatCompletionService.Initialize();
+        _transcriptionHistory.Clear();
 
         if (!Directory.Exists(Path.GetDirectoryName(modelPath)))
         {
-            MessageGenerated?.Invoke($"Creating directory for Whisper model: {Path.GetDirectoryName(modelPath)}");
+            StatusChanged?.Invoke($"Creating directory for Whisper model: {Path.GetDirectoryName(modelPath)}");
             Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
         }
 
         if (!File.Exists(modelPath))
         {
-            MessageGenerated?.Invoke($"Downloading Whisper model '{modelName}' to '{modelPath}' ...");
+            StatusChanged?.Invoke($"Downloading Whisper model '{modelName}' to '{modelPath}' ...");
             await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(type, cancellationToken: cancellationToken);
             await using var fileStream = File.Create(modelPath);
             await modelStream.CopyToAsync(fileStream, cancellationToken);
-            MessageGenerated?.Invoke("Model downloaded.");
+            StatusChanged?.Invoke("Model downloaded.");
         }
 
         using var whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
@@ -116,14 +120,13 @@ public class AudioTranscriptionService
         micCapture.StartRecording();
         speakerCapture.StartRecording();
 
-        MessageGenerated?.Invoke($"Starting transcription in language '{lang}' (mic/speaker split)...");
+        StatusChanged?.Invoke($"Starting transcription in language '{lang}' (mic/speaker split)...");
 
         var bufferSize = 16000 * 10;
         var micBuffer = new float[bufferSize];
         var micOffset = 0;
         var speakerBuffer = new float[bufferSize];
         var speakerOffset = 0;
-        var processed = 0;
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -131,12 +134,12 @@ public class AudioTranscriptionService
             {
                 Action<string> log = s =>
                 {
-                    MessageGenerated?.Invoke(s);
+                    TranscriptionReceived?.Invoke(s);
                 };
                 var micResultTask = ReadFromSource(micSampler, "[m]", micBuffer, bufferSize, processor,
-                    cancellationToken, messages, micOffset, log);
+                    cancellationToken, _transcriptionHistory, micOffset, log);
                 var speakerResultTask = ReadFromSource(speakerSampler, "[o]", speakerBuffer, bufferSize, processor,
-                    cancellationToken, messages, speakerOffset, log);
+                    cancellationToken, _transcriptionHistory, speakerOffset, log);
 
                 await Task.WhenAll(micResultTask, speakerResultTask);
                 var micResult = micResultTask.Result;
@@ -144,32 +147,7 @@ public class AudioTranscriptionService
                 micOffset = micResult.StreamOffset;
                 speakerOffset = speakerResult.StreamOffset;
 
-                if (messages.Count == 0 || (messages.Count - processed) < 10)
-                {
-                    await Task.Delay(100, cancellationToken);
-                    continue;
-                }
-                processed = messages.Count;
-
-                _ = Task.Run(async () =>
-                {
-                    MessageGenerated?.Invoke("[s] Asking chat for questions");
-                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
-                    try
-                    {
-                        var response = await _chatCompletionService.GetCompletionAsync(messages, timeoutCts.Token);
-                        MessageGenerated?.Invoke(response);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        MessageGenerated?.Invoke("[e] Chat completion request timed out.");
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageGenerated?.Invoke($"[e] Chat completion error: {ex.Message}");
-                    }
-                }, cancellationToken);
+                await Task.Delay(100, cancellationToken);
             }
             catch (TaskCanceledException)
             {
@@ -191,8 +169,8 @@ public class AudioTranscriptionService
              ISampleProvider sampler,
              string prefix,
              float[] buffer, int bufferSize, WhisperProcessor processor,
-             CancellationToken cancellationTokenSource,
-             IList<ChatMessage> messages, int streamOffset, Action<string> logOutput)
+             CancellationToken cancellationToken,
+             IList<string> transcriptions, int streamOffset, Action<string> logOutput)
     {
         // MIC
         var temp = new float[16000];
@@ -225,19 +203,19 @@ public class AudioTranscriptionService
         writer.Flush();
         stream.Position = 0;
 
-        await foreach (var result in processor.ProcessAsync(stream,
-                           cancellationTokenSource))
+        await foreach (var result in processor.ProcessAsync(stream, cancellationToken))
         {
             if (IsEmptyOrSound(result.Text))
                 continue;
 
-            var msg = $"{prefix} {result.Text}";
-            // Only add if not a duplicate of the last message
-            if (messages.Count != 0 && messages[^1] is UserChatMessage last &&
-                last.Content[0].Text.EndsWith(result.Text)) continue;
-            messages.Add(new UserChatMessage(msg));
-            logOutput(msg);
-
+            var transcription = $"{prefix} {result.Text}";
+            
+            // Only add if not a duplicate of the last transcription
+            if (transcriptions.Count > 0 && transcriptions[^1].EndsWith(result.Text))
+                continue;
+                
+            transcriptions.Add(transcription);
+            logOutput(transcription);
         }
 
         await writer.DisposeAsync();

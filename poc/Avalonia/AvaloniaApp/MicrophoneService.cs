@@ -28,11 +28,7 @@ public class MicrophoneOptions
     public int DeviceIndex { get; set; } = -1;
 }
 
-// Re-using AudioChunk from AudioTeeService.cs. Consider moving to a shared file.
-// public class AudioChunk ...
 
-// Re-using LogMessage from AudioTeeService.cs. Consider moving to a shared file.
-// public class LogMessage ...
 
 /// <summary>
 /// C# wrapper for microphone audio capture using PortAudioSharp2
