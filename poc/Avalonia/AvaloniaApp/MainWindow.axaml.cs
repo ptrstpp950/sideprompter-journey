@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using AvaloniaApp.Services.EnableWindowPrivacy;
 using AvaloniaApp.Services.HotKey;
+using AvaloniaApp.Services.TranscriptionService;
 using AvaloniaApp.Services.WindowTextExtraction;
 
 namespace AvaloniaApp;
@@ -60,11 +61,12 @@ public partial class MainWindow : Window
 
     private void InitializeServices()
     {
-        _audioTeeTranscriptionService = new AudioTeeTranscriptionService(new AudioTeeOptions { SampleRate = 16000 });
+        var transcriptionService = new WhisperTranscriptionService();
+        _audioTeeTranscriptionService = new AudioTeeTranscriptionService(transcriptionService, new AudioTeeOptions { SampleRate = 16000 });
         _audioTeeTranscriptionService.TranscriptionReceived += OnMessageGenerated;
         _audioTeeTranscriptionService.StatusChanged += OnMessageGenerated;
 
-        _microphoneTranscriptionService = new MicrophoneTranscriptionService(new MicrophoneOptions { SampleRate = 16000 });
+        _microphoneTranscriptionService = new MicrophoneTranscriptionService(transcriptionService, new MicrophoneOptions { SampleRate = 16000 });
         _microphoneTranscriptionService.TranscriptionReceived += OnMessageGenerated;
         _microphoneTranscriptionService.StatusChanged += OnMessageGenerated;
     }

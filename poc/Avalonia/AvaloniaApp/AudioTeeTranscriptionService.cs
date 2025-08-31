@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using AvaloniaApp.Services.TranscriptionService;
 using NAudio.Wave;
-using Whisper.net;
-using Whisper.net.Ggml;
 
 namespace AvaloniaApp;
 
@@ -15,11 +13,10 @@ namespace AvaloniaApp;
 public class AudioTeeTranscriptionService : IAudioTranscriptionService
 {
     private readonly AudioTeeService _audioTeeService;
+    private readonly ITranscriptionService _transcriptionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
-    private WhisperFactory? _whisperFactory;
-    private WhisperProcessor? _whisperProcessor;
 
     public event Action<string>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
@@ -27,9 +24,10 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
     
     public bool IsRunning => _cancellationTokenSource != null;
 
-    public AudioTeeTranscriptionService(AudioTeeOptions? audioOptions = null)
+    public AudioTeeTranscriptionService(ITranscriptionService transcriptionService, AudioTeeOptions? audioOptions = null)
     {
-        _audioTeeService = new AudioTeeService(audioOptions);
+        _transcriptionService = transcriptionService;
+        _audioTeeService = new AudioTeeService(audioOptions); 
         SetupAudioTeeEvents();
     }
 
@@ -40,6 +38,11 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
         _audioTeeService.Stopped += (s, e) => StatusChanged?.Invoke("AudioTee stopped");
         _audioTeeService.ErrorOccurred += OnAudioTeeError;
         _audioTeeService.LogReceived += OnAudioTeeLog;
+    }
+
+    private void HandleNewAudioBuffer(object? sender, EventArgs e)
+    {
+        // This method is needed for compatibility with AudioTeeService events
     }
 
     private void OnAudioDataReceived(object? sender, AudioChunk chunk)
@@ -82,10 +85,10 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
         
         try
         {
-            StatusChanged?.Invoke("Initializing Whisper model...");
+            StatusChanged?.Invoke("Initializing transcription service...");
             
-            // Initialize Whisper model
-            await InitializeWhisperAsync(language, _cancellationTokenSource.Token);
+            // Initialize transcription service
+            await _transcriptionService.InitializeAsync(language, _cancellationTokenSource.Token);
             
             StatusChanged?.Invoke("Starting AudioTee capture...");
             
@@ -131,46 +134,10 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
         {
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
-            
-            // Clean up Whisper resources
-            _whisperProcessor?.Dispose();
-            _whisperProcessor = null;
-            _whisperFactory?.Dispose();
-            _whisperFactory = null;
         }
     }
 
-    /// <summary>
-    /// Initialize the Whisper model for transcription
-    /// </summary>
-    private async Task InitializeWhisperAsync(string language, CancellationToken cancellationToken)
-    {
-        var type = GgmlType.Tiny;
-        var modelName = "ggml-" + type + ".bin";
-        var modelPath = Path.GetFullPath(Path.Combine("./models", modelName));
 
-        if (!Directory.Exists(Path.GetDirectoryName(modelPath)))
-        {
-            StatusChanged?.Invoke($"Creating directory for Whisper model: {Path.GetDirectoryName(modelPath)}");
-            Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
-        }
-
-        if (!File.Exists(modelPath))
-        {
-            StatusChanged?.Invoke($"Downloading Whisper model '{modelName}' to '{modelPath}' ...");
-            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(type, cancellationToken: cancellationToken);
-            await using var fileStream = File.Create(modelPath);
-            await modelStream.CopyToAsync(fileStream, cancellationToken);
-            StatusChanged?.Invoke("Model downloaded.");
-        }
-
-        _whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
-        _whisperProcessor = _whisperFactory.CreateBuilder()
-            .WithLanguage(language)
-            .Build();
-            
-        StatusChanged?.Invoke("Whisper model initialized");
-    }
 
     private async Task ProcessAudioPeriodically(string language, CancellationToken cancellationToken)
     {
@@ -213,12 +180,6 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
     {
         try
         {
-            if (_whisperProcessor == null)
-            {
-                TranscriptionReceived?.Invoke("[Error] Whisper processor not initialized");
-                return;
-            }
-
             // Skip processing if audio data is too small or all zeros
             if (audioData.Length < 1000 || IsAllZeros(audioData))
             {
@@ -227,27 +188,11 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
 
             StatusChanged?.Invoke($"Transcribing {audioData.Length} bytes of audio...");
             
-            // Convert raw PCM data to WAV format
-            using var stream = new MemoryStream();
-            
-            // AudioTee outputs 16-bit signed PCM at the specified sample rate
-            // Default sample rate from AudioTee is typically 44100 or 48000, but we configured it for 16000
-            var sampleRate = 16000; // This should match your AudioTeeOptions.SampleRate
-            var channels = 1; // AudioTee outputs mono
-            var bitsPerSample = 16;
-            
-            using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
-            
-            // Write the raw PCM data directly
-            writer.Write(audioData, 0, audioData.Length);
-            writer.Flush();
-            
-            // Reset stream position for reading
-            stream.Position = 0;
-
-            // Process with Whisper
+            // Process with the transcription service
+            var results = await _transcriptionService.TranscribeAudioAsync(audioData);
             var hasTranscription = false;
-            await foreach (var result in _whisperProcessor.ProcessAsync(stream, CancellationToken.None))
+            
+            foreach (var result in results)
             {
                 if (IsEmptyOrSound(result.Text))
                     continue;
@@ -320,8 +265,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
     {
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
-        _whisperProcessor?.Dispose();
-        _whisperFactory?.Dispose();
+        (_transcriptionService as IDisposable)?.Dispose();
         _audioTeeService?.Dispose();
     }
 }

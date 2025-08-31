@@ -1,22 +1,19 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using AvaloniaApp.Services.TranscriptionService;
 using NAudio.Wave;
-using Whisper.net;
-using Whisper.net.Ggml;
 
 namespace AvaloniaApp;
 
 public class MicrophoneTranscriptionService : IAudioTranscriptionService
 {
     private readonly MicrophoneService _microphoneService;
+    private readonly ITranscriptionService _transcriptionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
-    private WhisperFactory? _whisperFactory;
-    private WhisperProcessor? _whisperProcessor;
 
     public event Action<string>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
@@ -24,9 +21,14 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
 
     public bool IsRunning => _cancellationTokenSource != null;
 
-    public MicrophoneTranscriptionService(MicrophoneOptions? microphoneOptions = null)
+    public MicrophoneTranscriptionService(ITranscriptionService transcriptionService, MicrophoneOptions? microphoneOptions = null)
     {
+        _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
         _microphoneService = new MicrophoneService(microphoneOptions);
+        
+        // Forward status change events from the transcription service
+        _transcriptionService.StatusChanged += status => StatusChanged?.Invoke(status);
+        
         SetupMicrophoneEvents();
     }
 
@@ -71,13 +73,13 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         
         try
         {
-            StatusChanged?.Invoke("Initializing Whisper model...");
-            await InitializeWhisperAsync(language, _cancellationTokenSource.Token);
+            StatusChanged?.Invoke("Initializing transcription service...");
+            await _transcriptionService.InitializeAsync(language, _cancellationTokenSource.Token);
             
-            StatusChanged?.Invoke("Starting Microphone capture...");
+            StatusChanged?.Invoke("Starting microphone capture...");
             await _microphoneService.StartAsync(_cancellationTokenSource.Token);
             
-            _ = Task.Run(() => ProcessAudioPeriodically(language, _cancellationTokenSource.Token), 
+            _ = Task.Run(() => ProcessAudioPeriodically(_cancellationTokenSource.Token), 
                 _cancellationTokenSource.Token);
             
             StatusChanged?.Invoke("Audio capture and processing started");
@@ -97,7 +99,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
 
         try
         {
-            StatusChanged?.Invoke("Stopping Microphone capture...");
+            StatusChanged?.Invoke("Stopping microphone capture...");
             
             await _cancellationTokenSource.CancelAsync();
             await _microphoneService.StopAsync();
@@ -112,44 +114,10 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         {
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
-            
-            _whisperProcessor?.DisposeAsync();
-            _whisperProcessor = null;
-            _whisperFactory?.Dispose();
-            _whisperFactory = null;
         }
     }
 
-    private async Task InitializeWhisperAsync(string language, CancellationToken cancellationToken)
-    {
-        var type = GgmlType.Tiny;
-        var modelName = "ggml-" + type + ".bin";
-        var modelPath = Path.GetFullPath(Path.Combine("./models", modelName));
-
-        if (!Directory.Exists(Path.GetDirectoryName(modelPath)))
-        {
-            StatusChanged?.Invoke($"Creating directory for Whisper model: {Path.GetDirectoryName(modelPath)}");
-            Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
-        }
-
-        if (!File.Exists(modelPath))
-        {
-            StatusChanged?.Invoke($"Downloading Whisper model '{modelName}' to '{modelPath}' ...");
-            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(type, cancellationToken: cancellationToken);
-            await using var fileStream = File.Create(modelPath);
-            await modelStream.CopyToAsync(fileStream, cancellationToken);
-            StatusChanged?.Invoke("Model downloaded.");
-        }
-
-        _whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
-        _whisperProcessor = _whisperFactory.CreateBuilder()
-            .WithLanguage(language)
-            .Build();
-            
-        StatusChanged?.Invoke("Whisper model initialized");
-    }
-
-    private async Task ProcessAudioPeriodically(string language, CancellationToken cancellationToken)
+    private async Task ProcessAudioPeriodically(CancellationToken cancellationToken)
     {
         const int processIntervalMs = 3000;
         
@@ -171,7 +139,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
 
                 if (audioToProcess.Length > 0)
                 {
-                    await ProcessAudioChunk(audioToProcess, language);
+                    await ProcessAudioChunk(audioToProcess);
                 }
             }
             catch (OperationCanceledException)
@@ -185,49 +153,36 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         }
     }
 
-    private async Task ProcessAudioChunk(byte[] audioData, string language)
+    private async Task ProcessAudioChunk(byte[] audioData)
     {
         try
         {
-            if (_whisperProcessor == null)
-            {
-                TranscriptionReceived?.Invoke("[Error] Whisper processor not initialized");
-                return;
-            }
-
-            if (audioData.Length < 1000 || IsAllZeros(audioData))
+            if (audioData.Length < 1000)
             {
                 return;
             }
 
             StatusChanged?.Invoke($"Transcribing {audioData.Length} bytes of audio...");
             
-            using var stream = new MemoryStream();
-            
+            // Use the transcription service
             var sampleRate = 16000; // This should match your MicrophoneOptions.SampleRate
             var channels = 1;
             var bitsPerSample = 16;
-            
-            using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
-            
-            writer.Write(audioData, 0, audioData.Length);
-            writer.Flush();
-            
-            stream.Position = 0;
 
-            var hasTranscription = false;
-            await foreach (var result in _whisperProcessor.ProcessAsync(stream, CancellationToken.None))
+            var results = await _transcriptionService.TranscribeAudioAsync(
+                audioData, 
+                sampleRate, 
+                bitsPerSample, 
+                channels);
+                
+            if (results.Length > 0)
             {
-                if (IsEmptyOrSound(result.Text))
-                    continue;
-
-                hasTranscription = true;
-                var transcription = $"[Mic] {result.Text}";
-                TranscriptionReceived?.Invoke(transcription);
-            }
-            
-            if (hasTranscription)
-            {
+                foreach (var result in results)
+                {
+                    var transcription = $"[Mic] {result.Text}";
+                    TranscriptionReceived?.Invoke(transcription);
+                }
+                
                 StatusChanged?.Invoke("Transcription completed");
             }
         }
@@ -237,32 +192,10 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         }
     }
 
-    private static bool IsAllZeros(byte[] data)
-    {
-        for (int i = 0; i < data.Length; i++)
-        {
-            if (data[i] != 0)
-                return false;
-        }
-        return true;
-    }
-
-    private static bool IsEmptyOrSound(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return true;
-        text = text.Trim();
-        if (text.StartsWith('[') && text.EndsWith(']'))
-            return true;
-        return text.Length == 0;
-    }
-
     public void Dispose()
     {
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
-        _whisperProcessor?.Dispose();
-        _whisperFactory?.Dispose();
         _microphoneService?.Dispose();
     }
 }

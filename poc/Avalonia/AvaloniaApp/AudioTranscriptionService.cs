@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using AvaloniaApp.Services.TranscriptionService;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using Whisper.net;
-using Whisper.net.Ggml;
 
 namespace AvaloniaApp;
 
 public class AudioTranscriptionService : IAudioTranscriptionService
 {
+    private readonly ITranscriptionService _transcriptionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private List<string> _transcriptionHistory = new List<string>();
 
@@ -21,8 +21,9 @@ public class AudioTranscriptionService : IAudioTranscriptionService
 
     public bool IsRunning => _cancellationTokenSource != null;
 
-    public AudioTranscriptionService()
+    public AudioTranscriptionService(ITranscriptionService transcriptionService)
     {
+        _transcriptionService = transcriptionService;
     }
 
     private static bool IsEmptyOrSound(string text)
@@ -40,6 +41,11 @@ public class AudioTranscriptionService : IAudioTranscriptionService
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
+            StatusChanged?.Invoke("Initializing transcription service...");
+            
+            // Initialize transcription service
+            await _transcriptionService.InitializeAsync(language, _cancellationTokenSource.Token);
+            
             await RunTranscriptionLoop(_cancellationTokenSource.Token, language);
         }
         catch (Exception ex)
@@ -58,39 +64,15 @@ public class AudioTranscriptionService : IAudioTranscriptionService
     {
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
+        (_transcriptionService as IDisposable)?.Dispose();
         _transcriptionHistory.Clear();
     }
 
     private async Task RunTranscriptionLoop(CancellationToken cancellationToken, string lang)
     {
-        // 1. Whisper Model Loading
-        var type = GgmlType.Tiny;
-        var modelName = "ggml-" + type + ".bin";
-        var modelPath = Path.GetFullPath(Path.Combine("./models", modelName));
-
         _transcriptionHistory.Clear();
 
-        if (!Directory.Exists(Path.GetDirectoryName(modelPath)))
-        {
-            StatusChanged?.Invoke($"Creating directory for Whisper model: {Path.GetDirectoryName(modelPath)}");
-            Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
-        }
-
-        if (!File.Exists(modelPath))
-        {
-            StatusChanged?.Invoke($"Downloading Whisper model '{modelName}' to '{modelPath}' ...");
-            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(type, cancellationToken: cancellationToken);
-            await using var fileStream = File.Create(modelPath);
-            await modelStream.CopyToAsync(fileStream, cancellationToken);
-            StatusChanged?.Invoke("Model downloaded.");
-        }
-
-        using var whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
-        await using var processor = whisperFactory.CreateBuilder()
-            .WithLanguage(lang)
-            .Build();
-
-        // 2. Audio Capture (split mic and speaker)
+        // Audio Capture (split mic and speaker)
         using var micCapture = new WaveInEvent();
         micCapture.WaveFormat = new WaveFormat(16000, 16, 1);
 
@@ -136,9 +118,9 @@ public class AudioTranscriptionService : IAudioTranscriptionService
                 {
                     TranscriptionReceived?.Invoke(s);
                 };
-                var micResultTask = ReadFromSource(micSampler, "[m]", micBuffer, bufferSize, processor,
+                var micResultTask = ReadFromSource(micSampler, "[m]", micBuffer, bufferSize,
                     cancellationToken, _transcriptionHistory, micOffset, log);
-                var speakerResultTask = ReadFromSource(speakerSampler, "[o]", speakerBuffer, bufferSize, processor,
+                var speakerResultTask = ReadFromSource(speakerSampler, "[o]", speakerBuffer, bufferSize,
                     cancellationToken, _transcriptionHistory, speakerOffset, log);
 
                 await Task.WhenAll(micResultTask, speakerResultTask);
@@ -165,10 +147,10 @@ public class AudioTranscriptionService : IAudioTranscriptionService
         public int StreamOffset;
     }
 
-    private static async Task<StreamOffsetStruct> ReadFromSource(
+    private async Task<StreamOffsetStruct> ReadFromSource(
              ISampleProvider sampler,
              string prefix,
-             float[] buffer, int bufferSize, WhisperProcessor processor,
+             float[] buffer, int bufferSize,
              CancellationToken cancellationToken,
              IList<string> transcriptions, int streamOffset, Action<string> logOutput)
     {
@@ -203,7 +185,13 @@ public class AudioTranscriptionService : IAudioTranscriptionService
         writer.Flush();
         stream.Position = 0;
 
-        await foreach (var result in processor.ProcessAsync(stream, cancellationToken))
+        // Convert stream to byte array for the transcription service
+        byte[] audioData = stream.ToArray();
+        
+        // Process with the transcription service
+        var results = await _transcriptionService.TranscribeAudioAsync(audioData);
+        
+        foreach (var result in results)
         {
             if (IsEmptyOrSound(result.Text))
                 continue;
