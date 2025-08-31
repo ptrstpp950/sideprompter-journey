@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using AvaloniaApp.Services.AudioTranscription.Helpers;
 
 namespace AvaloniaApp.Services.AudioTranscription;
 
@@ -61,7 +60,7 @@ public class LogMessage
 public class TranscriptionMessage
 {
     public TranscriptionMessageType MessageType { get; set; }
-    public string Message { get; set; }
+    public string Message { get; set; } = "Empty";
 }
 
 public enum TranscriptionMessageType
