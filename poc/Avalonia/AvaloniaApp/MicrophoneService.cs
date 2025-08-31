@@ -125,7 +125,6 @@ public class MicrophoneService : IDisposable
         {
             Log(MessageType.Error, $"Failed to start microphone capture: {ex.Message}");
             ErrorOccurred?.Invoke(this, ex);
-            throw;
         }
 
         return Task.CompletedTask;
