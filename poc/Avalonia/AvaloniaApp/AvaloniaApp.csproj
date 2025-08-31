@@ -45,6 +45,7 @@
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="HotKeyManager.Binding" Version="2.0.0" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
     <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="PortAudioSharp2" Version="1.0.4" />
     <PackageReference Include="Whisper.net" Version="1.8.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.8.1" />
   </ItemGroup>

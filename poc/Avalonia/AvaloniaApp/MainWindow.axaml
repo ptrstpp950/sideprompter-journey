@@ -14,6 +14,11 @@
         <TabControl Grid.Row="0">
             <TabItem Header="Transcription">
                 <StackPanel Spacing="12">
+                    <StackPanel Spacing="5" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="Audio Source:" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="SystemAudioCheckBox" Content="System Audio" IsChecked="True" Margin="10,0,0,0"/>
+                        <CheckBox x:Name="MicrophoneCheckBox" Content="Microphone" IsChecked="False" Margin="10,0,0,0"/>
+                    </StackPanel>
                     <TextBlock Text="Select Language:"/>
                     <ComboBox x:Name="LanguageComboBox" Width="200"/>
                     <ToggleButton x:Name="ToggleButton" Content="Start Transcription" Width="200"

@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -13,7 +14,8 @@ namespace AvaloniaApp;
 
 public partial class MainWindow : Window
 {
-    private readonly AudioTeeTranscriptionService _transcriptionService;
+    private AudioTeeTranscriptionService? _audioTeeTranscriptionService;
+    private MicrophoneTranscriptionService? _microphoneTranscriptionService;
     private readonly IWindowTextExtractionService _windowTextExtractionService;
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
@@ -23,9 +25,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _transcriptionService = new AudioTeeTranscriptionService(new AudioTeeOptions(){SampleRate = 16000});
-        _transcriptionService.MessageGenerated += OnMessageGenerated;
-        _transcriptionService.StatusChanged += OnMessageGenerated;
+        InitializeServices();
         
 #if MACOS || OSX || MACCATALYST
         _windowTextExtractionService = new WindowTextExtractionServiceMac();
@@ -56,6 +56,17 @@ public partial class MainWindow : Window
         
         // Update the active window title
         UpdateActiveWindowTitle();
+    }
+
+    private void InitializeServices()
+    {
+        _audioTeeTranscriptionService = new AudioTeeTranscriptionService(new AudioTeeOptions { SampleRate = 16000 });
+        _audioTeeTranscriptionService.MessageGenerated += OnMessageGenerated;
+        _audioTeeTranscriptionService.StatusChanged += OnMessageGenerated;
+
+        _microphoneTranscriptionService = new MicrophoneTranscriptionService(new MicrophoneOptions { SampleRate = 16000 });
+        _microphoneTranscriptionService.MessageGenerated += OnMessageGenerated;
+        _microphoneTranscriptionService.StatusChanged += OnMessageGenerated;
     }
 
     private void OnMessageGenerated(string message)
@@ -238,7 +249,18 @@ public partial class MainWindow : Window
             ToggleButton.Content = "Stop Transcription";
             MessageTextBlock.Text = "";
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "en";
-            await Task.Run(() => _transcriptionService.StartProcessing(selectedLanguage));
+            var tasks = new List<Task>();
+
+            if (SystemAudioCheckBox.IsChecked == true)
+            {
+                tasks.Add(Task.Run(() => _audioTeeTranscriptionService?.StartProcessing(selectedLanguage)));
+            }
+            if (MicrophoneCheckBox.IsChecked == true)
+            {
+                tasks.Add(Task.Run(() => _microphoneTranscriptionService?.StartProcessing(selectedLanguage)));
+            }
+
+            await Task.WhenAll(tasks);
         }
     }
 
@@ -248,7 +270,17 @@ public partial class MainWindow : Window
     {
         if (_isTranscribing)
         {
-            await _transcriptionService.StopProcessing();
+            var tasks = new List<Task>();
+            if (SystemAudioCheckBox.IsChecked == true && _audioTeeTranscriptionService != null)
+            {
+                tasks.Add(_audioTeeTranscriptionService.StopProcessing());
+            }
+            if (MicrophoneCheckBox.IsChecked == true && _microphoneTranscriptionService != null)
+            {
+                tasks.Add(_microphoneTranscriptionService.StopProcessing());
+            }
+            await Task.WhenAll(tasks);
+
             _isTranscribing = false;
             ToggleButton.Content = "Start Transcription";
         }
@@ -270,6 +302,8 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _hotKeyService?.Dispose();
+        _audioTeeTranscriptionService?.Dispose();
+        _microphoneTranscriptionService?.Dispose();
         base.OnClosed(e);
     }
 }
