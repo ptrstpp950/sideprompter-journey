@@ -28,10 +28,16 @@ public class WhisperTranscriptionService : ITranscriptionService
     /// </summary>
     /// <param name="modelType">Type of Whisper model to use</param>
     /// <param name="modelDirectory">Directory to store the model files (defaults to "./models")</param>
-    public WhisperTranscriptionService(GgmlType modelType = GgmlType.Tiny, string modelDirectory = "./models")
+    public WhisperTranscriptionService(GgmlType modelType = GgmlType.Tiny)
     {
         _modelType = modelType;
-        _modelDirectory = modelDirectory;
+        var appSupport = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData); // Points to ~/Library/Application Support on Mac
+        _modelDirectory = Path.Combine(appSupport, "SidePrompter");
+        if (!Directory.Exists(Path.GetDirectoryName(_modelDirectory)))
+        {
+            StatusChanged?.Invoke($"Creating directory for Whisper model: {Path.GetDirectoryName(_modelDirectory)}");
+            Directory.CreateDirectory(Path.GetDirectoryName(_modelDirectory)!);
+        }
     }
 
     /// <summary>
