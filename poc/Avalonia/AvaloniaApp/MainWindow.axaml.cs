@@ -2,7 +2,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using AvaloniaApp.Services.AudioTranscription;
@@ -10,6 +12,7 @@ using AvaloniaApp.Services.EnableWindowPrivacy;
 using AvaloniaApp.Services.HotKey;
 using AvaloniaApp.Services.TranscriptionService;
 using AvaloniaApp.Services.WindowTextExtraction;
+using Microsoft.Extensions.AI;
 
 namespace AvaloniaApp;
 
@@ -17,11 +20,14 @@ public partial class MainWindow : Window
 {
     private readonly IAudioTranscriptionService? _audioTranscriptionService;
     private readonly IWindowTextExtractionService _windowTextExtractionService;
+    private readonly ChatCompletionService _chatCompletionService;
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
     private readonly IHotKeyService? _hotKeyService;
     // ReSharper disable once RedundantDefaultMemberInitializer
     private bool _windowCaptureHotkeyRegistered = false;
+
+    private List<string> _messages = new();
 
     public MainWindow()
     {
@@ -40,7 +46,12 @@ public partial class MainWindow : Window
         _audioTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
         _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
         _hotKeyService!.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
-        
+
+        _chatCompletionService =
+            //new ChatCompletionService("http://localhost:11434/","None", "phi:latest");
+            new ChatCompletionService("https://openrouter.ai/api/v1",
+                "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",
+                "deepseek/deepseek-chat-v3.1:free");
 
         LanguageComboBox.ItemsSource = _supportedLanguages;
         LanguageComboBox.SelectedIndex = 0;
@@ -65,7 +76,8 @@ public partial class MainWindow : Window
         });
     }
 
-    private void OnMessageGenerated(TranscriptionMessage message)
+
+    private async void OnMessageGenerated(TranscriptionMessage message)
     {
         var type = message.MessageType switch
         {
@@ -73,9 +85,22 @@ public partial class MainWindow : Window
             TranscriptionMessageType.Speaker => "[o]",
             _ => "[unknown] "
         };
+        var msg = $"{type} {message.Message}" + Environment.NewLine;
+        _messages.Add(msg);
         Dispatcher.UIThread.InvokeAsync(() =>
         {
-            MessageTextBlock.Text += $"{type} {message.Message}" + Environment.NewLine;
+            MessageTextBlock.Text += msg;
+        });
+        if (_messages.Count <= 30)
+            return;
+        var chatMsg =_messages.Select(x => new ChatMessage(ChatRole.User, x)).ToList();
+        _messages.Clear();
+
+        var chatResult = await _chatCompletionService.GetCompletionAsync(chatMsg);
+
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            MessageTextBlock.Text += $"[AI] {chatResult}" + Environment.NewLine;
         });
     }
     
