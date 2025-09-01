@@ -45,7 +45,6 @@
     <PackageReference Include="HotKeyManager.Binding" Version="2.0.0" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.8.0-preview.1.25412.6" />
     <PackageReference Include="NAudio" Version="2.2.1" />
-    <PackageReference Include="OllamaSharp" Version="5.3.6" />
     <PackageReference Include="PortAudioSharp2" Version="1.0.4" />
     <PackageReference Include="Whisper.net" Version="1.8.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.8.1" />
@@ -76,6 +75,11 @@
     <BundleResource Include="libs/audioteejs/bin/audiotee">
       <LogicalName>libs/audioteejs/bin/audiotee</LogicalName>
     </BundleResource>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update=".env">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <Target Name="BuildActiveWindowTextGetter" Condition="$([MSBuild]::IsOSPlatform('OSX'))" BeforeTargets="Build" Inputs="libs/activeWindowTextGetter/Sources/**/*.swift" Outputs="libs/activeWindowTextGetter/.build/release/activeWindowTextGetter">

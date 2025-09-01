@@ -49,9 +49,9 @@ public partial class MainWindow : Window
 
         _chatCompletionService =
             //new ChatCompletionService("http://localhost:11434/","None", "phi:latest");
-            new ChatCompletionService("https://openrouter.ai/api/v1",
-                "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",
-                "deepseek/deepseek-chat-v3.1:free");
+            new ChatCompletionService(Environment.GetEnvironmentVariable("API_BASE_URL")!,
+                Environment.GetEnvironmentVariable("API_KEY")!,
+                Environment.GetEnvironmentVariable("API_MODEL")!);
 
         LanguageComboBox.ItemsSource = _supportedLanguages;
         LanguageComboBox.SelectedIndex = 0;
@@ -91,12 +91,11 @@ public partial class MainWindow : Window
         {
             MessageTextBlock.Text += msg;
         });
-        if (_messages.Count <= 30)
+        if (_messages.Count <= 10)
             return;
-        var chatMsg =_messages.Select(x => new ChatMessage(ChatRole.User, x)).ToList();
-        _messages.Clear();
 
-        var chatResult = await _chatCompletionService.GetCompletionAsync(chatMsg);
+        var chatResult = await _chatCompletionService.GetCompletionAsync(_messages);
+        _messages.Clear();
 
         Dispatcher.UIThread.InvokeAsync(() =>
         {
@@ -323,5 +322,39 @@ public partial class MainWindow : Window
         _hotKeyService?.Dispose();
         _audioTranscriptionService?.Dispose();
         base.OnClosed(e);
+    }
+
+    private async void TestChatButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        var list = new List<string>
+        {
+            "[o] As Michael you said, the PE objective was migrate Hattori V2 on Unicorn to prepare for prod release.",
+            "[o] And just first, you know disclaimer something worth to know because we are using different names.",
+            "[o] So here, let's say internally we use the name hatori for the service that is officially and when it comes to.",
+            "[o] The the official documents for documentation.",
+            "[o] It's called Esoftware update service.",
+            "[o] So just to ensure that we are on the actually same page.",
+            "[o] Yeah. Please keep it in mind. But of course I will use for for this demo the name of the reads shorter.",
+            "[o] And but what was the the objective about? It was somehow, you know, it was all around the feature number 2265.You can click on the link if you want to see and the the feature was about.Yeah.",
+            "[o] My greeting Qatari service clinical platform to remove technical debt and simplify future development. That was the title of the feature and basically the the objective was about moving the service.",
+            "[o] V2 because the.",
+            "[o] Consists of V1 or V2 or you can treat as a. You know Part 1 or Part 2.",
+            "[o] Something like that. But to get the the.",
+            "[o] It to part move it to the Unicorn platform, somehow modernize and by modernization. It means not, you know, fixing all technical depth, rather adapting to.",
+            "[o] The to the Unicorn platform, adapting to the ways how we operate with the services here in the WS.",
+            "[o] And the whole process we can call it is the, let's say.",
+            "[o] And taking a look on what's was.",
+            "[o] What we wanted to to achieve or what was the desired state.",
+            "[o] Here the service is is.",
+            "[o] The service is deployed.",
+            "[o] It's too long environments and documents"
+        };
+
+        var result = await _chatCompletionService.GetCompletionAsync(list);
+
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            MessageTextBlock.Text += "[AI TEST] " + result + Environment.NewLine;
+        });
     }
 }

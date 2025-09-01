@@ -23,6 +23,7 @@
                     <ComboBox x:Name="LanguageComboBox" Width="200"/>
                     <ToggleButton x:Name="ToggleButton" Content="Start Transcription" Width="200"
                                 Checked="ToggleButton_OnChecked" Unchecked="ToggleButton_OnUnchecked"/>
+                    <Button x:Name="TestChatButton" Content="Test Chat" Click="TestChatButton_OnClick" />
                 </StackPanel>
             </TabItem>
             <TabItem Header="Window Text">
