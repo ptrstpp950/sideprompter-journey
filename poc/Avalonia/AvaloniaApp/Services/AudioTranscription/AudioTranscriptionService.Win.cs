@@ -16,6 +16,8 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
     private AudioCapture? _micCapture;
     private AudioCapture? _speakerCapture;
     private CancellationTokenSource? _cancellationTokenSource;
+    private bool _enableMicrophoneCapture = true; // Default to true for backward compatibility
+    private bool _enableSpeakerCapture = true;
 
     public event Action<TranscriptionMessage>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
@@ -23,15 +25,30 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 
     public bool IsRunning { get; private set; }
 
-    public AudioTranscriptionServiceWin(ITranscriptionService transcriptionService)
+    public AudioTranscriptionServiceWin(ITranscriptionService transcriptionService, 
+                                bool enableMicrophoneCapture = true, 
+                                bool enableSpeakerCapture = true)
     {
         _transcriptionService = transcriptionService;
+        _enableMicrophoneCapture = enableMicrophoneCapture;
+        _enableSpeakerCapture = enableSpeakerCapture;
+        
+        // Log the configuration
+        Log(MessageType.Info, $"Audio capture configuration: Microphone={_enableMicrophoneCapture}, Speaker={_enableSpeakerCapture}");
     }
 
     public Task StartProcessing(string language = "en", CancellationToken cancellationToken = default)
     {
         if (IsRunning)
         {
+            return Task.CompletedTask;
+        }
+        
+        // Ensure at least one audio source is enabled
+        if (!_enableMicrophoneCapture && !_enableSpeakerCapture)
+        {
+            Log(MessageType.Error, "Cannot start processing: both microphone and speaker capture are disabled.");
+            StatusChanged?.Invoke("Error: No audio sources enabled.");
             return Task.CompletedTask;
         }
 
@@ -41,32 +58,48 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 
         var initTask = _transcriptionService.InitializeAsync(language, token);
 
-        try
+        // Start microphone capture if enabled
+        if (_enableMicrophoneCapture)
         {
-            var waveIn = new WasapiCapture();
-            _micCapture = new AudioCapture(waveIn, TranscriptionMessageType.Mic, _transcriptionService, token);
-            _micCapture.LogReceived += OnLogReceived;
-            _micCapture.TranscriptionReceived += OnTranscriptionReceived;
-            _micCapture.Start();
-            Log(MessageType.Info, "Microphone capture started.");
+            try
+            {
+                var waveIn = new WasapiCapture();
+                _micCapture = new AudioCapture(waveIn, TranscriptionMessageType.Mic, _transcriptionService, token);
+                _micCapture.LogReceived += OnLogReceived;
+                _micCapture.TranscriptionReceived += OnTranscriptionReceived;
+                _micCapture.Start();
+                Log(MessageType.Info, "Microphone capture started.");
+            }
+            catch (Exception ex)
+            {
+                Log(MessageType.Error, "Failed to start microphone capture.", ex);
+            }
         }
-        catch (Exception ex)
+        else
         {
-            Log(MessageType.Error, "Failed to start microphone capture.", ex);
+            Log(MessageType.Info, "Microphone capture disabled by configuration.");
         }
 
-        try
+        // Start speaker capture if enabled
+        if (_enableSpeakerCapture)
         {
-            var waveOut = new WasapiLoopbackCapture();
-            _speakerCapture = new AudioCapture(waveOut, TranscriptionMessageType.Speaker, _transcriptionService, token);
-            _speakerCapture.LogReceived += OnLogReceived;
-            _speakerCapture.TranscriptionReceived += OnTranscriptionReceived;
-            _speakerCapture.Start();
-            Log(MessageType.Info, "Speaker loopback capture started.");
+            try
+            {
+                var waveOut = new WasapiLoopbackCapture();
+                _speakerCapture = new AudioCapture(waveOut, TranscriptionMessageType.Speaker, _transcriptionService, token);
+                _speakerCapture.LogReceived += OnLogReceived;
+                _speakerCapture.TranscriptionReceived += OnTranscriptionReceived;
+                _speakerCapture.Start();
+                Log(MessageType.Info, "Speaker loopback capture started.");
+            }
+            catch (Exception ex)
+            {
+                Log(MessageType.Error, "Failed to start speaker loopback capture.", ex);
+            }
         }
-        catch (Exception ex)
+        else
         {
-            Log(MessageType.Error, "Failed to start speaker loopback capture.", ex);
+            Log(MessageType.Info, "Speaker capture disabled by configuration.");
         }
         
         StatusChanged?.Invoke("Audio processing started.");
@@ -82,8 +115,16 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 
         _cancellationTokenSource?.Cancel();
 
-        _micCapture?.Stop();
-        _speakerCapture?.Stop();
+        // Stop only if they were started
+        if (_enableMicrophoneCapture && _micCapture != null)
+        {
+            _micCapture.Stop();
+        }
+        
+        if (_enableSpeakerCapture && _speakerCapture != null)
+        {
+            _speakerCapture.Stop();
+        }
 
         IsRunning = false;
         StatusChanged?.Invoke("Audio processing stopped.");
@@ -100,6 +141,28 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
         LogReceived?.Invoke(log);
     }
 
+    /// <summary>
+    /// Configure which audio sources to capture.
+    /// </summary>
+    /// <param name="enableMicrophone">Whether to capture from the microphone</param>
+    /// <param name="enableSpeaker">Whether to capture from the speaker output</param>
+    /// <returns>True if configuration was changed, false if not (because service is running)</returns>
+    public bool ConfigureAudioCapture(bool enableMicrophone, bool enableSpeaker)
+    {
+        // Cannot change configuration while running
+        if (IsRunning)
+        {
+            Log(MessageType.Error, "Cannot change audio capture configuration while service is running.");
+            return false;
+        }
+        
+        _enableMicrophoneCapture = enableMicrophone;
+        _enableSpeakerCapture = enableSpeaker;
+        
+        Log(MessageType.Info, $"Audio capture configuration updated: Microphone={_enableMicrophoneCapture}, Speaker={_enableSpeakerCapture}");
+        return true;
+    }
+    
     private void Log(MessageType type, string message, object? context = null)
     {
         LogReceived?.Invoke(new LogMessage { MessageType = type, Message = message, Timestamp = DateTime.Now, Context = context });
@@ -108,8 +171,20 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
     public void Dispose()
     {
         StopProcessing();
-        _micCapture?.Dispose();
-        _speakerCapture?.Dispose();
+        
+        // Dispose only if they were created
+        if (_enableMicrophoneCapture && _micCapture != null)
+        {
+            _micCapture.Dispose();
+            _micCapture = null;
+        }
+        
+        if (_enableSpeakerCapture && _speakerCapture != null)
+        {
+            _speakerCapture.Dispose();
+            _speakerCapture = null;
+        }
+        
         _cancellationTokenSource?.Dispose();
     }
 
@@ -244,7 +319,6 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
                         Message = result.Text
                     };
                     TranscriptionReceived?.Invoke(message);
-                    Log(MessageType.Transcription, $"[{_messageType}] {result.Text}");
                 }
             }
             catch (Exception ex)
