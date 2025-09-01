@@ -209,7 +209,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
             {
                 //Log(MessageType.Info, $"Transcribing {_messageType} audio chunk of size {pcmData.Length} bytes.");
 
-                using var rawStream = new RawSourceWaveStream(pcmData, 0, pcmData.Length, _waveIn.WaveFormat);
+                await using var rawStream = new RawSourceWaveStream(pcmData, 0, pcmData.Length, _waveIn.WaveFormat);
                 using var resampler = new MediaFoundationResampler(rawStream, _resampleFormat);
                 using var ms = new MemoryStream();
                 

@@ -10,6 +10,7 @@ namespace AvaloniaApp.Services.AudioTranscription
     {
         private readonly IAudioTranscriptionService _micAudioTranscriptionService;
         private readonly IAudioTranscriptionService _speakerAudioTranscriptionService;
+
         public AudioTranscriptionServiceMac(ITranscriptionService transcriptionService)
         {
             _micAudioTranscriptionService = new MicrophoneTranscriptionService(transcriptionService);

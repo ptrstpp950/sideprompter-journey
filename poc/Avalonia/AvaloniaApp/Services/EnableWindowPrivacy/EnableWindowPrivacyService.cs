@@ -13,7 +13,7 @@ namespace AvaloniaApp.Services.EnableWindowPrivacy;
 /// </summary>
 public static class EnableWindowPrivacyService
 {
-    public static void SetProtected(Window window, bool protect)
+    public static void SetProtected(Window? window, bool protect)
     {
         if (window is null) return;
         try
@@ -38,9 +38,9 @@ public static class EnableWindowPrivacyService
     // macOS sharing types
     private const nint NSWindowSharingNone = 0;       // hidden from window capture enumeration
     private const nint NSWindowSharingReadOnly = 1;   // default / visible
-    private static void SetProtectedMac(Window window, bool protect)
+    private static void SetProtectedMac(Window? window, bool protect)
     {
-        var handle = window.TryGetPlatformHandle();
+        var handle = window?.TryGetPlatformHandle();
         if (handle == null || handle.Handle == IntPtr.Zero) return;
         SetMacSharingType(handle.Handle, protect ? NSWindowSharingNone : NSWindowSharingReadOnly);
     }
@@ -66,9 +66,9 @@ public static class EnableWindowPrivacyService
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 
-    private static void SetProtectedWindows(Window window, bool protect)
+    private static void SetProtectedWindows(Window? window, bool protect)
     {
-        var handle = window.TryGetPlatformHandle();
+        var handle = window?.TryGetPlatformHandle();
         if (handle == null || handle.Handle == IntPtr.Zero) return;
         // Best-effort; ignore failures (older OS versions may not support EXCLUDEFROMCAPTURE)
         _ = SetWindowDisplayAffinity(handle.Handle, protect ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);

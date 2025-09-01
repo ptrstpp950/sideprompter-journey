@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
     private readonly IHotKeyService? _hotKeyService;
+    // ReSharper disable once RedundantDefaultMemberInitializer
     private bool _windowCaptureHotkeyRegistered = false;
 
     public MainWindow()
@@ -105,11 +106,12 @@ public partial class MainWindow : Window
                 CreateNoWindow = true
             };
 
-            using var process = new System.Diagnostics.Process { StartInfo = processStartInfo };
+            using var process = new System.Diagnostics.Process();
+            process.StartInfo = processStartInfo;
             process.Start();
 
-            string output = await process.StandardOutput.ReadToEndAsync();
-            string error = await process.StandardError.ReadToEndAsync();
+            var output = await process.StandardOutput.ReadToEndAsync();
+            var error = await process.StandardError.ReadToEndAsync();
             
             await process.WaitForExitAsync();
 
@@ -254,7 +256,7 @@ public partial class MainWindow : Window
 
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
         }
-        catch (Exception _)
+        catch (Exception)
         {
             // Log the error but keep the UI responsive
         }
@@ -272,7 +274,7 @@ public partial class MainWindow : Window
             _isTranscribing = false;
             ToggleButton.Content = "Start Transcription";
         }
-        catch (Exception _)
+        catch (Exception)
         {
             // Log the error but keep the UI responsive
         }

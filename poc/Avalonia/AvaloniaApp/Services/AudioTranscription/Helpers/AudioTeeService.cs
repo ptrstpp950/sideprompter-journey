@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -170,7 +171,7 @@ public class AudioTeeService : IDisposable
         if (!_isRunning || _process == null)
             return;
 
-        _cancellationTokenSource?.Cancel();
+        await _cancellationTokenSource?.CancelAsync()!;
 
         try
         {
@@ -191,6 +192,7 @@ public class AudioTeeService : IDisposable
         }
     }
 
+    [SuppressMessage("ReSharper", "StringLiteralTypo")]
     private string GetAudioTeeBinaryPath()
     {
         // For macOS app bundles, check Resources first

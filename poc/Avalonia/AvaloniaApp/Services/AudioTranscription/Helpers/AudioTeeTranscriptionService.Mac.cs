@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using AvaloniaApp.Services.AudioTranscription;
 using AvaloniaApp.Services.TranscriptionService;
 
 namespace AvaloniaApp.Services.AudioTranscription.Helpers;
@@ -21,8 +20,8 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
     public event Action<TranscriptionMessage>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
     public event Action<string>? StatusChanged;
-    
-    public bool IsRunning => _cancellationTokenSource != null;
+
+    public bool IsRunning => _cancellationTokenSource != null && _audioTeeService.IsRunning;
 
     public AudioTeeTranscriptionService(ITranscriptionService transcriptionService, AudioTeeOptions? audioOptions = null)
     {
@@ -34,15 +33,10 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
     private void SetupAudioTeeEvents()
     {
         _audioTeeService.DataReceived += OnAudioDataReceived;
-        _audioTeeService.Started += (s, e) => StatusChanged?.Invoke("AudioTee started");
-        _audioTeeService.Stopped += (s, e) => StatusChanged?.Invoke("AudioTee stopped");
+        _audioTeeService.Started += (_, _) => StatusChanged?.Invoke("AudioTee started");
+        _audioTeeService.Stopped += (_, _) => StatusChanged?.Invoke("AudioTee stopped");
         _audioTeeService.ErrorOccurred += OnAudioTeeError;
         _audioTeeService.LogReceived += OnAudioTeeLog;
-    }
-
-    private void HandleNewAudioBuffer(object? sender, EventArgs e)
-    {
-        // This method is needed for compatibility with AudioTeeService events
     }
 
     private void OnAudioDataReceived(object? sender, AudioChunk chunk)
@@ -90,7 +84,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
             await _audioTeeService.StartAsync(_cancellationTokenSource.Token);
             
             // Start a background task to periodically process accumulated audio
-            _ = Task.Run(() => ProcessAudioPeriodically(language, _cancellationTokenSource.Token), 
+            _ = Task.Run(() => ProcessAudioPeriodically(_cancellationTokenSource.Token), 
                 _cancellationTokenSource.Token);
             
             StatusChanged?.Invoke("Audio capture and processing started");
@@ -133,7 +127,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
 
 
 
-    private async Task ProcessAudioPeriodically(string language, CancellationToken cancellationToken)
+    private async Task ProcessAudioPeriodically(CancellationToken cancellationToken)
     {
         // Process accumulated audio every 3 seconds
         const int processIntervalMs = 3000;
@@ -156,7 +150,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
 
                 if (audioToProcess.Length > 0)
                 {
-                    await ProcessAudioChunk(audioToProcess, language);
+                    await ProcessAudioChunk(audioToProcess);
                 }
             }
             catch (OperationCanceledException)
@@ -170,7 +164,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
         }
     }
 
-    private async Task ProcessAudioChunk(byte[] audioData, string language)
+    private async Task ProcessAudioChunk(byte[] audioData)
     {
         try
         {
@@ -259,7 +253,6 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
     {
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
-        (_transcriptionService as IDisposable)?.Dispose();
-        _audioTeeService?.Dispose();
+        _audioTeeService.Dispose();
     }
 }

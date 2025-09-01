@@ -27,7 +27,6 @@ public class WhisperTranscriptionService : ITranscriptionService
     /// Create a new instance of WhisperTranscriptionService
     /// </summary>
     /// <param name="modelType">Type of Whisper model to use</param>
-    /// <param name="modelDirectory">Directory to store the model files (defaults to "./models")</param>
     public WhisperTranscriptionService(GgmlType modelType = GgmlType.Base)
     {
         _modelType = modelType;

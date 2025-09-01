@@ -1,12 +1,9 @@
 #if WINDOWS
-using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
-using FlaUI.Core.Exceptions;
 using FlaUI.UIA3;
 using System;
 using System.Text;
 using System.Threading.Tasks;
-using System.Diagnostics;
 
 namespace AvaloniaApp.Services.WindowTextExtraction
 {
@@ -18,16 +15,15 @@ namespace AvaloniaApp.Services.WindowTextExtraction
             {
                 try
                 {
-                    using (var automation = new UIA3Automation())
+                    using var automation = new UIA3Automation();
+                    var window = automation.FromHandle(Win32.GetForegroundWindow());
+                    // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                    if (window != null)
                     {
-                        var window = automation.FromHandle(Win32.GetForegroundWindow());
-                        if (window != null)
-                        {
-                            var sb = new StringBuilder();
-                            sb.AppendLine($"[Window: {window.Name}, Process: {window.Properties.ProcessId.ValueOrDefault}]");
-                            AppendText(window, sb, 0);
-                            return sb.ToString();
-                        }
+                        var sb = new StringBuilder();
+                        sb.AppendLine($"[Window: {window.Name}, Process: {window.Properties.ProcessId.ValueOrDefault}]");
+                        AppendText(window, sb, 0);
+                        return sb.ToString();
                     }
                 }
                 catch (Exception ex)
@@ -43,11 +39,10 @@ namespace AvaloniaApp.Services.WindowTextExtraction
         {
             try
             {
-                using (var automation = new UIA3Automation())
-                {
-                    var window = automation.FromHandle(Win32.GetForegroundWindow());
-                    return window?.Name ?? string.Empty;
-                }
+                using var automation = new UIA3Automation();
+                var window = automation.FromHandle(Win32.GetForegroundWindow());
+                // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
+                return window?.Name ?? string.Empty;
             }
             catch (Exception ex)
             {
@@ -59,6 +54,7 @@ namespace AvaloniaApp.Services.WindowTextExtraction
 
         private void AppendText(AutomationElement element, StringBuilder sb, int indent)
         {
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             if (element == null) return;
 
             try

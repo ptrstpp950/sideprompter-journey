@@ -1,10 +1,7 @@
 #if WINDOWS
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Platform;
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace AvaloniaApp.Services.HotKey
@@ -12,6 +9,7 @@ namespace AvaloniaApp.Services.HotKey
 
     public class HotKeyServiceWindows : IHotKeyService
     {
+        // ReSharper disable once InconsistentNaming
         private const int WM_HOTKEY = 0x0312;
         
         private Action? _startRecordingAction;
@@ -19,9 +17,11 @@ namespace AvaloniaApp.Services.HotKey
         private int _startRecordingId = -1;
         private int _windowCaptureId = -1;
         private readonly Window _window;
+        // ReSharper disable once RedundantDefaultMemberInitializer
         private bool _isDisposed = false;
         
         // For handling window messages
+        // ReSharper disable once IdentifierTypo
         private IntPtr _hwnd;
         private IntPtr _prevWndProc;
         private Win32WindowProc? _wndProc;
@@ -240,11 +240,12 @@ namespace AvaloniaApp.Services.HotKey
         }
 
         // Win32 API constants
+        // ReSharper disable InconsistentNaming
         private const uint MOD_ALT = 0x0001;
         private const uint MOD_CONTROL = 0x0002;
         private const uint MOD_SHIFT = 0x0004;
         private const uint MOD_WIN = 0x0008;
-        private const uint MOD_NOREPEAT = 0x4000;
+        // ReSharper restore InconsistentNaming
 
         // Win32 API delegates
         private delegate IntPtr Win32WindowProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);

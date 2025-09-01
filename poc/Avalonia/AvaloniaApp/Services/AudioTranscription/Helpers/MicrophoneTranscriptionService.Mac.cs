@@ -12,7 +12,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
     private readonly ITranscriptionService _transcriptionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly List<byte> _audioBuffer = new();
-    private readonly object _bufferLock = new();
+    private readonly Lock _bufferLock = new();
 
     public event Action<TranscriptionMessage>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
@@ -34,8 +34,8 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
     private void SetupMicrophoneEvents()
     {
         _microphoneService.DataReceived += OnAudioDataReceived;
-        _microphoneService.Started += (s, e) => StatusChanged?.Invoke("Microphone started");
-        _microphoneService.Stopped += (s, e) => StatusChanged?.Invoke("Microphone stopped");
+        _microphoneService.Started += (_, _) => StatusChanged?.Invoke("Microphone started");
+        _microphoneService.Stopped += (_, _) => StatusChanged?.Invoke("Microphone stopped");
         _microphoneService.ErrorOccurred += OnMicrophoneError;
         _microphoneService.LogReceived += OnMicrophoneLog;
     }
