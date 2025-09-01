@@ -77,6 +77,7 @@ public class WhisperTranscriptionService : ITranscriptionService
         _whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
         _whisperProcessor = _whisperFactory.CreateBuilder()
             .WithLanguage(language)
+            .WithThreads(Environment.ProcessorCount)
             .Build();
             
         StatusChanged?.Invoke($"Whisper model initialized with language: {language}");
@@ -100,7 +101,7 @@ public class WhisperTranscriptionService : ITranscriptionService
 
         // Convert raw PCM data to WAV format
         using var stream = new MemoryStream();
-        using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
+        await using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
         
         // Write the raw PCM data directly
         writer.Write(audioData, 0, audioData.Length);
@@ -123,7 +124,9 @@ public class WhisperTranscriptionService : ITranscriptionService
                 DateTime.UtcNow
             ));
         }
-        
+        if(results.Count == 0)
+            return Array.Empty<TranscriptionResult>();
+
         return results.ToArray();
     }
     
