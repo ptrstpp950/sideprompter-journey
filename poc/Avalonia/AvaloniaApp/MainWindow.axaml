@@ -10,7 +10,8 @@
         Title="AvaloniaApp">
     <Window.Resources>
         <viewModel:AuthorToAlignmentConverter x:Key="AuthorToAlignmentConverter"/>
-        <viewModel:AuthorToBrushConverter x:Key="AuthorToBrushConverter"/>
+        <viewModel:AuthorToBackgroundBrushConverter x:Key="AuthorToBackgroundBrushConverter"/>
+        <viewModel:AuthorToForegroundBrushConverter x:Key="AuthorToForegroundBrushConverter"/>
     </Window.Resources>
     <Grid Margin="20">
         <TabControl>
@@ -34,8 +35,9 @@
                                             CornerRadius="10"
                                             Padding="10"
                                             HorizontalAlignment="{Binding Author, Converter={StaticResource AuthorToAlignmentConverter}}"
-                                            Background="{Binding Author, Converter={StaticResource AuthorToBrushConverter}}">
-                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                            Background="{Binding Author, Converter={StaticResource AuthorToBackgroundBrushConverter}}">
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                                   Foreground="{Binding Author, Converter={StaticResource AuthorToForegroundBrushConverter}}"/>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

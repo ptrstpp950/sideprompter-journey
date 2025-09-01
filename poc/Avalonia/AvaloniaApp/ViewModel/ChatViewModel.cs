@@ -31,6 +31,12 @@ public class ChatViewModel : INotifyPropertyChanged
         }
     }
 
+    public ChatViewModel()
+    {
+        AddMessage("me: Lorem ipsum dolor sit amet, consectetur adipiscing elit.", MessageAuthor.Me);
+        AddMessage("other: Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", MessageAuthor.Other);
+    }
+
     public void AddMessage(string text, MessageAuthor author)
     {
         Dispatcher.UIThread.InvokeAsync(() =>
