@@ -9,7 +9,7 @@ using Microsoft.Extensions.AI;
 using System.Diagnostics;
 using OpenAI;
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Services
 {
 
     public class LoggingHttpMessageHandler : DelegatingHandler
