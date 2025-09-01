@@ -13,6 +13,8 @@ using AvaloniaApp.Services.HotKey;
 using AvaloniaApp.Services.TranscriptionService;
 using AvaloniaApp.Services.WindowTextExtraction;
 using Microsoft.Extensions.AI;
+using AvaloniaApp.Services;
+using AvaloniaApp.ViewModel;
 
 namespace AvaloniaApp;
 
@@ -27,11 +29,12 @@ public partial class MainWindow : Window
     // ReSharper disable once RedundantDefaultMemberInitializer
     private bool _windowCaptureHotkeyRegistered = false;
 
-    private List<string> _messages = new();
+    private readonly ChatViewModel _chatViewModel = new();
 
     public MainWindow()
     {
         InitializeComponent();
+        DataContext = _chatViewModel;
         var transcriptionService = new WhisperTranscriptionService();
 #if MACOS || OSX || MACCATALYST
         _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionService);
@@ -58,49 +61,50 @@ public partial class MainWindow : Window
 
         // Update the active window title
         UpdateActiveWindowTitle();
+        
+        _chatViewModel.Messages.CollectionChanged += (sender, args) =>
+        {
+            Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                ChatScrollViewer.ScrollToEnd();
+            });
+        };
     }
 
     
     private void TranscriptionServiceOnStatusChanged(string message)
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            MessageTextBlock.Text += $"[Log][Status] {message}" + Environment.NewLine;
-        });    }
+        _chatViewModel.AddLogMessage($"[Log][Status] {message}");
+    }
 
     private void TranscriptionServiceOnLogReceived(LogMessage message)
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            MessageTextBlock.Text += $"[Log][{message.MessageType}] {message.Message}" + Environment.NewLine;
-        });
+        _chatViewModel.AddLogMessage($"[Log][{message.MessageType}] {message.Message}");
     }
 
 
     private async void OnMessageGenerated(TranscriptionMessage message)
     {
-        var type = message.MessageType switch
+        var author = message.MessageType switch
         {
-            TranscriptionMessageType.Mic => "[m]",
-            TranscriptionMessageType.Speaker => "[o]",
-            _ => "[unknown] "
+            TranscriptionMessageType.Mic => MessageAuthor.Me,
+            TranscriptionMessageType.Speaker => MessageAuthor.Other,
+            _ => MessageAuthor.Other
         };
-        var msg = $"{type} {message.Message}" + Environment.NewLine;
-        _messages.Add(msg);
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            MessageTextBlock.Text += msg;
-        });
-        if (_messages.Count <= 10)
+        
+        _chatViewModel.AddMessage(message.Message, author);
+
+        if (_chatViewModel.Messages.Count(m => m.Author != MessageAuthor.Me) <= 10)
             return;
 
-        var chatResult = await _chatCompletionService.GetCompletionAsync(_messages);
-        _messages.Clear();
+        var messages = _chatViewModel.Messages
+            .Select(m => $"[{m.Author}] {m.Text}")
+            .ToList();
+        
+        var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
+        _chatViewModel.ClearMessages();
 
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            MessageTextBlock.Text += $"[AI] {chatResult}" + Environment.NewLine;
-        });
+        _chatViewModel.AddMessage(chatResult, MessageAuthor.Other);
     }
     
     private async void GetWindowTextButton_OnClick(object? sender, RoutedEventArgs e)
@@ -262,10 +266,7 @@ public partial class MainWindow : Window
 
     private void AddMessage(string message)
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            MessageTextBlock.Text += message + Environment.NewLine;
-        });
+        _chatViewModel.AddLogMessage(message);
     }
 
     private async void ToggleButton_OnChecked(object? sender, RoutedEventArgs e)
@@ -275,7 +276,7 @@ public partial class MainWindow : Window
             if (_isTranscribing) return;
             _isTranscribing = true;
             ToggleButton.Content = "Stop Transcription";
-            MessageTextBlock.Text = "";
+            _chatViewModel.ClearMessages();
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "en";
 
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
@@ -352,9 +353,6 @@ public partial class MainWindow : Window
 
         var result = await _chatCompletionService.GetCompletionAsync(list);
 
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            MessageTextBlock.Text += "[AI TEST] " + result + Environment.NewLine;
-        });
+        _chatViewModel.AddLogMessage("[AI TEST] " + result);
     }
 }

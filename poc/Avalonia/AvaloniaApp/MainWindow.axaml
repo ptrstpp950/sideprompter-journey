@@ -2,16 +2,18 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AvaloniaApp"
+        xmlns:viewModel="clr-namespace:AvaloniaApp.ViewModel"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
         x:Class="AvaloniaApp.MainWindow"
+        x:DataType="viewModel:ChatViewModel"
         Title="AvaloniaApp">
+    <Window.Resources>
+        <viewModel:AuthorToAlignmentConverter x:Key="AuthorToAlignmentConverter"/>
+        <viewModel:AuthorToBrushConverter x:Key="AuthorToBrushConverter"/>
+    </Window.Resources>
     <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-        
-        <TabControl Grid.Row="0">
+        <TabControl>
             <TabItem Header="Transcription">
                 <StackPanel Spacing="12">
                     <StackPanel Spacing="5" Orientation="Horizontal" Margin="0,0,0,10">
@@ -22,8 +24,23 @@
                     <TextBlock Text="Select Language:"/>
                     <ComboBox x:Name="LanguageComboBox" Width="200"/>
                     <ToggleButton x:Name="ToggleButton" Content="Start Transcription" Width="200"
-                                Checked="ToggleButton_OnChecked" Unchecked="ToggleButton_OnUnchecked"/>
+                                  Checked="ToggleButton_OnChecked" Unchecked="ToggleButton_OnUnchecked"/>
                     <Button x:Name="TestChatButton" Content="Test Chat" Click="TestChatButton_OnClick" />
+                    <ScrollViewer x:Name="ChatScrollViewer" VerticalScrollBarVisibility="Auto" Margin="0,20,0,0">
+                        <ItemsControl ItemsSource="{Binding Messages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewModel:ChatMessage">
+                                    <Border Margin="5"
+                                            CornerRadius="10"
+                                            Padding="10"
+                                            HorizontalAlignment="{Binding Author, Converter={StaticResource AuthorToAlignmentConverter}}"
+                                            Background="{Binding Author, Converter={StaticResource AuthorToBrushConverter}}">
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </StackPanel>
             </TabItem>
             <TabItem Header="Window Text">
@@ -43,16 +60,29 @@
                     <Button x:Name="GetWindowTextCliButton" Content="Get Window Text (CLI)" Width="200"
                             Click="GetWindowTextCliButton_OnClick"/>
                     <CheckBox x:Name="PrivacyModeCheckBox" Content="Privacy Mode (Hide this window from capture)"
-                            Checked="PrivacyMode_OnToggled" Unchecked="PrivacyMode_OnToggled"/>
+                              Checked="PrivacyMode_OnToggled" Unchecked="PrivacyMode_OnToggled"/>
                     <TextBlock Text="Register ALT+W to extract window text:"/>
                     <Button x:Name="RegisterHotkeyButton" Content="Register Hotkey" Width="200"
                             Click="RegisterHotkeyButton_OnClick"/>
                 </StackPanel>
             </TabItem>
+            <TabItem Header="Logs">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding LogMessages}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="viewModel:ChatMessage">
+                                <Border Margin="5"
+                                        CornerRadius="10"
+                                        Padding="10"
+                                        HorizontalAlignment="Left"
+                                        Background="LightGray">
+                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
-        
-        <ScrollViewer Grid.Row="1" Height="400" VerticalScrollBarVisibility="Auto" Margin="0,20,0,0">
-            <TextBlock x:Name="MessageTextBlock" TextWrapping="Wrap" />
-        </ScrollViewer>
     </Grid>
 </Window>
