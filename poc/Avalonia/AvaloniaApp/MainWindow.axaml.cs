@@ -2,12 +2,10 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using AvaloniaApp.Services.AudioTranscription;
-using AvaloniaApp.Services.AudioTranscription.Helpers;
 using AvaloniaApp.Services.EnableWindowPrivacy;
 using AvaloniaApp.Services.HotKey;
 using AvaloniaApp.Services.TranscriptionService;
@@ -17,65 +15,40 @@ namespace AvaloniaApp;
 
 public partial class MainWindow : Window
 {
-    private AudioTeeTranscriptionService? _audioTeeTranscriptionService;
-    private MicrophoneTranscriptionService? _microphoneTranscriptionService;
+    private readonly IAudioTranscriptionService? _audioTranscriptionService;
     private readonly IWindowTextExtractionService _windowTextExtractionService;
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
-    private IHotKeyService? _hotKeyService;
+    private readonly IHotKeyService? _hotKeyService;
     private bool _windowCaptureHotkeyRegistered = false;
 
     public MainWindow()
     {
         InitializeComponent();
-        
-        InitializeTranscriptionServices();
-        
+        var transcriptionService = new WhisperTranscriptionService();
 #if MACOS || OSX || MACCATALYST
+        _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionService);
         _windowTextExtractionService = new WindowTextExtractionServiceMac();
+        _hotKeyService = new HotKeyServiceMacOptionTwo(this);
 #elif WINDOWS
+        _audioTranscriptionService = new AudioTranscriptionServiceWin(transcriptionService);
         _windowTextExtractionService = new WindowTextExtractionServiceWin();
-#else
-        _windowTextExtractionService = new NoopWindowTextExtractionService();
+        _hotKeyService = new HotKeyServiceWindows(this);
 #endif
+        _audioTranscriptionService!.TranscriptionReceived += OnMessageGenerated;
+        _audioTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
+        _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
+        _hotKeyService!.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+        
+
         LanguageComboBox.ItemsSource = _supportedLanguages;
         LanguageComboBox.SelectedIndex = 0;
-        
-        // Register global ALT+? hotkey
-        try
-        {
-#if MACOS || OSX || MACCATALYST
-            _hotKeyService = new HotKeyServiceMacOptionTwo(this);
-            _hotKeyService.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
-#elif WINDOWS
-            _hotKeyService = new HotKeyServiceWindows(this);
-            _hotKeyService.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Alt, OnHotKeyPressed);
-#endif
-        }
-        catch (Exception ex)
-        {
-            // Log the error but continue execution
-            Console.WriteLine($"Failed to register global hotkey: {ex.Message}");
-        }
-        
+
         // Update the active window title
         UpdateActiveWindowTitle();
     }
 
-    private void InitializeTranscriptionServices()
-    {
-        var transcriptionService = new WhisperTranscriptionService();
-        _audioTeeTranscriptionService = new AudioTeeTranscriptionService(transcriptionService, new AudioTeeOptions { SampleRate = 16000 });
-        _audioTeeTranscriptionService.TranscriptionReceived += OnMessageGenerated;
-        _audioTeeTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
-        _audioTeeTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
-
-        _microphoneTranscriptionService = new MicrophoneTranscriptionService(transcriptionService, new MicrophoneOptions { SampleRate = 16000 });
-        _microphoneTranscriptionService.TranscriptionReceived += OnMessageGenerated;
-        _microphoneTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
-        _microphoneTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
-    }
-
+    
     private void TranscriptionServiceOnStatusChanged(string message)
     {
         Dispatcher.UIThread.InvokeAsync(() =>
@@ -271,24 +244,19 @@ public partial class MainWindow : Window
 
     private async void ToggleButton_OnChecked(object? sender, RoutedEventArgs e)
     {
-        if (!_isTranscribing)
+        try
         {
+            if (_isTranscribing) return;
             _isTranscribing = true;
             ToggleButton.Content = "Stop Transcription";
             MessageTextBlock.Text = "";
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "en";
-            var tasks = new List<Task>();
 
-            if (SystemAudioCheckBox.IsChecked == true)
-            {
-                tasks.Add(Task.Run(() => _audioTeeTranscriptionService?.StartProcessing(selectedLanguage)));
-            }
-            if (MicrophoneCheckBox.IsChecked == true)
-            {
-                tasks.Add(Task.Run(() => _microphoneTranscriptionService?.StartProcessing(selectedLanguage)));
-            }
-
-            await Task.WhenAll(tasks);
+            await _audioTranscriptionService!.StartProcessing((selectedLanguage));
+        }
+        catch (Exception _)
+        {
+            // Log the error but keep the UI responsive
         }
     }
 
@@ -296,21 +264,17 @@ public partial class MainWindow : Window
 
     private async void ToggleButton_OnUnchecked(object? sender, RoutedEventArgs e)
     {
-        if (_isTranscribing)
+        try
         {
-            var tasks = new List<Task>();
-            if (SystemAudioCheckBox.IsChecked == true && _audioTeeTranscriptionService != null)
-            {
-                tasks.Add(_audioTeeTranscriptionService.StopProcessing());
-            }
-            if (MicrophoneCheckBox.IsChecked == true && _microphoneTranscriptionService != null)
-            {
-                tasks.Add(_microphoneTranscriptionService.StopProcessing());
-            }
-            await Task.WhenAll(tasks);
+            if (!_isTranscribing) return;
+            await _audioTranscriptionService!.StopProcessing();
 
             _isTranscribing = false;
             ToggleButton.Content = "Start Transcription";
+        }
+        catch (Exception _)
+        {
+            // Log the error but keep the UI responsive
         }
     }
 
@@ -330,8 +294,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _hotKeyService?.Dispose();
-        _audioTeeTranscriptionService?.Dispose();
-        _microphoneTranscriptionService?.Dispose();
+        _audioTranscriptionService?.Dispose();
         base.OnClosed(e);
     }
 }

@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using AvaloniaApp.Services.AudioTranscription.Helpers;
 using AvaloniaApp.Services.TranscriptionService;
 
-namespace AvaloniaApp.Services.AudioTranscription;
+namespace AvaloniaApp.Services.AudioTranscription.Helpers;
 
 public class MicrophoneTranscriptionService : IAudioTranscriptionService
 {

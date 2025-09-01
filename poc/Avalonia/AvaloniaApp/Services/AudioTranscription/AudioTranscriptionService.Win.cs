@@ -9,7 +9,7 @@ using NAudio.Wave.SampleProviders;
 
 namespace AvaloniaApp.Services.AudioTranscription;
 
-public class WindowsAudioTranscriptionService : IAudioTranscriptionService
+public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 {
     private readonly ITranscriptionService _transcriptionService;
     private CancellationTokenSource? _cancellationTokenSource;
@@ -21,7 +21,7 @@ public class WindowsAudioTranscriptionService : IAudioTranscriptionService
 
     public bool IsRunning => _cancellationTokenSource != null;
 
-    public WindowsAudioTranscriptionService(ITranscriptionService transcriptionService)
+    public AudioTranscriptionServiceWin(ITranscriptionService transcriptionService)
     {
         _transcriptionService = transcriptionService;
     }
@@ -127,10 +127,12 @@ public class WindowsAudioTranscriptionService : IAudioTranscriptionService
                         { MessageType = TranscriptionMessageType.Speaker, Message = msg });
                 }
 
-                var micResultTask = 
-                    ReadFromSource(micSampler,  micBuffer, bufferSize, _transcriptionHistory, micOffset, LogMic);
-                var speakerResultTask = 
-                    ReadFromSource(speakerSampler, speakerBuffer, bufferSize, _transcriptionHistory, speakerOffset, LogSpeaker);
+                var micResultTask =
+                    ReadFromSource(micSampler, micBuffer, bufferSize, _transcriptionHistory, micOffset,
+                        TranscriptionMessageType.Mic, LogMic);
+                var speakerResultTask =
+                    ReadFromSource(speakerSampler, speakerBuffer, bufferSize, _transcriptionHistory, speakerOffset,
+                        TranscriptionMessageType.Speaker, LogSpeaker);
 
                 await Task.WhenAll(micResultTask, speakerResultTask);
                 var micResult = micResultTask.Result;
@@ -158,7 +160,8 @@ public class WindowsAudioTranscriptionService : IAudioTranscriptionService
     private async Task<StreamOffsetStruct> ReadFromSource(
              ISampleProvider sampler,
              float[] buffer, int bufferSize,
-             IList<string> transcriptions, int streamOffset, Action<string> logOutput)
+             IList<string> transcriptions, int streamOffset,
+             TranscriptionMessageType messageType, Action<string> logOutput)
     {
         // MIC
         var temp = new float[16000];
@@ -203,8 +206,12 @@ public class WindowsAudioTranscriptionService : IAudioTranscriptionService
             // Only add if not a duplicate of the last transcription
             if (transcriptions.Count > 0 && transcriptions[^1].EndsWith(result.Text))
                 continue;
-                
-            transcriptions.Add(result.Text);
+
+            TranscriptionReceived?.Invoke(new TranscriptionMessage()
+            {
+                Message = result.Text,
+                MessageType = messageType
+            });
         }
 
         await writer.DisposeAsync();
