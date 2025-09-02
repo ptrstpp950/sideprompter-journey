@@ -18,7 +18,7 @@ namespace AvaloniaApp.Services.AudioTranscription
             _micAudioTranscriptionService.LogReceived += (log) => LogReceived?.Invoke(log);
             _micAudioTranscriptionService.StatusChanged += (status) => StatusChanged?.Invoke(status);
 
-            _speakerAudioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionService);
+            _speakerAudioTranscriptionService = new AudioTeeTranscriptionService(transcriptionService);
             _speakerAudioTranscriptionService.TranscriptionReceived += (msg) => TranscriptionReceived?.Invoke(msg);
             _speakerAudioTranscriptionService.LogReceived += (log) => LogReceived?.Invoke(log);
             _speakerAudioTranscriptionService.StatusChanged += (status) => StatusChanged?.Invoke(status);

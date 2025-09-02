@@ -25,9 +25,6 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
         _microphoneService = new MicrophoneService(microphoneOptions);
         
-        // Forward status change events from the transcription service
-        _transcriptionService.StatusChanged += status => StatusChanged?.Invoke(status);
-        
         SetupMicrophoneEvents();
     }
 
