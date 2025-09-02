@@ -11,6 +11,10 @@ public class AppSettings
     public string WhisperModel { get; set; } = GgmlType.Base.ToString();
     public bool SetupCompleted { get; set; }
     public DateTime? FirstConfiguredUtc { get; set; }
+    public string ChatApiBase { get; set; } = string.Empty; // e.g. https://api.openai.com/v1 or local server
+    public string ChatApiKey { get; set; } = string.Empty;
+    public string ChatModel { get; set; } = string.Empty; // e.g. gpt-4o-mini, meta-llama, etc.
+    public string ChatProvider { get; set; } = string.Empty; // optional friendly label (OpenAI, Ollama, Azure, Groq, etc.)
 
     [JsonIgnore]
     public GgmlType WhisperModelType => Enum.TryParse<GgmlType>(WhisperModel, out var t) ? t : GgmlType.Base;

@@ -4,6 +4,8 @@ using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -37,6 +39,18 @@ public partial class SetupWizard : Window
     // macOS step controls
     private TextBlock? _macStatusText;
     private ProgressBar? _macProgressBar;
+    // Chat completion step controls
+    private TextBox? _chatEndpointBox;
+    private TextBox? _chatApiKeyBox;
+    private ComboBox? _chatModelListCombo;
+    private TextBox? _chatModelInput;
+    private ComboBox? _chatProviderCombo;
+    private TextBlock? _chatValidationMessage;
+    private Button? _chatFetchModelsButton;
+    private Button? _chatVerifyButton;
+    private CancellationTokenSource? _chatModelsCts;
+
+    private static readonly HttpClient _httpClient = new();
 
     private class ModelOption
     {
@@ -60,6 +74,7 @@ public partial class SetupWizard : Window
         {
             BuildLanguagesStep,
             BuildModelStep,
+            BuildChatCompletionStep,
             BuildMacExtraStep,
             BuildDonationStep
         };
@@ -275,6 +290,313 @@ public partial class SetupWizard : Window
         });
         UpdateModelDescription();
         return panel;
+    }
+
+    private Control BuildChatCompletionStep()
+    {
+        var panel = new StackPanel { Spacing = 8 };
+        panel.Children.Add(new TextBlock { Text = "Configure Chat Completion Service", FontWeight = FontWeight.Bold });
+        panel.Children.Add(new TextBlock { Text = "Provide an OpenAI or OpenAI-compatible endpoint (OpenAI, Azure OpenAI, Ollama, Groq, etc.).", TextWrapping = TextWrapping.Wrap, FontSize = 12 });
+
+    var providerList = new[] { "OpenAI", "OpenRouter", "Ollama", "Other" };
+        _chatProviderCombo = new ComboBox { ItemsSource = providerList, SelectedIndex = 0, Width = 160 };
+        if (!string.IsNullOrWhiteSpace(_settings.ChatProvider))
+        {
+            var idx = Array.FindIndex(providerList, x => x.Equals(_settings.ChatProvider, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0) _chatProviderCombo.SelectedIndex = idx; else _chatProviderCombo.SelectedItem = _settings.ChatProvider;
+        }
+
+    _chatEndpointBox = new TextBox { Watermark = "API Base URL (https://...)" , Text = _settings.ChatApiBase };
+        _chatApiKeyBox = new TextBox { Watermark = "API Key (kept local)", Text = _settings.ChatApiKey, PasswordChar = '•' };
+    _chatModelInput = new TextBox { Watermark = "Model (e.g. gpt-4o-mini, llama3, phi3, etc.)", Text = _settings.ChatModel };
+    _chatModelListCombo = new ComboBox { Width = 260, PlaceholderText = "(fetch models)" };
+        _chatValidationMessage = new TextBlock { Foreground = Brushes.OrangeRed, FontSize = 12 };
+
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto")
+        };
+        void AddRow(int r, string label, Control control)
+        {
+            var lbl = new TextBlock { Text = label, Margin = new Thickness(0,4,8,0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            grid.Children.Add(lbl); Grid.SetRow(lbl, r); Grid.SetColumn(lbl, 0);
+            grid.Children.Add(control); Grid.SetRow(control, r); Grid.SetColumn(control, 1);
+        }
+        AddRow(0, "Provider:", _chatProviderCombo);
+        AddRow(1, "Endpoint:", _chatEndpointBox);
+        AddRow(2, "API Key:", _chatApiKeyBox);
+    var modelStack = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
+    // Order: fetchable list first, then editable text box
+    modelStack.Children.Add(_chatModelListCombo);
+    modelStack.Children.Add(_chatModelInput);
+    AddRow(3, "Model:", modelStack);
+        panel.Children.Add(grid);
+        // Fetch models button + hint
+    var actionRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+    _chatFetchModelsButton = new Button { Content = "Fetch Models" };
+    _chatFetchModelsButton.Click += async (_, _) => await FetchModelsAsync();
+    _chatVerifyButton = new Button { Content = "Verify" };
+    _chatVerifyButton.Click += async (_, _) => await VerifyChatAsync();
+    actionRow.Children.Add(_chatFetchModelsButton);
+    actionRow.Children.Add(_chatVerifyButton);
+    actionRow.Children.Add(new TextBlock { Text = "(Fetch list / test message)", FontSize = 11, FontStyle = FontStyle.Italic });
+    panel.Children.Add(actionRow);
+        panel.Children.Add(new TextBlock { Text = "Key is stored locally (settings.json).", FontSize = 11, FontStyle = FontStyle.Italic });
+        panel.Children.Add(_chatValidationMessage);
+
+        // Pre-fill endpoint defaults when provider changes
+        _chatProviderCombo.SelectionChanged += (_, _) => SuggestEndpoint();
+        SuggestEndpoint();
+        _chatModelListCombo.SelectionChanged += (_, _) =>
+        {
+            if (_chatModelListCombo.SelectedItem is string m && _chatModelInput != null)
+            {
+                _chatModelInput.Text = m;
+            }
+        };
+        return panel;
+    }
+
+    private void SuggestEndpoint()
+    {
+        if (_chatProviderCombo?.SelectedItem is not string provider || _chatEndpointBox == null) return;
+        if (!string.IsNullOrWhiteSpace(_settings.ChatApiBase)) return; // don't overwrite user value if already set
+        var lower = provider.ToLowerInvariant();
+        string suggestion = lower switch
+        {
+            "openai" => "https://api.openai.com/v1",
+            "openrouter" => "https://openrouter.ai/api/v1",
+            "ollama" => "http://localhost:11434", // default local
+            _ => string.Empty
+        };
+        if (!string.IsNullOrWhiteSpace(suggestion)) _chatEndpointBox.Text = suggestion;
+    }
+
+    private async Task FetchModelsAsync()
+    {
+    if (_chatEndpointBox == null || _chatProviderCombo == null || _chatValidationMessage == null || _chatModelListCombo == null || _chatModelInput == null) return;
+        var provider = _chatProviderCombo.SelectedItem?.ToString() ?? string.Empty;
+        var baseUrl = _chatEndpointBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(baseUrl)) { _chatValidationMessage.Text = "Enter endpoint first."; return; }
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out _)) { _chatValidationMessage.Text = "Invalid endpoint."; return; }
+
+        _chatModelsCts?.Cancel();
+        _chatModelsCts = new CancellationTokenSource();
+        var ct = _chatModelsCts.Token;
+
+        _chatFetchModelsButton!.IsEnabled = false;
+        _chatValidationMessage.Text = "Fetching models...";
+        try
+        {
+            var request = BuildModelsRequest(provider, baseUrl);
+            if (request == null)
+            {
+                _chatValidationMessage.Text = "Model listing not implemented for this provider.";
+                return;
+            }
+            // Add api key header if present
+            var key = _chatApiKeyBox?.Text?.Trim();
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                if (provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
+                    request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {key}");
+                else if (provider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+                    request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {key}");
+            }
+            using var resp = await _httpClient.SendAsync(request, ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _chatValidationMessage.Text = $"Models fetch failed: {resp.StatusCode}";
+                return;
+            }
+            var models = ParseModels(provider, body);
+            if (models.Count == 0)
+            {
+                _chatValidationMessage.Text = "No models found.";
+                return;
+            }
+            _chatModelListCombo.ItemsSource = models;
+            if (_chatModelInput.Text == string.Empty && _chatModelListCombo.ItemCount > 0)
+            {
+                _chatModelListCombo.SelectedIndex = 0;
+                if (_chatModelListCombo.SelectedItem is string first) _chatModelInput.Text = first;
+            }
+            _chatValidationMessage.Text = $"Loaded {models.Count} models.";
+        }
+        catch (OperationCanceledException)
+        {
+            _chatValidationMessage.Text = "Model fetch canceled.";
+        }
+        catch (Exception ex)
+        {
+            _chatValidationMessage.Text = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _chatFetchModelsButton!.IsEnabled = true;
+        }
+    }
+
+    private static HttpRequestMessage? BuildModelsRequest(string provider, string baseUrl)
+    {
+        var lower = provider.ToLowerInvariant();
+        try
+        {
+            return lower switch
+            {
+                "openai" => new HttpRequestMessage(HttpMethod.Get, CombineUrl(baseUrl, "/models")),
+                "openrouter" => new HttpRequestMessage(HttpMethod.Get, CombineUrl(baseUrl, "/models")),
+                "ollama" => new HttpRequestMessage(HttpMethod.Get, CombineUrl(baseUrl, "/api/tags")),
+                _ => null
+            };
+        }
+        catch { return null; }
+    }
+
+    private static string CombineUrl(string baseUrl, string path)
+    {
+        if (baseUrl.EndsWith('/')) baseUrl = baseUrl.TrimEnd('/');
+        return baseUrl + path;
+    }
+
+    private static List<string> ParseModels(string provider, string json)
+    {
+        var result = new List<string>();
+        var lower = provider.ToLowerInvariant();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (lower == "openai" || lower == "openrouter")
+            {
+                if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in data.EnumerateArray())
+                    {
+                        if (item.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.String)
+                            result.Add(idProp.GetString()!);
+                    }
+                }
+            }
+            else if (lower == "ollama")
+            {
+                if (doc.RootElement.TryGetProperty("models", out var models) && models.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in models.EnumerateArray())
+                    {
+                        if (item.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
+                            result.Add(nameProp.GetString()!);
+                    }
+                }
+            }
+        }
+        catch { }
+        // Deduplicate & sort
+        return result.Distinct(StringComparer.Ordinal).OrderBy(m => m).ToList();
+    }
+
+    private async Task VerifyChatAsync()
+    {
+        if (_chatEndpointBox == null || _chatApiKeyBox == null || _chatModelInput == null || _chatProviderCombo == null || _chatValidationMessage == null) return;
+        if (!ValidateAndPersistChatSettings()) return; // ensures settings saved & validation messages shown
+        _chatVerifyButton!.IsEnabled = false;
+        _chatValidationMessage.Text = "Sending test message...";
+        try
+        {
+            // Minimal inline test without pulling full ChatCompletionService if environment variables not yet set.
+            var endpoint = _chatEndpointBox.Text!.Trim();
+            var model = _chatModelInput.Text!.Trim();
+            var key = _chatApiKeyBox.Text?.Trim();
+            var provider = _chatProviderCombo.SelectedItem?.ToString() ?? string.Empty;
+            // Build OpenAI-compatible request body
+            var url = provider.Equals("ollama", StringComparison.OrdinalIgnoreCase)
+                ? CombineUrl(endpoint, "/api/chat")
+                : CombineUrl(endpoint, "/chat/completions");
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            if (!string.IsNullOrWhiteSpace(key) && (provider.Equals("openai", StringComparison.OrdinalIgnoreCase) || provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase)))
+            {
+                req.Headers.TryAddWithoutValidation("Authorization", $"Bearer {key}");
+            }
+            req.Headers.TryAddWithoutValidation("Accept", "application/json");
+            if (provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase))
+            {
+                // OpenRouter encourages setting Referer and X-Title but optional
+                req.Headers.TryAddWithoutValidation("HTTP-Referer", "https://sideprompter.local/setup");
+                req.Headers.TryAddWithoutValidation("X-Title", "SidePrompter Setup");
+            }
+            // Payload differs for Ollama vs OpenAI style
+            object payload;
+            if (provider.Equals("ollama", StringComparison.OrdinalIgnoreCase))
+            {
+                payload = new
+                {
+                    model = model,
+                    messages = new[] { new { role = "user", content = "Testing chat. Present yourself" } },
+                    stream = false
+                };
+            }
+            else
+            {
+                payload = new
+                {
+                    model = model,
+                    messages = new[] { new { role = "user", content = "Testing chat. Present yourself" } },
+                    temperature = 0.2
+                };
+            }
+            var json = JsonSerializer.Serialize(payload);
+            req.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            using var resp = await _httpClient.SendAsync(req);
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                _chatValidationMessage.Text = $"Verify failed: {resp.StatusCode}";
+                return;
+            }
+            var answer = ExtractAssistantReply(provider, body);
+            if (string.IsNullOrWhiteSpace(answer)) answer = "(No reply parsed)";
+            _chatValidationMessage.Text = "Success.";
+            // Reuse chat log facility via a simple global style event? For now show inline appended.
+            _chatValidationMessage.Text += " Received reply.";
+            // Append truncated preview
+            if (answer.Length > 240) answer = answer[..240] + "...";
+            _chatValidationMessage.Text += $" \nReply: {answer}";
+        }
+        catch (Exception ex)
+        {
+            _chatValidationMessage.Text = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _chatVerifyButton!.IsEnabled = true;
+        }
+    }
+
+    private static string ExtractAssistantReply(string provider, string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (provider.Equals("ollama", StringComparison.OrdinalIgnoreCase))
+            {
+                // Ollama chat response: { message: { role: "assistant", content: "..." }, ... }
+                if (doc.RootElement.TryGetProperty("message", out var msg) && msg.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String)
+                    return c.GetString()!;
+            }
+            else
+            {
+                // OpenAI style
+                if (doc.RootElement.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array)
+                {
+                    var first = choices.EnumerateArray().FirstOrDefault();
+                    if (first.ValueKind != JsonValueKind.Undefined && first.TryGetProperty("message", out var message) && message.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
+                        return content.GetString()!;
+                }
+            }
+        }
+        catch { }
+        return string.Empty;
     }
 
     private static bool GgmlContains(string name)
@@ -578,11 +900,49 @@ public partial class SetupWizard : Window
                 }
                 break;
             case 2:
-                // mac extra step - nothing yet
+                if (!ValidateAndPersistChatSettings()) return false;
                 break;
             case 3:
+                // mac extra step - nothing yet
+                break;
+            case 4:
                 break;
         }
+        return true;
+    }
+
+    private bool ValidateAndPersistChatSettings()
+    {
+    if (_chatEndpointBox == null || _chatApiKeyBox == null || _chatModelInput == null) return true;
+        var endpoint = _chatEndpointBox.Text?.Trim() ?? string.Empty;
+        var key = _chatApiKeyBox.Text?.Trim() ?? string.Empty;
+    var model = _chatModelInput.Text?.Trim() ?? string.Empty;
+    var provider = _chatProviderCombo?.SelectedItem?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(endpoint) || !Uri.TryCreate(endpoint, UriKind.Absolute, out _) || !(endpoint.StartsWith("http://") || endpoint.StartsWith("https://")))
+        {
+            _chatValidationMessage!.Text = "Enter valid HTTP(S) endpoint.";
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            _chatValidationMessage!.Text = "Model required.";
+            return false;
+        }
+    var pLower = provider.ToLowerInvariant();
+    var needsKey = pLower.Contains("openai") || pLower.Contains("openrouter");
+        if (needsKey && string.IsNullOrWhiteSpace(key))
+        {
+            _chatValidationMessage!.Text = "API key required for this provider.";
+            return false;
+        }
+        _chatValidationMessage!.Text = string.Empty;
+
+        _settings.ChatApiBase = endpoint;
+        _settings.ChatApiKey = key;
+    _settings.ChatModel = model;
+        _settings.ChatProvider = provider;
+        SettingsService.Save(_settings);
         return true;
     }
 
