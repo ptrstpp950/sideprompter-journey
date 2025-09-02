@@ -15,6 +15,7 @@ using AvaloniaApp.Services.WindowTextExtraction;
 using Microsoft.Extensions.AI;
 using AvaloniaApp.Services;
 using AvaloniaApp.ViewModel;
+using AvaloniaApp.Settings;
 
 namespace AvaloniaApp;
 
@@ -31,11 +32,16 @@ public partial class MainWindow : Window
 
     private readonly ChatViewModel _chatViewModel = new();
 
-    public MainWindow()
+    private readonly AppSettings _settings;
+
+    public MainWindow() : this(null) {}
+
+    public MainWindow(AppSettings? settings)
     {
         InitializeComponent();
+        _settings = settings ?? SettingsService.Load();
         DataContext = _chatViewModel;
-        var transcriptionService = new WhisperTranscriptionService();
+        var transcriptionService = new WhisperTranscriptionService(_settings.WhisperModelType);
 #if MACOS || OSX || MACCATALYST
         _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionService);
         _windowTextExtractionService = new WindowTextExtractionServiceMac();
@@ -56,8 +62,10 @@ public partial class MainWindow : Window
                 Environment.GetEnvironmentVariable("API_KEY")!,
                 Environment.GetEnvironmentVariable("API_MODEL")!);
 
-        LanguageComboBox.ItemsSource = _supportedLanguages;
-        LanguageComboBox.SelectedIndex = 0;
+    var langs = (_settings.Languages?.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
+    LanguageComboBox.ItemsSource = langs.ToArray();
+    var defaultLang = langs.Contains("en") ? "en" : langs.First();
+    LanguageComboBox.SelectedItem = defaultLang;
 
         // Update the active window title
         UpdateActiveWindowTitle();

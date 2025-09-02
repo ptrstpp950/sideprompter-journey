@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="AvaloniaApp.SetupWizard"
+        Width="600" Height="400"
+        Title="Initial Setup"
+        CanResize="False"
+        mc:Ignorable="d">
+  <Design.PreviewWith>
+    <Window Width="600" Height="400"/>
+  </Design.PreviewWith>
+  <Grid RowDefinitions="* Auto" Margin="16" ColumnDefinitions="*">
+    <ContentControl x:Name="StepContent"/>
+    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button x:Name="BackButton" Content="Back" Click="Back_Click" IsEnabled="False"/>
+      <Button x:Name="NextButton" Content="Next" Click="Next_Click"/>
+      <Button x:Name="FinishButton" Content="Finish" Click="Finish_Click" IsVisible="False"/>
+    </StackPanel>
+  </Grid>
+</Window>
