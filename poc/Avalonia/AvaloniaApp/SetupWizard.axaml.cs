@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -9,6 +12,9 @@ using AvaloniaApp.Settings;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Controls.Primitives;
+using Whisper.net;
+using Avalonia.Threading;
+using AvaloniaApp.Services.TranscriptionService;
 
 namespace AvaloniaApp;
 
@@ -25,6 +31,12 @@ public partial class SetupWizard : Window
     private ComboBox? _modelCombo;
     private TextBlock? _modelDescription;
     private List<ModelOption> _currentModelOptions = new();
+    private TextBlock? _modelDownloadStatus;
+    private ProgressBar? _modelDownloadProgress;
+    private CancellationTokenSource? _modelDownloadCts; // reserved if we add cancellation later
+    // macOS step controls
+    private TextBlock? _macStatusText;
+    private ProgressBar? _macProgressBar;
 
     private class ModelOption
     {
@@ -243,11 +255,15 @@ public partial class SetupWizard : Window
             preselect = _currentModelOptions.FirstOrDefault(m => string.Equals(m.GgmlName, existing.ToString(), StringComparison.OrdinalIgnoreCase));
         }
         _modelCombo.SelectedItem = preselect ?? _currentModelOptions.FirstOrDefault(o => o.Key.StartsWith("base"));
-        _modelCombo.SelectionChanged += (_, _) => UpdateModelDescription();
+    _modelCombo.SelectionChanged += (_, _) => { UpdateModelDescription(); };
 
         _modelDescription = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,6,0,0) };
         panel.Children.Add(_modelCombo);
         panel.Children.Add(_modelDescription);
+        _modelDownloadStatus = new TextBlock { Text = string.Empty, FontSize = 12, Margin = new Thickness(0,4,0,0) };
+        _modelDownloadProgress = new ProgressBar { IsIndeterminate = false, Minimum = 0, Maximum = 1, Height = 6, Margin = new Thickness(0,2,0,0), IsVisible = false };
+        panel.Children.Add(_modelDownloadStatus);
+        panel.Children.Add(_modelDownloadProgress);
         panel.Children.Add(new TextBlock
         {
             Text = englishOnly
@@ -335,6 +351,62 @@ public partial class SetupWizard : Window
         }
     }
 
+    private async Task<bool> DownloadSelectedModelIfNeededAsync()
+    {
+        if (!(_modelCombo?.SelectedItem is ModelOption opt) || string.IsNullOrWhiteSpace(opt.GgmlName)) return true; // nothing to do
+        if (!Enum.TryParse<GgmlType>(opt.GgmlName, out var modelType)) return true;
+
+        // Persist selection (also done later in validation, but we store early in case of failure logs)
+        _settings.WhisperModel = modelType.ToString();
+        SettingsService.Save(_settings);
+
+        var appSupport = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var modelDir = Path.Combine(appSupport, "SidePrompter");
+        var modelName = $"ggml-{modelType}.bin";
+        var modelPath = Path.Combine(modelDir, modelName);
+        if (File.Exists(modelPath))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_modelDownloadStatus != null) _modelDownloadStatus.Text = $"Model '{opt.Key}' already downloaded.";
+            });
+            return true;
+        }
+
+        // UI prep
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_modelDownloadProgress != null)
+            {
+                _modelDownloadProgress.IsVisible = true;
+                _modelDownloadProgress.IsIndeterminate = true;
+            }
+            if (_modelDownloadStatus != null) _modelDownloadStatus.Text = $"Downloading model '{opt.Key}'...";
+        });
+
+        try
+        {
+            await WhisperTranscriptionService.EnsureModelDownloadedAsync(modelType, msg =>
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (_modelDownloadStatus != null) _modelDownloadStatus.Text = msg;
+                });
+            });
+            Dispatcher.UIThread.Post(() => { if (_modelDownloadProgress != null) _modelDownloadProgress.IsVisible = false; });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_modelDownloadStatus != null) _modelDownloadStatus.Text = $"Download failed: {ex.Message}";
+                if (_modelDownloadProgress != null) _modelDownloadProgress.IsVisible = false;
+            });
+            return false;
+        }
+    }
+
     private static string SummarizeModel(string key, bool englishOnly)
     {
         var lower = key.ToLowerInvariant();
@@ -392,10 +464,19 @@ public partial class SetupWizard : Window
     }
     private Control BuildMacExtraStep()
     {
-        var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = "macOS extra step (reserved).", FontStyle = Avalonia.Media.FontStyle.Italic });
-        panel.Children.Add(new TextBlock { Text = "We'll add content here later." });
-        return panel;
+    var panel = new StackPanel { Spacing = 8 };
+#if MACOS || OSX || MACCATALYST
+    panel.Children.Add(new TextBlock { Text = "macOS setup", FontWeight = FontWeight.Bold });
+    panel.Children.Add(new TextBlock { Text = "This step will guide additional macOS specific permissions or setup in future updates.", TextWrapping = TextWrapping.Wrap });
+    _macStatusText = new TextBlock { Text = "Pending...", FontStyle = FontStyle.Italic, FontSize = 12 };
+    _macProgressBar = new ProgressBar { IsVisible = false, Minimum = 0, Maximum = 1, Height = 8, Margin = new Thickness(0,4,0,0) };
+    panel.Children.Add(_macStatusText);
+    panel.Children.Add(_macProgressBar);
+    panel.Children.Add(new TextBlock { Text = "(Buttons for granting screen/audio permissions etc. will appear here later.)", FontSize = 11, FontStyle = FontStyle.Italic });
+#else
+    panel.Children.Add(new TextBlock { Text = "macOS extra step (not applicable on this platform).", FontStyle = FontStyle.Italic });
+#endif
+    return panel;
     }
 
     private Control BuildDonationStep()
@@ -442,9 +523,25 @@ public partial class SetupWizard : Window
         }
     }
 
-    private void Next_Click(object? sender, RoutedEventArgs e)
+    private async void Next_Click(object? sender, RoutedEventArgs e)
     {
-        if (!ValidateAndPersistCurrentStep()) return;
+        // If we're on the model step, download before advancing
+        if (_stepIndex == 1)
+        {
+            if (!ValidateAndPersistCurrentStep()) return;
+            // Disable buttons during download
+            var oldNextEnabled = NextButton.IsEnabled;
+            var oldBackEnabled = BackButton.IsEnabled;
+            NextButton.IsEnabled = false; BackButton.IsEnabled = false;
+            var ok = await DownloadSelectedModelIfNeededAsync();
+            NextButton.IsEnabled = oldNextEnabled; BackButton.IsEnabled = oldBackEnabled;
+            if (!ok) return; // stay on step if failed
+        }
+        else
+        {
+            if (!ValidateAndPersistCurrentStep()) return;
+        }
+
         if (_stepIndex < _steps.Count - 1)
         {
             _stepIndex++;
@@ -488,4 +585,29 @@ public partial class SetupWizard : Window
         }
         return true;
     }
+
+#if MACOS || OSX || MACCATALYST
+    // Helper to update mac setup status (can be called by future mac-specific services)
+    private void UpdateMacSetupStatus(string message, double? progress = null)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_macStatusText != null) _macStatusText.Text = message;
+            if (_macProgressBar != null)
+            {
+                if (progress.HasValue)
+                {
+                    if (!_macProgressBar.IsVisible) _macProgressBar.IsVisible = true;
+                    _macProgressBar.IsIndeterminate = false;
+                    _macProgressBar.Maximum = 1;
+                    _macProgressBar.Value = Math.Clamp(progress.Value, 0, 1);
+                }
+                else
+                {
+                    _macProgressBar.IsVisible = false;
+                }
+            }
+        });
+    }
+#endif
 }

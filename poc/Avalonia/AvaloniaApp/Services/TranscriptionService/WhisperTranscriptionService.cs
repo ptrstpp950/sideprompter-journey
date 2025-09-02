@@ -40,6 +40,47 @@ public class WhisperTranscriptionService : ITranscriptionService
     }
 
     /// <summary>
+    /// Ensures the Whisper model binary for the specified type exists on disk, downloading it if needed.
+    /// Returns the absolute path to the model file.
+    /// </summary>
+    public static async Task<string> EnsureModelDownloadedAsync(GgmlType modelType, Action<string>? status = null, CancellationToken cancellationToken = default)
+    {
+        var appSupport = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var modelDir = Path.Combine(appSupport, "SidePrompter");
+        if (!Directory.Exists(modelDir)) Directory.CreateDirectory(modelDir);
+        var modelName = $"ggml-{modelType}.bin";
+        var modelPath = Path.Combine(modelDir, modelName);
+        if (File.Exists(modelPath))
+        {
+            status?.Invoke($"Model '{modelName}' already present.");
+            return modelPath;
+        }
+        status?.Invoke($"Downloading Whisper model '{modelName}'...");
+        await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(modelType, cancellationToken: cancellationToken);
+        await using var fileStream = File.Create(modelPath);
+        // Attempt progress if length known
+        long? total = null; try { total = modelStream.Length; } catch { }
+        var buffer = new byte[81920];
+        long written = 0;
+        int read;
+        while ((read = await modelStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+        {
+            await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            written += read;
+            if (total.HasValue)
+            {
+                var pct = (double)written / total.Value * 100d;
+                // Throttle updates a bit
+                if (pct % 2 < 0.5)
+                    status?.Invoke($"Downloading Whisper model '{modelName}'... {pct:0.#}%");
+            }
+        }
+        await fileStream.FlushAsync(cancellationToken);
+        status?.Invoke("Model downloaded successfully.");
+        return modelPath;
+    }
+
+    /// <summary>
     /// Initialize the Whisper transcription engine with the specified language
     /// </summary>
     public async Task InitializeAsync(string language, CancellationToken cancellationToken = default)
@@ -65,11 +106,7 @@ public class WhisperTranscriptionService : ITranscriptionService
         // Download the model if it doesn't exist
         if (!File.Exists(modelPath))
         {
-            StatusChanged?.Invoke($"Downloading Whisper model '{modelName}' to '{modelPath}'...");
-            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(_modelType, cancellationToken: cancellationToken);
-            await using var fileStream = File.Create(modelPath);
-            await modelStream.CopyToAsync(fileStream, cancellationToken);
-            StatusChanged?.Invoke("Model downloaded successfully.");
+            await EnsureModelDownloadedAsync(_modelType, StatusChanged, cancellationToken);
         }
 
         // Initialize the Whisper model
