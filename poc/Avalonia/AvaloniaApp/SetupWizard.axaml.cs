@@ -6,6 +6,9 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Whisper.net.Ggml;
 using AvaloniaApp.Settings;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Controls.Primitives;
 
 namespace AvaloniaApp;
 
@@ -16,7 +19,9 @@ public partial class SetupWizard : Window
     private readonly AppSettings _settings;
 
     // Step controls state
-    private ListBox? _languagesList;
+    private TextBox? _languageAutoBox;
+    private ListBox? _languageSuggestions;
+    private StackPanel? _selectedLanguagesPanel;
     private ComboBox? _modelCombo;
     private TextBlock? _modelDescription;
 
@@ -33,34 +38,174 @@ public partial class SetupWizard : Window
             BuildMacExtraStep,
             BuildDonationStep
         };
+        // If languages not yet chosen (fresh run), seed with OS preferred
+        var osPreferred = LanguageDetectionService.GetPreferredLanguageCodes();
+        if (_settings.Languages == null || _settings.Languages.Count == 0)
+        {
+            _settings.Languages = osPreferred.ToList();
+            SettingsService.Save(_settings);
+        }
+        else
+        {
+            // Ensure OS preferred are included (auto-select) without duplicating
+            var changed = false;
+            foreach (var p in osPreferred)
+            {
+                if (!_settings.Languages.Contains(p))
+                {
+                    _settings.Languages.Add(p);
+                    changed = true;
+                }
+            }
+            if (changed) SettingsService.Save(_settings);
+        }
         LoadStep();
     }
 
     private Control BuildLanguagesStep()
     {
-        var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = "Choose languages to enable (at least one):", FontWeight = Avalonia.Media.FontWeight.Bold });
-        _languagesList = new ListBox
+        var root = new StackPanel { Spacing = 8 };
+        root.Children.Add(new TextBlock { Text = "Choose languages to enable (at least one):", FontWeight = FontWeight.Bold });
+
+        // Selected tags panel
+    _selectedLanguagesPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        // Use WrapPanel-like behavior by nesting inside ScrollViewer if overflow
+        var selectedScroll = new ScrollViewer { Height = 70, Content = _selectedLanguagesPanel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        root.Children.Add(new TextBlock { Text = "Selected:" });
+        root.Children.Add(selectedScroll);
+
+        // Autocomplete box
+        _languageAutoBox = new TextBox { Watermark = "Type to search language (press Enter to add)..." };
+        _languageAutoBox.TextChanged += (_, _) => RefreshSuggestionList();
+        _languageAutoBox.KeyUp += (s, e) =>
         {
-            SelectionMode = SelectionMode.Multiple,
-            ItemsSource = new[] { "en", "pl", "es", "fr", "de", "it" }
-        };
-        var list = _languagesList; // may be null per analyzer
-        if (list != null)
-        {
-            var itemsSource = (list.ItemsSource as IEnumerable<string>) ?? Array.Empty<string>();
-            var selectedItems = list.SelectedItems; // capture reference
-            foreach (var item in itemsSource)
+            if (e.Key == Avalonia.Input.Key.Enter)
             {
-                if (_settings.Languages.Contains(item))
+                TryAddCurrentAutocompleteEntry();
+            }
+            if (e.Key == Avalonia.Input.Key.Down)
+            {
+                if (_languageSuggestions != null)
                 {
-                    selectedItems?.Add(item);
+                    _languageSuggestions.Focus();
+                    if (_languageSuggestions.SelectedIndex < 0 && _languageSuggestions.ItemCount > 0)
+                        _languageSuggestions.SelectedIndex = 0;
+                    else if (_languageSuggestions.SelectedIndex < _languageSuggestions.ItemCount - 1)
+                        _languageSuggestions.SelectedIndex += 1;
                 }
             }
-            panel.Children.Add(list);
+        };
+        root.Children.Add(_languageAutoBox);
+
+        _languageSuggestions = new ListBox { Height = 180 }; // suggestion list
+        _languageSuggestions.DoubleTapped += (_, _) => AddSelectedSuggestion();
+        _languageSuggestions.KeyUp += (s, e) =>
+        {
+            if (e.Key == Avalonia.Input.Key.Enter) AddSelectedSuggestion();
+        };
+        root.Children.Add(_languageSuggestions);
+
+        // Actions
+    var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+    var selectAll = new Button { Content = "All" };
+    selectAll.Click += (_, _) => { _settings.Languages = WhisperLanguages.All.Select(l => l.Code).ToList(); RefreshSelectedTags(); RefreshSuggestionList(); };
+    var clearBtn = new Button { Content = "Clear" };
+    clearBtn.Click += (_, _) => { _settings.Languages.Clear(); RefreshSelectedTags(); RefreshSuggestionList(); };
+    actions.Children.Add(selectAll);
+    actions.Children.Add(clearBtn);
+        root.Children.Add(actions);
+        root.Children.Add(new TextBlock { Text = "Tip: Enter adds top match. Bold items are OS preferred. English (en) recommended.", FontStyle = FontStyle.Italic, FontSize = 12 });
+
+        RefreshSelectedTags();
+        RefreshSuggestionList();
+        return root;
+    }
+
+    private void TryAddCurrentAutocompleteEntry()
+    {
+        if (_languageAutoBox == null) return;
+        var text = _languageAutoBox.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(text)) return;
+        // Accept either code or name partial if unique
+        var match = WhisperLanguages.All.FirstOrDefault(l => string.Equals(l.Code, text, StringComparison.OrdinalIgnoreCase));
+        if (match == default)
+        {
+            // try by name contains
+            var matches = WhisperLanguages.All.Where(l => l.Name.Contains(text, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (matches.Count == 1) match = matches[0];
         }
-        panel.Children.Add(new TextBlock{Text="English (en) recommended for best smaller model performance."});
-        return panel;
+        if (match != default)
+        {
+            if (!_settings.Languages.Contains(match.Code))
+            {
+                _settings.Languages.Add(match.Code);
+                RefreshSelectedTags();
+            }
+            _languageAutoBox.Text = string.Empty;
+            RefreshSuggestionList();
+        }
+    }
+
+    private void AddSelectedSuggestion()
+    {
+        if (_languageSuggestions?.SelectedItem is Control c && c.Tag is string code)
+        {
+            if (!_settings.Languages.Contains(code))
+            {
+                _settings.Languages.Add(code);
+                RefreshSelectedTags();
+            }
+            RefreshSuggestionList();
+        }
+    }
+
+    private void RefreshSelectedTags()
+    {
+        if (_selectedLanguagesPanel == null) return;
+        _selectedLanguagesPanel.Children.Clear();
+        var defaults = LanguageDetectionService.GetPreferredLanguageCodes();
+        foreach (var code in _settings.Languages.ToList())
+        {
+            var name = WhisperLanguages.All.FirstOrDefault(l => l.Code == code).Name ?? code;
+            var b = new Button
+            {
+                Content = $"{name} ({code})",
+                Tag = code,
+                Margin = new Thickness(2,2,2,2),
+                FontWeight = defaults.Contains(code) ? FontWeight.Bold : FontWeight.Normal
+            };
+            b.Click += (_, _) =>
+            {
+                _settings.Languages.Remove(code);
+                RefreshSelectedTags();
+                RefreshSuggestionList();
+            };
+            _selectedLanguagesPanel.Children.Add(b);
+        }
+    }
+
+    private void RefreshSuggestionList()
+    {
+        if (_languageSuggestions == null) return;
+        var filter = _languageAutoBox?.Text?.Trim().ToLowerInvariant();
+        IEnumerable<(string Code, string Name)> langs = WhisperLanguages.All;
+        if (!string.IsNullOrWhiteSpace(filter))
+            langs = langs.Where(l => l.Code.Contains(filter!) || l.Name.ToLowerInvariant().Contains(filter!));
+        // exclude already selected
+        langs = langs.Where(l => !_settings.Languages.Contains(l.Code)).Take(50);
+        var defaults = LanguageDetectionService.GetPreferredLanguageCodes();
+        var list = new List<Control>();
+        foreach (var (code, name) in langs)
+        {
+            var tb = new TextBlock { Text = $"{name} ({code})", FontWeight = defaults.Contains(code) ? FontWeight.Bold : FontWeight.Normal };
+            var border = new Border { Child = tb, Padding = new Thickness(4,2,4,2), Tag = code };
+            list.Add(border);
+        }
+        _languageSuggestions.ItemsSource = list;
+        if (!list.Any())
+        {
+            _languageSuggestions.ItemsSource = new[] { new TextBlock { Text = "No matches", FontStyle = FontStyle.Italic } };
+        }
     }
 
     private Control BuildModelStep()
@@ -171,10 +316,8 @@ public partial class SetupWizard : Window
         switch (_stepIndex)
         {
             case 0:
-                if (_languagesList == null) return false;
-                var selected = (_languagesList?.SelectedItems?.Cast<string>() ?? Array.Empty<string>()).ToList();
-                if (selected.Count == 0) return false; // require at least one
-                _settings.Languages = selected;
+                if (_settings.Languages.Count == 0) return false;
+                _settings.Languages = _settings.Languages.Distinct().ToList();
                 SettingsService.Save(_settings);
                 break;
             case 1:

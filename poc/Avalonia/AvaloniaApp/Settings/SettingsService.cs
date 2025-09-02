@@ -30,7 +30,7 @@ public static class SettingsService
             var json = File.ReadAllText(path);
             var s = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
             // Temporary to disable setup completion for testing
-            s.SetupCompleted = false;
+            s = new AppSettings();
             return s;
         }
         catch
