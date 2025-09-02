@@ -24,6 +24,19 @@ public partial class SetupWizard : Window
     private StackPanel? _selectedLanguagesPanel;
     private ComboBox? _modelCombo;
     private TextBlock? _modelDescription;
+    private List<ModelOption> _currentModelOptions = new();
+
+    private class ModelOption
+    {
+        public string Key { get; init; } = string.Empty;          // e.g. "base.en" or "base"
+    public string Display { get; set; } = string.Empty;      // full display line (mutable for post-build labeling)
+        public string Parameters { get; init; } = string.Empty;   // e.g. 74 M
+        public string Vram { get; init; } = string.Empty;         // e.g. ~1 GB
+        public string Speed { get; init; } = string.Empty;        // e.g. ~7x
+        public bool EnglishOnly { get; init; }
+        public string? GgmlName { get; init; } // e.g. BaseEn, Base
+        public override string ToString() => Display;
+    }
 
     public SetupWizard() : this(new AppSettings()) {}
 
@@ -211,36 +224,172 @@ public partial class SetupWizard : Window
     private Control BuildModelStep()
     {
         var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = "Choose Whisper model to download:", FontWeight = Avalonia.Media.FontWeight.Bold });
-    // Provide a curated list (avoid very large unless user later changes settings manually)
-    var allowed = Enum.GetValues<GgmlType>().Where(t => t is GgmlType.Tiny or GgmlType.TinyEn or GgmlType.Base or GgmlType.BaseEn or GgmlType.Small or GgmlType.SmallEn || t.ToString().StartsWith("LargeV"));
-    _modelCombo = new ComboBox { ItemsSource = allowed.ToList() };
-        _modelCombo.SelectedItem = Enum.TryParse<GgmlType>(_settings.WhisperModel, out var model) ? model : GgmlType.Base;
+        panel.Children.Add(new TextBlock { Text = "Choose Whisper model to download:", FontWeight = FontWeight.Bold });
+
+        var englishOnly = _settings.Languages.All(l => l == "en");
+        _currentModelOptions = BuildModelOptions(englishOnly);
+
+        _modelCombo = new ComboBox
+        {
+            ItemsSource = _currentModelOptions,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            MinWidth = 420
+        };
+
+        // Try to restore previous selection
+        ModelOption? preselect = null;
+        if (Enum.TryParse<GgmlType>(_settings.WhisperModel, out var existing))
+        {
+            preselect = _currentModelOptions.FirstOrDefault(m => string.Equals(m.GgmlName, existing.ToString(), StringComparison.OrdinalIgnoreCase));
+        }
+        _modelCombo.SelectedItem = preselect ?? _currentModelOptions.FirstOrDefault(o => o.Key.StartsWith("base"));
         _modelCombo.SelectionChanged += (_, _) => UpdateModelDescription();
-        _modelDescription = new TextBlock{TextWrapping = Avalonia.Media.TextWrapping.Wrap};
+
+        _modelDescription = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,6,0,0) };
         panel.Children.Add(_modelCombo);
         panel.Children.Add(_modelDescription);
+        panel.Children.Add(new TextBlock
+        {
+            Text = englishOnly
+                ? "English-only models (.en) are slightly faster & smaller. Switch to multilingual by adding another language in previous step."
+                : "Multilingual models support all chosen languages. For only English you could get faster .en variants.",
+            FontStyle = FontStyle.Italic,
+            FontSize = 12,
+            Margin = new Thickness(0,4,0,0)
+        });
         UpdateModelDescription();
         return panel;
     }
 
+    private static bool GgmlContains(string name)
+    {
+        return Enum.GetNames(typeof(GgmlType)).Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private List<ModelOption> BuildModelOptions(bool englishOnly)
+    {
+        // Table provided by user
+        // Size / Params / English-only / Multilingual / VRAM / Relative speed
+        // tiny 39M tiny.en tiny ~1 GB ~10x
+        // base 74M base.en base ~1 GB ~7x
+        // small 244M small.en small ~2 GB ~4x
+        // medium 769M medium.en medium ~5 GB ~2x
+        // large 1550M N/A large ~10 GB 1x
+        // turbo 809M N/A turbo ~6 GB ~8x
+
+        var list = new List<ModelOption>();
+        void Add(string key, string paramsText, string vram, string speed, bool enOnlyVariant, string ggml)
+        {
+            if (!GgmlContains(ggml)) return; // skip if not available in current Whisper.net version
+            list.Add(new ModelOption
+            {
+                Key = key,
+                Parameters = paramsText,
+                Vram = vram,
+                Speed = speed,
+                EnglishOnly = enOnlyVariant,
+                GgmlName = ggml,
+                Display = key // placeholder; we'll replace with simple description afterwards
+            });
+        }
+
+
+        if (englishOnly)
+        {
+            Add("tiny.en", "39M", "~1 GB", "~10x", true, "TinyEn");
+            Add("base.en", "74M", "~1 GB", "~7x", true, "BaseEn");
+            Add("small.en", "244M", "~2 GB", "~4x", true, "SmallEn");
+            Add("medium.en", "769M", "~5 GB", "~2x", true, "MediumEn");
+            // large (no English-only variant) fallback to latest large multi
+            if (GgmlContains("LargeV3")) Add("large", "1550M", "~10 GB", "1x", false, "LargeV3");
+            else if (GgmlContains("LargeV2")) Add("large", "1550M", "~10 GB", "1x", false, "LargeV2");
+            // turbo (if exists) - some forks expose Turbo, skip if not present
+            if (GgmlContains("Turbo")) Add("turbo", "809M", "~6 GB", "~8x", false, "Turbo");
+        }
+        else
+        {
+            Add("tiny", "39M", "~1 GB", "~10x", false, "Tiny");
+            Add("base", "74M", "~1 GB", "~7x", false, "Base");
+            Add("small", "244M", "~2 GB", "~4x", false, "Small");
+            Add("medium", "769M", "~5 GB", "~2x", false, "Medium");
+            if (GgmlContains("LargeV3")) Add("large", "1550M", "~10 GB", "1x", false, "LargeV3");
+            else if (GgmlContains("LargeV2")) Add("large", "1550M", "~10 GB", "1x", false, "LargeV2");
+            if (GgmlContains("Turbo")) Add("turbo", "809M", "~6 GB", "~8x", false, "Turbo");
+        }
+
+        // Replace Display with simple description + optional best tag
+        foreach (var mo in list)
+        {
+            var summary = SummarizeModel(mo.Key, mo.EnglishOnly);
+            var bestTag = mo.Key.StartsWith("base", StringComparison.OrdinalIgnoreCase) ? " (the best option)" : string.Empty;
+            mo.Display = $"{mo.Key} - {summary}{bestTag}";
+        }
+        return list;
+    }
+
     private void UpdateModelDescription()
     {
-        if (_modelCombo?.SelectedItem is GgmlType t)
+        if (_modelCombo?.SelectedItem is ModelOption opt)
         {
-            var desc = t switch
-            {
-                GgmlType.Tiny or GgmlType.TinyEn => "Fastest, lowest accuracy.",
-                GgmlType.Base or GgmlType.BaseEn => "Balanced speed and accuracy (default).",
-                GgmlType.Small or GgmlType.SmallEn => "Better accuracy, slower.",
-                GgmlType.Medium or GgmlType.MediumEn => "High accuracy, slower.",
-                GgmlType.LargeV3 or GgmlType.LargeV2 => "Best accuracy, slowest & large download.",
-                _ => "General purpose model."
-            };
-            _modelDescription!.Text = desc;
+            _modelDescription!.Text = BuildLongDescription(opt);
         }
     }
 
+    private static string SummarizeModel(string key, bool englishOnly)
+    {
+        var lower = key.ToLowerInvariant();
+        var normalized = lower.EndsWith(".en") ? lower[..^3] : lower;
+        string summary = normalized switch
+        {
+            "tiny" => "Tiny: fastest, lowest accuracy; drafts only.",
+            "base" => "Base: default balance speed vs accuracy.",
+            "small" => "Small: better accuracy, slightly slower.",
+            "medium" => "Medium: high accuracy, much slower & more RAM.",
+            "large" => "Large: highest accuracy, very slow on CPU (GPU recommended).",
+            "turbo" => "Turbo: near-large accuracy but faster; GPU recommended.",
+            _ => "Model variant."
+        };
+        if (englishOnly) summary += " (EN only)";
+        return summary;
+    }
+
+    private static string BuildLongDescription(ModelOption opt)
+    {
+        var keyLower = opt.Key.ToLowerInvariant();
+        var normalized = keyLower.EndsWith(".en") ? keyLower[..^3] : keyLower;
+        string download = EstimateDownload(opt.Parameters);
+        string enNote = opt.EnglishOnly ? " This is an English‑only variant, a little smaller & faster than the multilingual one." : string.Empty;
+        string body = normalized switch
+        {
+            "tiny" => $"Tiny model: quickest to run and light on resources, but accuracy is the lowest. Perfect for rough real‑time drafts or quick checks on low‑power machines. Download about {download}; needs roughly {opt.Vram} free RAM/VRAM. If you care about accuracy, move up to Base.",
+            "base" => $"Base model: a balanced default for everyday transcription. Better accuracy than Tiny while still fairly quick on modern CPUs. Download about {download}; expect around {opt.Vram} usage. Good starting point. Try Small if you want more accuracy, or Tiny if you need extra speed.",
+            "small" => $"Small model: noticeably higher accuracy than Base with a modest speed hit. Solid choice if you transcribe varied speakers or accents. Download about {download}; needs roughly {opt.Vram}. If you still see mistakes and can wait longer, try Medium.",
+            "medium" => $"Medium model: high accuracy for most scenarios (podcasts, meetings, multi‑speaker). Slower, so best when quality matters more than turnaround. Download about {download}; memory use around {opt.Vram}. If you want the very best (and have a GPU), Large is next.",
+            "large" => $"Large model: highest accuracy available here. Slow on CPU; a GPU is strongly recommended for practical speeds. Download about {download}; may use up to {opt.Vram}. Great for long, important recordings where accuracy is critical.",
+            "turbo" => $"Turbo model: aims for near‑Large accuracy but tuned for much faster inference on a capable GPU. Download about {download}; expects roughly {opt.Vram}. Falls back to slower CPU if no GPU. Useful when you need quality plus speed.",
+            _ => $"{opt.Key} model variant: download about {download}."
+        };
+        if ((normalized == "large" || normalized == "turbo") && !body.Contains("GPU", StringComparison.OrdinalIgnoreCase))
+        {
+            body += " A GPU is recommended.";
+        }
+        return ($"{opt.Key} — {body}{enNote}").Trim();
+    }
+
+    private static string EstimateDownload(string parameters)
+    {
+        // Predefined approximations for fp16-equivalent sizes (params * 2 bytes), rounded and simplified.
+        return parameters switch
+        {
+            "39M" => "~75-80 MB",
+            "74M" => "~140-150 MB",
+            "244M" => "~470-500 MB",
+            "769M" => "~1.5 GB",
+            "809M" => "~1.6 GB",
+            "1550M" => "~3.0-3.2 GB",
+            _ => "(size varies)"
+        };
+    }
     private Control BuildMacExtraStep()
     {
         var panel = new StackPanel { Spacing = 8 };
@@ -321,17 +470,14 @@ public partial class SetupWizard : Window
                 SettingsService.Save(_settings);
                 break;
             case 1:
-                if (_modelCombo?.SelectedItem is GgmlType t)
+                if (_modelCombo?.SelectedItem is ModelOption opt && !string.IsNullOrWhiteSpace(opt.GgmlName))
                 {
-                    // if only english selected and not using *En variant for tiny/base/small/medium, map automatically
-                    if (_settings.Languages.All(l => l == "en"))
+                    // Store the enum name if available
+                    if (Enum.TryParse<GgmlType>(opt.GgmlName, out var parsed))
                     {
-                        // prefer the *En variant when available
-                        if (t == GgmlType.Base) t = GgmlType.BaseEn;
-                        if (t == GgmlType.Tiny) t = GgmlType.TinyEn;
+                        _settings.WhisperModel = parsed.ToString();
+                        SettingsService.Save(_settings);
                     }
-                    _settings.WhisperModel = t.ToString();
-                    SettingsService.Save(_settings);
                 }
                 break;
             case 2:
