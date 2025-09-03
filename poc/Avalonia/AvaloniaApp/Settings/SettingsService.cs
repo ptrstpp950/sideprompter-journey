@@ -29,8 +29,6 @@ public static class SettingsService
             if (!File.Exists(path)) return new AppSettings();
             var json = File.ReadAllText(path);
             var s = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
-            // Temporary to disable setup completion for testing
-            s = new AppSettings();
             return s;
         }
         catch
