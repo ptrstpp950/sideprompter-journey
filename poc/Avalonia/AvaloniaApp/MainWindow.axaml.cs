@@ -23,7 +23,7 @@ namespace AvaloniaApp;
 
 public partial class MainWindow : Window
 {
-    private readonly IAudioTranscriptionService? _audioTranscriptionService;
+    private IAudioTranscriptionService? _audioTranscriptionService; // model-dependent, can be recreated
     private readonly IWindowTextExtractionService _windowTextExtractionService;
     private ChatCompletionService? _chatCompletionService; // now nullable until configured
     private bool _isTranscribing;
@@ -34,9 +34,13 @@ public partial class MainWindow : Window
     // ReSharper disable once RedundantDefaultMemberInitializer
     private bool _windowCaptureHotkeyRegistered = false;
 
+    // Settings window (singleton per main window lifetime)
+    private SetupWizard? _settingsWindow;
+
     private readonly ChatViewModel _chatViewModel = new();
 
     private readonly AppSettings _settings;
+    private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
 
     public MainWindow() : this(null) {}
 
@@ -54,44 +58,79 @@ public partial class MainWindow : Window
                 x: bounds.X + (bounds.Width - (int)Width) / 2,
                 y: bounds.Y + 20);
         }
-        var transcriptionService = new WhisperTranscriptionService(_settings.WhisperModelType);
+        // Platform specific static services
 #if MACOS || OSX || MACCATALYST
-        _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionService);
         _windowTextExtractionService = new WindowTextExtractionServiceMac();
         _hotKeyService = new HotKeyServiceMacOptionTwo(this);
 #elif WINDOWS
-        _audioTranscriptionService = new AudioTranscriptionServiceWin(transcriptionService);
         _windowTextExtractionService = new WindowTextExtractionServiceWin();
         _hotKeyService = new HotKeyServiceWindows(this);
 #endif
-    _audioTranscriptionService!.TranscriptionReceived += OnMessageGenerated;
-        _audioTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
-    _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
-    _hotKeyService!.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
 
-    _elapsedTimer.Tick += (_, _) => UpdateElapsedTime();
+        _hotKeyService!.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+        _elapsedTimer.Tick += (_, _) => UpdateElapsedTime();
 
-        // Initialize ChatCompletionService strictly from settings (no environment fallback). API key may be empty.
+        ApplySettings();
+
+        // No scrolling area in compact mode; keep handler for potential future UI.
+        _chatViewModel.Messages.CollectionChanged += (_, _) => { };
+    }
+
+    private void ApplySettings()
+    {
+        // (Re)initialize transcription service if model changed
+        var desiredModel = _settings.WhisperModelType;
+        if (_audioTranscriptionService == null || desiredModel != _currentWhisperModelType)
+        {
+            if (_isTranscribing)
+            {
+                try { _audioTranscriptionService?.StopProcessing().GetAwaiter().GetResult(); } catch { /* ignore */ }
+                _isTranscribing = false;
+            }
+            if (_audioTranscriptionService != null)
+            {
+                _audioTranscriptionService.TranscriptionReceived -= OnMessageGenerated;
+                _audioTranscriptionService.LogReceived -= TranscriptionServiceOnLogReceived;
+                _audioTranscriptionService.StatusChanged -= TranscriptionServiceOnStatusChanged;
+                _audioTranscriptionService.Dispose();
+            }
+
+            var transcriptionCore = new WhisperTranscriptionService(desiredModel);
+#if MACOS || OSX || MACCATALYST
+            _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionCore);
+#elif WINDOWS
+            _audioTranscriptionService = new AudioTranscriptionServiceWin(transcriptionCore);
+#endif
+            _audioTranscriptionService!.TranscriptionReceived += OnMessageGenerated;
+            _audioTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
+            _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
+            _currentWhisperModelType = desiredModel;
+            _chatViewModel.AddLogMessage($"[Config] Whisper model set to: {_currentWhisperModelType}");
+        }
+
+        // Chat completion service
         var chatApiBase = _settings.ChatApiBase;
-        var chatApiKey = _settings.ChatApiKey; // can be empty
+        var chatApiKey = _settings.ChatApiKey ?? string.Empty;
         var chatModel = _settings.ChatModel;
-
         if (string.IsNullOrWhiteSpace(chatApiBase) || string.IsNullOrWhiteSpace(chatModel))
         {
+            _chatCompletionService = null;
             _chatViewModel.AddLogMessage("[Config] Chat API base or model missing. Configure ChatApiBase and ChatModel in settings.");
         }
         else
         {
-            _chatCompletionService = new ChatCompletionService(chatApiBase, chatApiKey ?? string.Empty, chatModel);
+            _chatCompletionService = new ChatCompletionService(chatApiBase, chatApiKey, chatModel);
+            _chatViewModel.AddLogMessage($"[Config] Chat model set to: {chatModel}");
         }
 
-        var langs = (_settings.Languages?.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
-        LanguageComboBox.ItemsSource = langs.ToArray();
-        var defaultLang = langs.Contains("en") ? "en" : langs.First();
-        LanguageComboBox.SelectedItem = defaultLang;
-
-    // No scrolling area in compact mode; keep handler for potential future UI.
-    _chatViewModel.Messages.CollectionChanged += (_, _) => { };
+        // Languages combo
+        if (LanguageComboBox != null)
+        {
+            var langs = (_settings.Languages?.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
+            LanguageComboBox.ItemsSource = langs.ToArray();
+            var defaultLang = langs.Contains("en") ? "en" : langs.FirstOrDefault() ?? "en";
+            LanguageComboBox.SelectedItem = defaultLang;
+        }
     }
 
     
@@ -335,7 +374,20 @@ public partial class MainWindow : Window
 
     private void SettingsButton_OnClick(object? sender, RoutedEventArgs e)
     {
-        AddMessage("[UI] Settings window not implemented yet.");
+        // Open (or focus) the settings / setup wizard in settings mode
+        if (_settingsWindow == null || !_settingsWindow.IsVisible)
+        {
+            _settingsWindow = new SetupWizard(_settings, true)
+            {
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            _settingsWindow.Closed += (_, _) => { _settingsWindow = null; ApplySettings(); }; // re-apply after close
+            _settingsWindow.Show(this);
+        }
+        else
+        {
+            _settingsWindow.Activate();
+        }
     }
 
     private void MinimizeButton_OnClick(object? sender, RoutedEventArgs e)
