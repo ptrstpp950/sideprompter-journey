@@ -23,7 +23,7 @@ public partial class MainWindow : Window
 {
     private readonly IAudioTranscriptionService? _audioTranscriptionService;
     private readonly IWindowTextExtractionService _windowTextExtractionService;
-    private readonly ChatCompletionService _chatCompletionService;
+    private ChatCompletionService? _chatCompletionService; // now nullable until configured
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
     private readonly IHotKeyService? _hotKeyService;
@@ -56,11 +56,19 @@ public partial class MainWindow : Window
         _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
         _hotKeyService!.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
 
-        _chatCompletionService =
-            //new ChatCompletionService("http://localhost:11434/","None", "phi:latest");
-            new ChatCompletionService(Environment.GetEnvironmentVariable("API_BASE_URL")!,
-                Environment.GetEnvironmentVariable("API_KEY")!,
-                Environment.GetEnvironmentVariable("API_MODEL")!);
+        // Initialize ChatCompletionService strictly from settings (no environment fallback). API key may be empty.
+        var chatApiBase = _settings.ChatApiBase;
+        var chatApiKey = _settings.ChatApiKey; // can be empty
+        var chatModel = _settings.ChatModel;
+
+        if (string.IsNullOrWhiteSpace(chatApiBase) || string.IsNullOrWhiteSpace(chatModel))
+        {
+            _chatViewModel.AddLogMessage("[Config] Chat API base or model missing. Configure ChatApiBase and ChatModel in settings.");
+        }
+        else
+        {
+            _chatCompletionService = new ChatCompletionService(chatApiBase, chatApiKey ?? string.Empty, chatModel);
+        }
 
     var langs = (_settings.Languages?.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
     LanguageComboBox.ItemsSource = langs.ToArray();
@@ -109,10 +117,16 @@ public partial class MainWindow : Window
             .Select(m => $"[{m.Author}] {m.Text}")
             .ToList();
         
-        var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
-        _chatViewModel.ClearMessages();
-
-        _chatViewModel.AddMessage(chatResult, MessageAuthor.Other);
+        if (_chatCompletionService != null)
+        {
+            var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
+            _chatViewModel.ClearMessages();
+            _chatViewModel.AddMessage(chatResult, MessageAuthor.Other);
+        }
+        else
+        {
+            _chatViewModel.AddLogMessage("[Config] Chat completion not configured (missing base/model). Skipping AI response.");
+        }
     }
     
     private async void GetWindowTextButton_OnClick(object? sender, RoutedEventArgs e)
@@ -359,8 +373,13 @@ public partial class MainWindow : Window
             "[o] It's too long environments and documents"
         };
 
-        var result = await _chatCompletionService.GetCompletionAsync(list);
+        if (_chatCompletionService == null)
+        {
+            _chatViewModel.AddLogMessage("[AI TEST] Chat completion not configured.");
+            return;
+        }
 
+        var result = await _chatCompletionService.GetCompletionAsync(list);
         _chatViewModel.AddLogMessage("[AI TEST] " + result);
     }
 }
