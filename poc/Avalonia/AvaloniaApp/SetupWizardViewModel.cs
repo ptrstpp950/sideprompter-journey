@@ -3,8 +3,12 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using AvaloniaApp.Settings;
+using AvaloniaApp.Services.TranscriptionService;
+using Whisper.net.Ggml;
 
 namespace AvaloniaApp;
 
@@ -38,6 +42,19 @@ public class SetupWizardViewModel : INotifyPropertyChanged
 
     public bool IsLastPage => SelectedPage != null && Pages.Count > 0 && Pages[^1] == SelectedPage;
 
+    // Busy / progress state for operations like model download
+    private bool _isBusy;
+    public bool IsBusy { get => _isBusy; private set { if (_isBusy != value) { _isBusy = value; OnPropertyChanged(); } } }
+
+    private string _busyMessage = string.Empty;
+    public string BusyMessage { get => _busyMessage; private set { if (_busyMessage != value) { _busyMessage = value; OnPropertyChanged(); } } }
+
+    private double _busyProgress; // 0-100
+    public double BusyProgress { get => _busyProgress; private set { if (Math.Abs(_busyProgress - value) > 0.0001) { _busyProgress = value; OnPropertyChanged(); } } }
+
+    private bool _isBusyIndeterminate = true;
+    public bool IsBusyIndeterminate { get => _isBusyIndeterminate; private set { if (_isBusyIndeterminate != value) { _isBusyIndeterminate = value; OnPropertyChanged(); } } }
+
     public SetupWizardViewModel() : this(SettingsService.Load(), isSettingsMode: false) { }
 
     public SetupWizardViewModel(AppSettings settings, bool isSettingsMode)
@@ -47,7 +64,7 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         BuildPages();
         SelectedPage = Pages.Count > 0 ? Pages[0] : null;
 
-    PrimaryCommand = new DelegateCommand(_ => PrimaryAction());
+    PrimaryCommand = new DelegateCommand(async _ => await PrimaryActionAsync());
     var backCmd = new DelegateCommand(_ => BackAction(), _ => CanGoBack());
     BackCommand = backCmd;
         ResetCommand = new DelegateCommand(_ => { foreach (var p in Pages) p.Reset(); });
@@ -60,13 +77,57 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         Pages.Add(new ChatSettingsPage(_settings));
     }
 
-    private void PrimaryAction()
+    private async Task PrimaryActionAsync()
     {
         if (SelectedPage == null) return;
         if (!SelectedPage.ValidateAndSave(out var error))
         {
             StatusMessage = error;
             return;
+        }
+
+        // If we are on the model page and advancing, ensure the model is downloaded first.
+        if (SelectedPage is ModelSettingsPage)
+        {
+            if (Enum.TryParse<GgmlType>(_settings.WhisperModel, true, out var modelType))
+            {
+                try
+                {
+                    IsBusy = true;
+                    IsBusyIndeterminate = true;
+                    BusyProgress = 0;
+                    BusyMessage = "Preparing model download...";
+                    StatusMessage = string.Empty;
+
+                    void StatusCallback(string msg)
+                    {
+                        BusyMessage = msg;
+                        // Try extract percentage
+                        var match = Regex.Match(msg, "(\\d{1,3}(?:\\.\\d+)?)%" );
+                        if (match.Success && double.TryParse(match.Groups[1].Value, out var pct))
+                        {
+                            BusyProgress = Math.Clamp(pct, 0, 100);
+                            IsBusyIndeterminate = false;
+                        }
+                    }
+
+                    await WhisperTranscriptionService.EnsureModelDownloadedAsync(modelType, StatusCallback);
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Model download failed: {ex.Message}";
+                    return; // Abort navigation if download failed.
+                }
+                finally
+                {
+                    IsBusy = false;
+                }
+            }
+            else
+            {
+                StatusMessage = $"Unknown model type: {_settings.WhisperModel}";
+                return;
+            }
         }
 
         if (!IsSettingsMode && !IsLastPage)
