@@ -52,7 +52,7 @@
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
         <TextBlock Text="{Binding StatusMessage}" Foreground="Orange" Margin="0,0,12,0" VerticalAlignment="Center" />
         <Button Content="Reset" Command="{Binding ResetCommand}" IsVisible="{Binding IsSettingsMode}" />
-        <Button Content="Cancel" Command="{Binding CancelCommand}" />
+  <Button Content="Back" Command="{Binding BackCommand}" />
         <Button Content="{Binding PrimaryButtonText}" Command="{Binding PrimaryCommand}" IsDefault="True" />
       </StackPanel>
     </Border>

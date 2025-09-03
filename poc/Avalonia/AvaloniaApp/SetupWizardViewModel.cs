@@ -33,7 +33,7 @@ public class SetupWizardViewModel : INotifyPropertyChanged
     private readonly AppSettings _settings;
 
     public ICommand PrimaryCommand { get; }
-    public ICommand CancelCommand { get; }
+    public ICommand BackCommand { get; }
     public ICommand ResetCommand { get; }
 
     public bool IsLastPage => SelectedPage != null && Pages.Count > 0 && Pages[^1] == SelectedPage;
@@ -47,8 +47,9 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         BuildPages();
         SelectedPage = Pages.Count > 0 ? Pages[0] : null;
 
-        PrimaryCommand = new DelegateCommand(_ => PrimaryAction());
-        CancelCommand = new DelegateCommand(_ => RequestClose?.Invoke(this, EventArgs.Empty));
+    PrimaryCommand = new DelegateCommand(_ => PrimaryAction());
+    var backCmd = new DelegateCommand(_ => BackAction(), _ => CanGoBack());
+    BackCommand = backCmd;
         ResetCommand = new DelegateCommand(_ => { foreach (var p in Pages) p.Reset(); });
     }
 
@@ -83,10 +84,27 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         }
     }
 
+    private bool CanGoBack() => SelectedPage != null && Pages.IndexOf(SelectedPage) > 0;
+
+    private void BackAction()
+    {
+        if (!CanGoBack()) return;
+        var idx = Pages.IndexOf(SelectedPage!);
+        SelectedPage = Pages[idx - 1];
+        StatusMessage = string.Empty;
+    }
+
     public event EventHandler? RequestClose;
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    protected void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    protected void OnPropertyChanged([CallerMemberName] string? name = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        if (name == nameof(SelectedPage) && BackCommand is DelegateCommand dc)
+        {
+            dc.RaiseCanExecuteChanged();
+        }
+    }
 }
 
 public abstract class SettingsPageViewModel
