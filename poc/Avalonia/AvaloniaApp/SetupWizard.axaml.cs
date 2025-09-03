@@ -14,7 +14,6 @@ using AvaloniaApp.Settings;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Controls.Primitives;
-using Whisper.net;
 using Avalonia.Threading;
 using AvaloniaApp.Services.TranscriptionService;
 
@@ -55,7 +54,7 @@ public partial class SetupWizard : Window
     private class ModelOption
     {
         public string Key { get; init; } = string.Empty;          // e.g. "base.en" or "base"
-    public string Display { get; set; } = string.Empty;      // full display line (mutable for post-build labeling)
+        public string Display { get; set; } = string.Empty;      // full display line (mutable for post-build labeling)
         public string Parameters { get; init; } = string.Empty;   // e.g. 74 M
         public string Vram { get; init; } = string.Empty;         // e.g. ~1 GB
         public string Speed { get; init; } = string.Empty;        // e.g. ~7x
@@ -556,12 +555,9 @@ public partial class SetupWizard : Window
             }
             var answer = ExtractAssistantReply(provider, body);
             if (string.IsNullOrWhiteSpace(answer)) answer = "(No reply parsed)";
-            _chatValidationMessage.Text = "Success.";
-            // Reuse chat log facility via a simple global style event? For now show inline appended.
-            _chatValidationMessage.Text += " Received reply.";
-            // Append truncated preview
-            if (answer.Length > 240) answer = answer[..240] + "...";
-            _chatValidationMessage.Text += $" \nReply: {answer}";
+            _chatValidationMessage.Text = "Success. Received reply.";
+            var preview = answer.Length > 240 ? answer[..240] + "..." : answer;
+            _chatValidationMessage.Text += $"\nReply: {preview}";
         }
         catch (Exception ex)
         {
