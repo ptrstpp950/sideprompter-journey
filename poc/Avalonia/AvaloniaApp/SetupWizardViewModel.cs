@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Avalonia.Controls;
 using AvaloniaApp.Settings;
 using AvaloniaApp.Services.TranscriptionService;
@@ -39,12 +40,14 @@ public class SetupWizardViewModel : INotifyPropertyChanged
     public ICommand PrimaryCommand { get; }
     public ICommand BackCommand { get; }
     public ICommand ResetCommand { get; }
+    public ICommand CancelDownloadCommand { get; }
 
     public bool IsLastPage => SelectedPage != null && Pages.Count > 0 && Pages[^1] == SelectedPage;
 
     // Busy / progress state for operations like model download
     private bool _isBusy;
-    public bool IsBusy { get => _isBusy; private set { if (_isBusy != value) { _isBusy = value; OnPropertyChanged(); } } }
+    public bool IsBusy { get => _isBusy; private set { if (_isBusy != value) { _isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsNotBusy)); } } }
+    public bool IsNotBusy => !IsBusy;
 
     private string _busyMessage = string.Empty;
     public string BusyMessage { get => _busyMessage; private set { if (_busyMessage != value) { _busyMessage = value; OnPropertyChanged(); } } }
@@ -57,6 +60,8 @@ public class SetupWizardViewModel : INotifyPropertyChanged
 
     public SetupWizardViewModel() : this(SettingsService.Load(), isSettingsMode: false) { }
 
+    private CancellationTokenSource? _downloadCts;
+
     public SetupWizardViewModel(AppSettings settings, bool isSettingsMode)
     {
         _settings = settings;
@@ -64,10 +69,11 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         BuildPages();
         SelectedPage = Pages.Count > 0 ? Pages[0] : null;
 
-    PrimaryCommand = new DelegateCommand(async _ => await PrimaryActionAsync());
-    var backCmd = new DelegateCommand(_ => BackAction(), _ => CanGoBack());
-    BackCommand = backCmd;
+        PrimaryCommand = new DelegateCommand(async _ => await PrimaryActionAsync(), _ => !IsBusy);
+        var backCmd = new DelegateCommand(_ => BackAction(), _ => !IsBusy && CanGoBack());
+        BackCommand = backCmd;
         ResetCommand = new DelegateCommand(_ => { foreach (var p in Pages) p.Reset(); });
+        CancelDownloadCommand = new DelegateCommand(_ => _downloadCts?.Cancel(), _ => IsBusy);
     }
 
     private void BuildPages()
@@ -79,7 +85,8 @@ public class SetupWizardViewModel : INotifyPropertyChanged
 
     private async Task PrimaryActionAsync()
     {
-        if (SelectedPage == null) return;
+    if (IsBusy) return; // guard
+    if (SelectedPage == null) return;
         if (!SelectedPage.ValidateAndSave(out var error))
         {
             StatusMessage = error;
@@ -91,9 +98,11 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         {
             if (Enum.TryParse<GgmlType>(_settings.WhisperModel, true, out var modelType))
             {
+                _downloadCts = new CancellationTokenSource();
                 try
                 {
                     IsBusy = true;
+                    RaiseCommandCanExecStates();
                     IsBusyIndeterminate = true;
                     BusyProgress = 0;
                     BusyMessage = "Preparing model download...";
@@ -111,7 +120,12 @@ public class SetupWizardViewModel : INotifyPropertyChanged
                         }
                     }
 
-                    await WhisperTranscriptionService.EnsureModelDownloadedAsync(modelType, StatusCallback);
+                    await WhisperTranscriptionService.EnsureModelDownloadedAsync(modelType, StatusCallback, _downloadCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    StatusMessage = "Model download cancelled.";
+                    return;
                 }
                 catch (Exception ex)
                 {
@@ -121,6 +135,9 @@ public class SetupWizardViewModel : INotifyPropertyChanged
                 finally
                 {
                     IsBusy = false;
+                    RaiseCommandCanExecStates();
+                    _downloadCts.Dispose();
+                    _downloadCts = null;
                 }
             }
             else
@@ -165,6 +182,17 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         {
             dc.RaiseCanExecuteChanged();
         }
+        if (name == nameof(IsBusy))
+        {
+            RaiseCommandCanExecStates();
+        }
+    }
+
+    private void RaiseCommandCanExecStates()
+    {
+        if (PrimaryCommand is DelegateCommand pc) pc.RaiseCanExecuteChanged();
+        if (BackCommand is DelegateCommand bc) bc.RaiseCanExecuteChanged();
+        if (CancelDownloadCommand is DelegateCommand cc) cc.RaiseCanExecuteChanged();
     }
 }
 

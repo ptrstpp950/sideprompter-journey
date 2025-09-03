@@ -47,11 +47,14 @@
       <Grid>
         <ContentControl Content="{Binding SelectedPage.View}" />
         <Border Background="#CC000000" IsVisible="{Binding IsBusy}" CornerRadius="4">
-          <Border HorizontalAlignment="Center" VerticalAlignment="Center" Width="380" Padding="24" Background="#2A2A2A" CornerRadius="6">
-            <StackPanel Spacing="12">
+          <Border HorizontalAlignment="Center" VerticalAlignment="Center" Width="420" Padding="24" Background="#2A2A2A" CornerRadius="6">
+            <StackPanel Spacing="14">
               <TextBlock Text="Downloading model" FontSize="16" FontWeight="Bold" />
               <TextBlock Text="{Binding BusyMessage}" TextWrapping="Wrap" FontSize="12"/>
               <ProgressBar IsIndeterminate="{Binding IsBusyIndeterminate}" Minimum="0" Maximum="100" Value="{Binding BusyProgress}" Height="14" />
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Cancel" Command="{Binding CancelDownloadCommand}" />
+              </StackPanel>
             </StackPanel>
           </Border>
         </Border>
@@ -63,8 +66,8 @@
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
         <TextBlock Text="{Binding StatusMessage}" Foreground="Orange" Margin="0,0,12,0" VerticalAlignment="Center" />
         <Button Content="Reset" Command="{Binding ResetCommand}" IsVisible="{Binding IsSettingsMode}" />
-  <Button Content="Back" Command="{Binding BackCommand}" />
-        <Button Content="{Binding PrimaryButtonText}" Command="{Binding PrimaryCommand}" IsDefault="True" />
+  <Button Content="Back" Command="{Binding BackCommand}" IsEnabled="{Binding IsNotBusy}" />
+  <Button Content="{Binding PrimaryButtonText}" Command="{Binding PrimaryCommand}" IsDefault="True" IsEnabled="{Binding IsNotBusy}" />
       </StackPanel>
     </Border>
   </Grid>

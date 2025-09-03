@@ -56,28 +56,85 @@ public class WhisperTranscriptionService : ITranscriptionService
             return modelPath;
         }
         status?.Invoke($"Downloading Whisper model '{modelName}'...");
-        await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(modelType, cancellationToken: cancellationToken);
-        await using var fileStream = File.Create(modelPath);
-        // Attempt progress if length known
-        long? total = null; try { total = modelStream.Length; } catch { }
-        var buffer = new byte[81920];
-        long written = 0;
-        int read;
-        while ((read = await modelStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+
+        var partialPath = modelPath + ".partial";
+        try
         {
-            await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            written += read;
-            if (total.HasValue)
+            if (File.Exists(partialPath))
             {
-                var pct = (double)written / total.Value * 100d;
-                // Throttle updates a bit
-                if (pct % 2 < 0.5)
-                    status?.Invoke($"Downloading Whisper model '{modelName}'... {pct:0.#}%");
+                try { File.Delete(partialPath); } catch { /* ignore */ }
             }
+
+            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(modelType, cancellationToken: cancellationToken);
+            await using var fileStream = File.Create(partialPath);
+            long? total = null; try { total = modelStream.Length; } catch { }
+            var buffer = new byte[81920];
+            long written = 0;
+            int read;
+            while ((read = await modelStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+            {
+                await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                written += read;
+                if (total.HasValue)
+                {
+                    var pct = (double)written / total.Value * 100d;
+                    if (pct % 2 < 0.5)
+                        status?.Invoke($"Downloading Whisper model '{modelName}'... {pct:0.#}%");
+                }
+            }
+            await fileStream.FlushAsync(cancellationToken);
+            // Explicitly dispose before attempting to move so Windows unlocks the handle.
+            await fileStream.DisposeAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Move partial to final if not canceled. If another process already put it there, discard ours.
+            if (!File.Exists(modelPath))
+            {
+                const int maxMoveAttempts = 5;
+                for (int attempt = 1; attempt <= maxMoveAttempts; attempt++)
+                {
+                    try
+                    {
+                        File.Move(partialPath, modelPath, overwrite: true);
+                        break;
+                    }
+                    catch (IOException) when (attempt < maxMoveAttempts)
+                    {
+                        await Task.Delay(150, cancellationToken); // brief backoff for transient locks
+                    }
+                }
+            }
+            else
+            {
+                try { File.Delete(partialPath); } catch { }
+            }
+
+            status?.Invoke("Model downloaded successfully.");
+            return modelPath;
         }
-        await fileStream.FlushAsync(cancellationToken);
-        status?.Invoke("Model downloaded successfully.");
-        return modelPath;
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (File.Exists(partialPath))
+                {
+                    File.Delete(partialPath);
+                    status?.Invoke("Download cancelled. Removed partial file.");
+                }
+            }
+            catch { }
+            throw; // rethrow for caller to handle
+        }
+        catch (Exception ex)
+        {
+            status?.Invoke($"Model download failed: {ex.Message}");
+            throw;
+        }
+        finally
+        {
+            // On any failure ensure partial is cleaned
+            try { if (File.Exists(partialPath)) File.Delete(partialPath); } catch { }
+        }
     }
 
     /// <summary>
