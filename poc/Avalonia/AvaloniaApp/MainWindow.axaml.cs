@@ -315,11 +315,6 @@ public partial class MainWindow : Window
             _isTranscribing = true;
             _chatViewModel.ClearMessages();
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "en";
-            if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("StartStopIcon") is { } startIcon)
-            {
-                startIcon.Type = IconType.StopCircle;
-                startIcon.Foreground = Avalonia.Media.Brushes.IndianRed;
-            }
 
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
             _startedAt = DateTime.UtcNow;
@@ -346,11 +341,6 @@ public partial class MainWindow : Window
             _elapsedTimer.Stop();
             _startedAt = null;
             UpdateElapsedTime();
-            if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("StartStopIcon") is { } startIcon)
-            {
-                startIcon.Type = IconType.PlayCircle;
-                startIcon.Foreground = Avalonia.Media.Brushes.LimeGreen;
-            }
         }
         catch (Exception)
         {

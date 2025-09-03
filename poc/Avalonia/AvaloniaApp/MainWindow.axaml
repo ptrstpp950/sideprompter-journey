@@ -26,7 +26,7 @@
                               Unchecked="ToggleButton_OnUnchecked">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon x:Name="StartIcon" IsVisible="True" Type="PlayCircle" Foreground="#22c55e" Kind="Solid" />
-                        <heroIcons:HeroIcon x:Name="StopIcon" IsVisible="False" Type="StopCircle" Foreground="#c52230ff" Kind="Solid" />
+                        <heroIcons:HeroIcon x:Name="StopIcon" IsVisible="False" Type="StopCircle" Foreground="#c52230" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
                 <Button x:Name="SettingsButton" Classes="IconButton" Width="40" Height="36" Click="SettingsButton_OnClick" ToolTip.Tip="Settings">
