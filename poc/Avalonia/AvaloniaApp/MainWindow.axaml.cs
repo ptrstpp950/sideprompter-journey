@@ -293,10 +293,24 @@ public partial class MainWindow : Window
         _chatViewModel.AddLogMessage(message);
     }
 
+    private void SwitchStartStopIcon(bool startIconVisible = false)
+    {
+        if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("StartIcon") is { } startIcon)
+        {
+            startIcon.IsVisible = startIconVisible;
+        }
+        if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("StopIcon") is { } stopIcon)
+        {
+            stopIcon.IsVisible = !startIconVisible;
+        }
+
+    }
+
     private async void ToggleButton_OnChecked(object? sender, RoutedEventArgs e)
     {
         try
         {
+            SwitchStartStopIcon(false);
             if (_isTranscribing) return;
             _isTranscribing = true;
             _chatViewModel.ClearMessages();
@@ -324,6 +338,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            SwitchStartStopIcon(true);
             if (!_isTranscribing) return;
             await _audioTranscriptionService!.StopProcessing();
 
