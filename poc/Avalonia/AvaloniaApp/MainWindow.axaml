@@ -1,90 +1,61 @@
 <Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:AvaloniaApp"
-        xmlns:viewModel="clr-namespace:AvaloniaApp.ViewModel"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
-        x:Class="AvaloniaApp.MainWindow"
-        x:DataType="viewModel:ChatViewModel"
-        Title="AvaloniaApp">
-    <Window.Resources>
-        <viewModel:AuthorToAlignmentConverter x:Key="AuthorToAlignmentConverter"/>
-        <viewModel:AuthorToBackgroundBrushConverter x:Key="AuthorToBackgroundBrushConverter"/>
-        <viewModel:AuthorToForegroundBrushConverter x:Key="AuthorToForegroundBrushConverter"/>
-    </Window.Resources>
-    <Grid Margin="20">
-        <TabControl>
-            <TabItem Header="Transcription">
-                <StackPanel Spacing="12">
-                    <StackPanel Spacing="5" Orientation="Horizontal" Margin="0,0,0,10">
-                        <TextBlock Text="Audio Source:" VerticalAlignment="Center"/>
-                        <CheckBox x:Name="SystemAudioCheckBox" Content="System Audio" IsChecked="True" Margin="10,0,0,0"/>
-                        <CheckBox x:Name="MicrophoneCheckBox" Content="Microphone" IsChecked="False" Margin="10,0,0,0"/>
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewModel="clr-namespace:AvaloniaApp.ViewModel"
+    xmlns:heroIcons="clr-namespace:HeroIconsAvalonia.Controls;assembly=HeroIconsAvalonia"
+    x:Class="AvaloniaApp.MainWindow"
+    x:DataType="viewModel:ChatViewModel"
+    Width="640" Height="120"
+    CanResize="True"
+    WindowStartupLocation="Manual"
+    ExtendClientAreaToDecorationsHint="True"
+    ExtendClientAreaTitleBarHeightHint="28"
+    TransparencyLevelHint="AcrylicBlur,Blur,Transparent"
+    Background="#CC1E1E1E"
+    Padding="0"
+    mc:Ignorable="d"
+    Title="SidePrompter">
+    
+    <Grid RowDefinitions="Auto,Auto" Margin="0,6,0,6">
+        <!-- Top system/title row -->
+    <DockPanel Background="#101418" Height="28" Grid.Row="0" PointerPressed="TitleBarPanel_OnPointerPressed">
+            <TextBlock Text="SidePrompter" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="#94a3b8" FontSize="13"/>
+        </DockPanel>
+
+        <!-- Controls row -->
+        <DockPanel Grid.Row="1" Margin="12,4,12,0" LastChildFill="False">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <ToggleButton x:Name="ToggleButton"
+                              Checked="ToggleButton_OnChecked"
+                              Unchecked="ToggleButton_OnUnchecked">
+                    <heroIcons:HeroIcon x:Name="StartStopIcon" Type="PlayCircle" Foreground="#22c55e" Kind="Solid" />
+                </ToggleButton>
+                <Button x:Name="SettingsButton" Classes="IconButton" Width="40" Height="36" Click="SettingsButton_OnClick" ToolTip.Tip="Settings">
+                    <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#9ca3af" Kind="Solid" />
+                </Button>
+                <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />
+                        <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontWeight="SemiBold" Foreground="#e5e7eb"/>
                     </StackPanel>
-                    <TextBlock Text="Select Language:"/>
-                    <ComboBox x:Name="LanguageComboBox" Width="200"/>
-                    <ToggleButton x:Name="ToggleButton" Content="Start Transcription" Width="200"
-                                  Checked="ToggleButton_OnChecked" Unchecked="ToggleButton_OnUnchecked"/>
-                    <Button x:Name="TestChatButton" Content="Test Chat" Click="TestChatButton_OnClick" />
-                    <ScrollViewer x:Name="ChatScrollViewer" VerticalScrollBarVisibility="Auto" Margin="0,20,0,0">
-                        <ItemsControl ItemsSource="{Binding Messages}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="viewModel:ChatMessage">
-                                    <Border Margin="5"
-                                            CornerRadius="10"
-                                            Padding="10"
-                                            HorizontalAlignment="{Binding Author, Converter={StaticResource AuthorToAlignmentConverter}}"
-                                            Background="{Binding Author, Converter={StaticResource AuthorToBackgroundBrushConverter}}">
-                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-                                                   Foreground="{Binding Author, Converter={StaticResource AuthorToForegroundBrushConverter}}"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="Window Text">
-                <StackPanel Spacing="12">
-                    <TextBlock Text="Extract text from active window:"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="ActiveWindowTitleBlock" Text="No window selected" Grid.Column="0"/>
-                        <Button x:Name="RefreshWindowButton" Content="Refresh" Grid.Column="1"
-                                Click="RefreshWindowButton_OnClick" Width="100"/>
-                    </Grid>
-                    <Button x:Name="GetWindowTextButton" Content="Get Window Text" Width="200"
-                            Click="GetWindowTextButton_OnClick"/>
-                    <Button x:Name="GetWindowTextCliButton" Content="Get Window Text (CLI)" Width="200"
-                            Click="GetWindowTextCliButton_OnClick"/>
-                    <CheckBox x:Name="PrivacyModeCheckBox" Content="Privacy Mode (Hide this window from capture)"
-                              Checked="PrivacyMode_OnToggled" Unchecked="PrivacyMode_OnToggled"/>
-                    <TextBlock Text="Register ALT+W to extract window text:"/>
-                    <Button x:Name="RegisterHotkeyButton" Content="Register Hotkey" Width="200"
-                            Click="RegisterHotkeyButton_OnClick"/>
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="Logs">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding LogMessages}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="viewModel:ChatMessage">
-                                <Border Margin="5"
-                                        CornerRadius="10"
-                                        Padding="10"
-                                        HorizontalAlignment="Left"
-                                        Background="LightGray">
-                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
+                </Border>
+                <Border Classes="HeaderChip" ToolTip.Tip="Ask AI">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <heroIcons:HeroIcon Type="QuestionMarkCircle" Foreground="#a855f7" Width="16" Height="16" Kind="Solid" />
+                        <TextBlock Text="Ask AI (Win+? / Cmd+?)" Foreground="#cbd5e1" FontSize="11"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="HeaderChip" ToolTip.Tip="Add Context">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <heroIcons:HeroIcon Type="PlusCircle" Foreground="#10b981" Width="16" Height="16" Kind="Solid" />
+                        <TextBlock Text="Add Ctx (Alt+? / Opt+?)" Foreground="#cbd5e1" FontSize="11"/>
+                    </StackPanel>
+                </Border>
+                <!-- Hidden language picker (future use) -->
+        <ComboBox x:Name="LanguageComboBox" Width="120" MinHeight="32" IsVisible="False"/>
+            </StackPanel>
+        </DockPanel>
+    <!-- Placeholder (no logs displayed) -->
     </Grid>
 </Window>

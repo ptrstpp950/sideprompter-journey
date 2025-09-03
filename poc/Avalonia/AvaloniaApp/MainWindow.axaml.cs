@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,6 +17,7 @@ using Microsoft.Extensions.AI;
 using AvaloniaApp.Services;
 using AvaloniaApp.ViewModel;
 using AvaloniaApp.Settings;
+using HeroIconsAvalonia.Enums;
 
 namespace AvaloniaApp;
 
@@ -26,6 +28,8 @@ public partial class MainWindow : Window
     private ChatCompletionService? _chatCompletionService; // now nullable until configured
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
+    private DateTime? _startedAt; 
+    private readonly DispatcherTimer _elapsedTimer = new() { Interval = TimeSpan.FromSeconds(1)}; 
     private readonly IHotKeyService? _hotKeyService;
     // ReSharper disable once RedundantDefaultMemberInitializer
     private bool _windowCaptureHotkeyRegistered = false;
@@ -41,6 +45,15 @@ public partial class MainWindow : Window
         InitializeComponent();
         _settings = settings ?? SettingsService.Load();
         DataContext = _chatViewModel;
+        // Position window top-center with margin from top (e.g., 20px)
+        var screen = Screens.Primary;
+        if (screen != null)
+        {
+            var bounds = screen.WorkingArea;
+            Position = new PixelPoint(
+                x: bounds.X + (bounds.Width - (int)Width) / 2,
+                y: bounds.Y + 20);
+        }
         var transcriptionService = new WhisperTranscriptionService(_settings.WhisperModelType);
 #if MACOS || OSX || MACCATALYST
         _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionService);
@@ -51,10 +64,12 @@ public partial class MainWindow : Window
         _windowTextExtractionService = new WindowTextExtractionServiceWin();
         _hotKeyService = new HotKeyServiceWindows(this);
 #endif
-        _audioTranscriptionService!.TranscriptionReceived += OnMessageGenerated;
+    _audioTranscriptionService!.TranscriptionReceived += OnMessageGenerated;
         _audioTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
-        _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
-        _hotKeyService!.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+    _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
+    _hotKeyService!.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+
+    _elapsedTimer.Tick += (_, _) => UpdateElapsedTime();
 
         // Initialize ChatCompletionService strictly from settings (no environment fallback). API key may be empty.
         var chatApiBase = _settings.ChatApiBase;
@@ -70,21 +85,13 @@ public partial class MainWindow : Window
             _chatCompletionService = new ChatCompletionService(chatApiBase, chatApiKey ?? string.Empty, chatModel);
         }
 
-    var langs = (_settings.Languages?.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
-    LanguageComboBox.ItemsSource = langs.ToArray();
-    var defaultLang = langs.Contains("en") ? "en" : langs.First();
-    LanguageComboBox.SelectedItem = defaultLang;
+        var langs = (_settings.Languages?.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
+        LanguageComboBox.ItemsSource = langs.ToArray();
+        var defaultLang = langs.Contains("en") ? "en" : langs.First();
+        LanguageComboBox.SelectedItem = defaultLang;
 
-        // Update the active window title
-        UpdateActiveWindowTitle();
-        
-        _chatViewModel.Messages.CollectionChanged += (sender, args) =>
-        {
-            Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                ChatScrollViewer.ScrollToEnd();
-            });
-        };
+    // No scrolling area in compact mode; keep handler for potential future UI.
+    _chatViewModel.Messages.CollectionChanged += (_, _) => { };
     }
 
     
@@ -231,60 +238,16 @@ public partial class MainWindow : Window
         }
     }
     
-    private void RefreshWindowButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        UpdateActiveWindowTitle();
-    }
+    // Removed UI for active window title in compact redesign; keep extraction helpers for future use.
     
-    private void UpdateActiveWindowTitle()
-    {
-        try
-        {
-            ActiveWindowTitleBlock.Text = _windowTextExtractionService.GetActiveWindowTitle();
-        }
-        catch (Exception ex)
-        {
-            ActiveWindowTitleBlock.Text = $"Error: {ex.Message}";
-        }
-    }
-    
-    private void RegisterHotkeyButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (_hotKeyService != null && !_windowCaptureHotkeyRegistered)
-            {
-                _hotKeyService.RegisterWindowCaptureHotKey(Key.OemPeriod, KeyModifiers.Meta, OnWindowTextHotkeyPressed);
-                _windowCaptureHotkeyRegistered = true;
-                AddMessage("Registered CMD+. hotkey for window text extraction");
-                
-                RegisterHotkeyButton.Content = "Unregister Hotkey";
-            }
-            else if (_hotKeyService != null && _windowCaptureHotkeyRegistered)
-            {
-                _hotKeyService.UnregisterWindowCaptureHotKey();
-                _windowCaptureHotkeyRegistered = false;
-                AddMessage("Unregistered CMD+. hotkey");
-                RegisterHotkeyButton.Content = "Register Hotkey";
-            }
-        }
-        catch (Exception ex)
-        {
-            AddMessage($"Failed to register/unregister hotkey: {ex.Message}");
-        }
-    }
+    // Hotkey registration button removed in compact UI.
     
     private async void OnWindowTextHotkeyPressed()
     {
         await ExtractAndDisplayWindowTextViaCli();
     }
     
-    private void PrivacyMode_OnToggled(object? sender, RoutedEventArgs e)
-    {
-        bool isChecked = PrivacyModeCheckBox.IsChecked ?? false;
-        EnableWindowPrivacyService.SetProtected(this, isChecked);
-        AddMessage($"Privacy mode {(isChecked ? "enabled" : "disabled")}");
-    }
+    // Privacy mode checkbox removed in compact UI.
 
     private void AddMessage(string message)
     {
@@ -297,11 +260,18 @@ public partial class MainWindow : Window
         {
             if (_isTranscribing) return;
             _isTranscribing = true;
-            ToggleButton.Content = "Stop Transcription";
             _chatViewModel.ClearMessages();
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "en";
+            if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("StartStopIcon") is { } startIcon)
+            {
+                startIcon.Type = IconType.StopCircle;
+                startIcon.Foreground = Avalonia.Media.Brushes.IndianRed;
+            }
 
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
+            _startedAt = DateTime.UtcNow;
+            _elapsedTimer.Start();
+            UpdateElapsedTime();
         }
         catch (Exception)
         {
@@ -319,7 +289,14 @@ public partial class MainWindow : Window
             await _audioTranscriptionService!.StopProcessing();
 
             _isTranscribing = false;
-            ToggleButton.Content = "Start Transcription";
+            _elapsedTimer.Stop();
+            _startedAt = null;
+            UpdateElapsedTime();
+            if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("StartStopIcon") is { } startIcon)
+            {
+                startIcon.Type = IconType.PlayCircle;
+                startIcon.Foreground = Avalonia.Media.Brushes.LimeGreen;
+            }
         }
         catch (Exception)
         {
@@ -337,6 +314,46 @@ public partial class MainWindow : Window
         else
         {
             ToggleButton.IsChecked = true;
+        }
+    }
+
+    private void UpdateElapsedTime()
+    {
+        if (ElapsedTimeText == null)
+            return;
+        if (_startedAt == null)
+        {
+            ElapsedTimeText.Text = "00:00";
+            return;
+        }
+        var elapsed = DateTime.UtcNow - _startedAt.Value;
+        if (elapsed.TotalHours >= 1)
+            ElapsedTimeText.Text = $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+        else
+            ElapsedTimeText.Text = $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+    }
+
+    private void SettingsButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        AddMessage("[UI] Settings window not implemented yet.");
+    }
+
+    private void MinimizeButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void CloseButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void TitleBarPanel_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        // Allow dragging the window when pressing on the custom top panel with left mouse button
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            BeginMoveDrag(e);
         }
     }
 
