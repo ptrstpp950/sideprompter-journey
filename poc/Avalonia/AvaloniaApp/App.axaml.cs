@@ -19,7 +19,7 @@ public partial class App : Application
             var settings = SettingsService.Load();
             if (!settings.SetupCompleted)
             {
-                var wizard = new SetupWizard(settings);
+                var wizard = new SetupWizard(settings, false);
                 wizard.Closed += (_, _) =>
                 {
                     var latest = SettingsService.Load();

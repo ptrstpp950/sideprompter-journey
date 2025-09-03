@@ -7,7 +7,7 @@ namespace AvaloniaApp.Settings;
 
 public class AppSettings
 {
-    public List<string> Languages { get; set; } = new() { "en" };
+    public List<string> Languages { get; set; } = new() { };
     public string WhisperModel { get; set; } = GgmlType.Base.ToString();
     public bool SetupCompleted { get; set; }
     public DateTime? FirstConfiguredUtc { get; set; }
