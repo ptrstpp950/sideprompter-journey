@@ -14,7 +14,7 @@
   </Design.DataContext>
   <Grid ColumnDefinitions="220, *" RowDefinitions="* Auto" Margin="0">
     <!-- Navigation -->
-    <Border Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,0,1,0">
+    <Border Background="{DynamicResource ThemeControlLowBrush}" BorderBrush="{DynamicResource ThemeBorderMidBrush}" BorderThickness="0,0,1,0">
       <StackPanel>
         <TextBlock Text="SidePrompter" FontSize="18" FontWeight="Bold" Margin="16,16,16,8" />
   <ListBox ItemsSource="{Binding Pages}"
@@ -27,7 +27,7 @@
               <Setter Property="Padding" Value="12 8" />
             </Style>
             <Style Selector="ListBoxItem:selected">
-              <Setter Property="Background" Value="#333" />
+              <Setter Property="Background" Value="{DynamicResource ThemeControlHighlightMidBrush}" />
             </Style>
           </ListBox.Styles>
           <ListBox.ItemTemplate>
@@ -43,11 +43,11 @@
     </Border>
 
     <!-- Content -->
-    <Border Grid.Column="1" Padding="24" Background="#202020">
+    <Border Grid.Column="1" Padding="24" Background="{DynamicResource ThemeBackgroundBrush}">
       <Grid>
         <ContentControl Content="{Binding SelectedPage.View}" />
-        <Border Background="#CC000000" IsVisible="{Binding IsBusy}" CornerRadius="4">
-          <Border HorizontalAlignment="Center" VerticalAlignment="Center" Width="420" Padding="24" Background="#2A2A2A" CornerRadius="6">
+        <Border Background="{DynamicResource ThemeControlMidBrush}" IsVisible="{Binding IsBusy}" CornerRadius="4">
+          <Border HorizontalAlignment="Center" VerticalAlignment="Center" Width="420" Padding="24" Background="{DynamicResource ThemeControlLowBrush}" CornerRadius="6">
             <StackPanel Spacing="14">
               <TextBlock Text="Downloading model" FontSize="16" FontWeight="Bold" />
               <TextBlock Text="{Binding BusyMessage}" TextWrapping="Wrap" FontSize="12"/>
@@ -62,7 +62,7 @@
     </Border>
 
     <!-- Buttons -->
-    <Border Grid.Row="1" Grid.ColumnSpan="2" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0" Padding="12 10">
+    <Border Grid.Row="1" Grid.ColumnSpan="2" Background="{DynamicResource ThemeControlLowBrush}" BorderBrush="{DynamicResource ThemeBorderMidBrush}" BorderThickness="0,1,0,0" Padding="12 10">
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
         <TextBlock Text="{Binding StatusMessage}" Foreground="Orange" Margin="0,0,12,0" VerticalAlignment="Center" />
         <Button Content="Reset" Command="{Binding ResetCommand}" IsVisible="{Binding IsSettingsMode}" />
