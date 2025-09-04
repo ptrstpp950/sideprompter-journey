@@ -128,7 +128,7 @@ public partial class MainWindow : Window
         {
             var langs = (_settings.Languages?.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
             LanguageComboBox.ItemsSource = langs.ToArray();
-            var defaultLang = langs.Contains("en") ? "en" : langs.FirstOrDefault() ?? "en";
+            var defaultLang = langs.Contains("pl") ? "pl" : langs.FirstOrDefault() ?? "en";
             LanguageComboBox.SelectedItem = defaultLang;
         }
     }

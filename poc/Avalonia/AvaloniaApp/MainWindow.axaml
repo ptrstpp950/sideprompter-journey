@@ -34,6 +34,13 @@
                         <heroIcons:HeroIcon x:Name="StopIcon" IsVisible="False" Type="StopCircle" Foreground="#c52230" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
+                <ComboBox x:Name="LanguageComboBox" Width="60" MinHeight="32" IsVisible="True"/>
+                <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />
+                        <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontWeight="SemiBold" Foreground="#e5e7eb" />
+                    </StackPanel>
+                </Border>
                 <Button x:Name="SettingsButton" Classes="IconButton" Width="40" Height="36" Click="SettingsButton_OnClick" ToolTip.Tip="Settings">
                     <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#9ca3af" Kind="Solid" />
                 </Button>
@@ -46,26 +53,18 @@
                         <heroIcons:HeroIcon x:Name="UnprotectedIcon" IsVisible="False" Type="ShieldExclamation" Foreground="#c52230" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
-                <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontWeight="SemiBold" Foreground="#e5e7eb" />
-                    </StackPanel>
-                </Border>
                 <Border Classes="HeaderChip" ToolTip.Tip="Ask AI">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="QuestionMarkCircle" Foreground="#a855f7" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock Text="Ask AI (Win+? / Cmd+?)" Foreground="#cbd5e1" FontSize="11"/>
+                        <TextBlock Text="Ask AI (Win+?)" Foreground="#cbd5e1" FontSize="11"/>
                     </StackPanel>
                 </Border>
                 <Border Classes="HeaderChip" ToolTip.Tip="Add Context">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="PlusCircle" Foreground="#10b981" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock Text="Add Ctx (Alt+? / Opt+?)" Foreground="#cbd5e1" FontSize="11"/>
+                        <TextBlock Text="Add Ctx (Alt+?)" Foreground="#cbd5e1" FontSize="11"/>
                     </StackPanel>
                 </Border>
-                <!-- Hidden language picker (future use) -->
-        <ComboBox x:Name="LanguageComboBox" Width="120" MinHeight="32" IsVisible="False"/>
             </StackPanel>
         </DockPanel>
     <!-- Placeholder (no logs displayed) -->
