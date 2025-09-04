@@ -297,7 +297,7 @@ public partial class MainWindow : Window
             if (_isTranscribing) return;
             _isTranscribing = true;
             _chatViewModel.ClearMessages();
-            var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "en";
+            var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
 
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
             _startedAt = DateTime.UtcNow;
