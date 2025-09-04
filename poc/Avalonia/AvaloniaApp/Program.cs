@@ -16,6 +16,7 @@ class Program
         // Add global exception handling
         AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
         {
+            //TODO: dialog box with error details
             // Log or handle the unhandled exception
             Console.WriteLine($"Unhandled exception: {e.ExceptionObject}");
             // You can add logging here, e.g., to a file or external service
