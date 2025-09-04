@@ -383,6 +383,7 @@ public partial class MainWindow : Window
                 var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
                 //_chatViewModel.ClearMessages();
                 _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
+                AiAssistantResponseTextBox.Text = chatResult;
             }
             else
             {

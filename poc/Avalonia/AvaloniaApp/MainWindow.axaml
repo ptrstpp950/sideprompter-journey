@@ -24,7 +24,7 @@
 
     <Grid RowDefinitions="Auto,Auto" Margin="0,6,0,6">
         <!-- Controls row -->
-        <DockPanel Grid.Row="1" Margin="12,4,12,0" LastChildFill="False">
+        <DockPanel Grid.Row="0" Margin="12,4,12,0" LastChildFill="False">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <ToggleButton x:Name="ToggleButton"
                               Checked="ToggleButton_OnChecked"
@@ -67,6 +67,7 @@
                 </Border>
             </StackPanel>
         </DockPanel>
+        <TextBox Grid.Row="1" x:Name="AiAssistantResponseTextBox" Text="Press WIN+? to get your first tip" Margin="12,0,12,4" IsReadOnly="True" TextWrapping="Wrap" MinHeight="60" />
     <!-- Placeholder (no logs displayed) -->
     </Grid>
 </Window>
