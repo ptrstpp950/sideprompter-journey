@@ -66,7 +66,7 @@ namespace AvaloniaApp.Services.HotKey
             return CallWindowProc(_prevWndProc, hwnd, msg, wParam, lParam);
         }
 
-        public void RegisterStartRecordingHotKey(Key key, KeyModifiers modifiers, Action action)
+        public void RegisterAiHelpNeededHotKey(Key key, KeyModifiers modifiers, Action action)
         {
             if (_isDisposed) throw new ObjectDisposedException(nameof(HotKeyServiceWindows));
             if (!OperatingSystem.IsWindows() || _hwnd == IntPtr.Zero)

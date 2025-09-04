@@ -26,7 +26,7 @@ namespace AvaloniaApp.Services.HotKey
             _hotkeyManager = new JFHotkeyManager();
         }
 
-        public void RegisterStartRecordingHotKey(Key key, KeyModifiers modifiers, Action action)
+        public void RegisterAiHelpNeededHotKey(Key key, KeyModifiers modifiers, Action action)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(HotKeyServiceMacOptionTwo));

@@ -66,7 +66,7 @@ public partial class MainWindow : Window
         _hotKeyService = new HotKeyServiceWindows(this);
 #endif
 
-        _hotKeyService!.RegisterStartRecordingHotKey(Key.OemQuestion, KeyModifiers.Meta, OnHotKeyPressed);
+        _hotKeyService!.RegisterAiHelpNeededHotKey(Key.OemQuestion, KeyModifiers.Meta, OnAiHelpNeededPressed);
         _elapsedTimer.Tick += (_, _) => UpdateElapsedTime();
 
         ApplySettings();
@@ -145,7 +145,7 @@ public partial class MainWindow : Window
     }
 
 
-    private async void OnMessageGenerated(TranscriptionMessage message)
+    private void OnMessageGenerated(TranscriptionMessage message)
     {
         var author = message.MessageType switch
         {
@@ -156,23 +156,6 @@ public partial class MainWindow : Window
         
         _chatViewModel.AddMessage(message.Message, author);
 
-        if (_chatViewModel.Messages.Count(m => m.Author != MessageAuthor.Me) <= 10)
-            return;
-
-        var messages = _chatViewModel.Messages
-            .Select(m => $"[{m.Author}] {m.Text}")
-            .ToList();
-        
-        if (_chatCompletionService != null)
-        {
-            var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
-            _chatViewModel.ClearMessages();
-            _chatViewModel.AddMessage(chatResult, MessageAuthor.Other);
-        }
-        else
-        {
-            _chatViewModel.AddLogMessage("[Config] Chat completion not configured (missing base/model). Skipping AI response.");
-        }
     }
     
     private async void GetWindowTextButton_OnClick(object? sender, RoutedEventArgs e)
@@ -374,16 +357,41 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnHotKeyPressed()
+    private string AuthorToLetter(MessageAuthor author)
     {
-        // Toggle the transcription state when ALT+? is pressed
-        if (_isTranscribing)
+        return author switch
         {
-            ToggleButton.IsChecked = false;
+            MessageAuthor.Me => "m",
+            MessageAuthor.Other => "o",
+            _ => "ai"
+        };
+    }
+
+    private async void OnAiHelpNeededPressed()
+    {
+        try
+        {
+            // Create a snapshot of the Messages collection to avoid modification during enumeration
+            var messagesSnapshot = _chatViewModel.Messages.ToList();
+
+            var messages = messagesSnapshot
+                .Select(m => $"[{AuthorToLetter(m.Author)}] {m.Text}")
+                .ToList();
+
+            if (_chatCompletionService != null)
+            {
+                var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
+                //_chatViewModel.ClearMessages();
+                _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
+            }
+            else
+            {
+                _chatViewModel.AddLogMessage("[Config] Chat completion not configured (missing base/model). Skipping AI response.");
+            }
         }
-        else
+        catch (Exception e)
         {
-            ToggleButton.IsChecked = true;
+            _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
         }
     }
 
