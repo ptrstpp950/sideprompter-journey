@@ -7,8 +7,9 @@
     x:Class="AvaloniaApp.MainWindow"
     x:DataType="viewModel:ChatViewModel"
     x:CompileBindings="True"
-    Width="640" Height="120"
+    Width="640" Height="180"
     CanResize="True"
+    Topmost="True"
     WindowStartupLocation="Manual"
     ExtendClientAreaToDecorationsHint="True"
     ExtendClientAreaTitleBarHeightHint="28"
@@ -67,7 +68,11 @@
                 </Border>
             </StackPanel>
         </DockPanel>
-        <TextBox Grid.Row="1" x:Name="AiAssistantResponseTextBox" Text="Press WIN+? to get your first tip" Margin="12,0,12,4" IsReadOnly="True" TextWrapping="Wrap" MinHeight="60" ScrollViewer.VerticalScrollBarVisibility="Visible" />
+        <TextBox Grid.Row="1" x:Name="AiAssistantResponseTextBox" Text="Press WIN+? to get your first tip"
+                 Margin="12,0,12,4" IsReadOnly="True"
+                 TextWrapping="Wrap" Height="120" MaxHeight="120"
+                 ScrollViewer.VerticalScrollBarVisibility="Visible" />
     <!-- Placeholder (no logs displayed) -->
     </Grid>
 </Window>
+

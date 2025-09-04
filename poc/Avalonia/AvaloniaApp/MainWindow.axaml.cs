@@ -373,6 +373,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            AiAssistantResponseTextBox.Text = "Loading conversation help...";
             // Create a snapshot of the Messages collection to avoid modification during enumeration
             var messagesSnapshot = _chatViewModel.Messages.ToList();
 
@@ -403,6 +404,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            AiAssistantResponseTextBox.Text = "Loading window context help...";
             var ctx = await _windowTextExtractionService.GetActiveWindowTextAsync();
             var result = await _chatCompletionService?.GetWindowHelpCompletionAsync(ctx);
             AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI.";
