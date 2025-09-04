@@ -13,7 +13,7 @@
     ExtendClientAreaToDecorationsHint="True"
     ExtendClientAreaTitleBarHeightHint="28"
     TransparencyLevelHint="AcrylicBlur,Blur,Transparent"
-    Background="#CC1E1E1E"
+
     Padding="0"
     mc:Ignorable="d"
     Title="SidePrompter">
@@ -39,19 +39,19 @@
                 <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontWeight="SemiBold" Foreground="#e5e7eb"/>
+                        <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontWeight="SemiBold" />
                     </StackPanel>
                 </Border>
                 <Border Classes="HeaderChip" ToolTip.Tip="Ask AI">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="QuestionMarkCircle" Foreground="#a855f7" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock Text="Ask AI (Win+? / Cmd+?)" Foreground="#cbd5e1" FontSize="11"/>
+                        <TextBlock Text="Ask AI (Win+? / Cmd+?)" FontSize="11"/>
                     </StackPanel>
                 </Border>
                 <Border Classes="HeaderChip" ToolTip.Tip="Add Context">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="PlusCircle" Foreground="#10b981" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock Text="Add Ctx (Alt+? / Opt+?)" Foreground="#cbd5e1" FontSize="11"/>
+                        <TextBlock Text="Add Ctx (Alt+? / Opt+?)" FontSize="11"/>
                     </StackPanel>
                 </Border>
                 <!-- Hidden language picker (future use) -->
