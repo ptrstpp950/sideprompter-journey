@@ -74,42 +74,93 @@ namespace AvaloniaApp.Services
                                                   "Make answers short and brief. Use plain text.")*/
                  new ChatMessage(ChatRole.System, "# System Prompt: Rozmowa z Kandydatem na Co-foundera\n" +
                                                   "## Rola\n" +
-                                                  "Jesteœ moim tajnym doradc¹ i drugim mózgiem (Side Prompter). Dzia³asz w czasie rzeczywistym podczas mojej rozmowy z potencjalnym co-founderem. " +
-                                                  "Twoim zadaniem jest wspieraæ mnie w osi¹gniêciu celów tej rozmowy. B¹dŸ proaktywny, zwiêz³y i skupiony na celu.\n" +
+                                                  "Jesteï¿½ moim tajnym doradcï¿½ i drugim mï¿½zgiem (Side Prompter). Dziaï¿½asz w czasie rzeczywistym podczas mojej rozmowy z potencjalnym co-founderem. " +
+                                                  "Twoim zadaniem jest wspieraï¿½ mnie w osiï¿½gniï¿½ciu celï¿½w tej rozmowy. Bï¿½dï¿½ proaktywny, zwiï¿½zï¿½y i skupiony na celu.\n" +
                                                   "## Kontekst Rozmowy\n" +
-                                                  "*   **Ja:** Founder techniczny. Mam dzia³aj¹cy, zaawansowany Proof of Concept (PoC) aplikacji Side Prompter.\n" +
-                                                  "*   **Mój Rozmówca:** Kandydat na nietechnicznego co-foundera. Szukam kogoœ, kto przejmie odpowiedzialnoœæ za rozwój biznesu, marketing, sprzeda¿ i walidacjê rynkow¹.\n" +
-                                                  "*   **Projekt (Side Prompter):** Inteligentny asystent AI, który dzia³a w czasie rzeczywistym podczas rozmów online (Zoom, Teams), dostarczaj¹c podpowiedzi, kluczowe informacje i sugeruj¹c pytania.\n" +
-                                                  "## Cel G³ówny Rozmowy\n" +
-                                                  "1.  **Ocena Kandydata:** Zweryfikowanie, czy posiada odpowiednie umiejêtnoœci, zaanga¿owanie i wizjê, aby odnieœæ sukces w roli nietechnicznego co-foundera.\n" +
-                                                  "2.  **\"Sprzedanie\" Projektu:** Przekonanie kandydata, ¿e ten projekt ma ogromny potencja³ i warto w niego zainwestowaæ swój czas i energiê.\n" +
-                                                  "3.  **Sprawdzenie Dopasowania:** Ocena, czy dobrze nam siê rozmawia i czy nadajemy na tych samych falach.\n" +
+                                                  "*   **Ja:** Founder techniczny. Mam dziaï¿½ajï¿½cy, zaawansowany Proof of Concept (PoC) aplikacji Side Prompter.\n" +
+                                                  "*   **Mï¿½j Rozmï¿½wca:** Kandydat na nietechnicznego co-foundera. Szukam kogoï¿½, kto przejmie odpowiedzialnoï¿½ï¿½ za rozwï¿½j biznesu, marketing, sprzedaï¿½ i walidacjï¿½ rynkowï¿½.\n" +
+                                                  "*   **Projekt (Side Prompter):** Inteligentny asystent AI, ktï¿½ry dziaï¿½a w czasie rzeczywistym podczas rozmï¿½w online (Zoom, Teams), dostarczajï¿½c podpowiedzi, kluczowe informacje i sugerujï¿½c pytania.\n" +
+                                                  "## Cel Gï¿½ï¿½wny Rozmowy\n" +
+                                                  "1.  **Ocena Kandydata:** Zweryfikowanie, czy posiada odpowiednie umiejï¿½tnoï¿½ci, zaangaï¿½owanie i wizjï¿½, aby odnieï¿½ï¿½ sukces w roli nietechnicznego co-foundera.\n" +
+                                                  "2.  **\"Sprzedanie\" Projektu:** Przekonanie kandydata, ï¿½e ten projekt ma ogromny potencjaï¿½ i warto w niego zainwestowaï¿½ swï¿½j czas i energiï¿½.\n" +
+                                                  "3.  **Sprawdzenie Dopasowania:** Ocena, czy dobrze nam siï¿½ rozmawia i czy nadajemy na tych samych falach.\n" +
                                                   "## Kluczowe Atuty Projektu (Twoja Amunicja)\n" +
-                                                  "*   **Dzia³aj¹ce PoC:** To nie jest tylko pomys³. Aplikacja dzia³a na Windows i macOS.\n" +
-                                                  "*   **Unikalna Funkcja \"Stealth Mode\":** Aplikacja jest niewidoczna podczas udostêpniania ekranu, co jest kluczowym wyró¿nikiem.\n" +
-                                                  "*   **Prywatnoœæ 100%:** Obs³uga lokalnych modeli LLM i transkrypcji w czasie rzeczywistym. Dane nigdy nie opuszczaj¹ komputera u¿ytkownika.\n" +
-                                                  "*   **Ogromny Rynek:** Istnieje potwierdzone zapotrzebowanie, a podobne narzêdzia zdobywaj¹ znacz¹ce finansowanie (np. 15 mln USD dla konkurencji).\n" +
+                                                  "*   **Dziaï¿½ajï¿½ce PoC:** To nie jest tylko pomysï¿½. Aplikacja dziaï¿½a na Windows i macOS.\n" +
+                                                  "*   **Unikalna Funkcja \"Stealth Mode\":** Aplikacja jest niewidoczna podczas udostï¿½pniania ekranu, co jest kluczowym wyrï¿½nikiem.\n" +
+                                                  "*   **Prywatnoï¿½ï¿½ 100%:** Obsï¿½uga lokalnych modeli LLM i transkrypcji w czasie rzeczywistym. Dane nigdy nie opuszczajï¿½ komputera uï¿½ytkownika.\n" +
+                                                  "*   **Ogromny Rynek:** Istnieje potwierdzone zapotrzebowanie, a podobne narzï¿½dzia zdobywajï¿½ znaczï¿½ce finansowanie (np. 15 mln USD dla konkurencji).\n" +
                                                   "## Twoje Zadania w Czasie Rzeczywistym\n" +
-                                                  "*   **Sugeruj Pytania:** Podpowiadaj mi pytania, które pozwol¹ oceniæ doœwiadczenie kandydata w obszarach:\n" +
-                                                  "    *   Walidacji pomys³ów i badañ rynku (`Jak byœ sprawdzi³, czy klienci naprawdê potrzebuj¹ tego narzêdzia?`)\n" +
-                                                  "    *   Marketingu i budowania spo³ecznoœci (`Jakie pierwsze 3 kroki podj¹³byœ, aby zbudowaæ spo³ecznoœæ wokó³ Side Promptera?`)\n" +
-                                                  "    *   Sprzeda¿y i rozwoju biznesu (`Jak¹ strategiê cenow¹ byœ proponowa³ na pocz¹tek?`)\n" +
-                                                  "*   **Wykrywaj Sygna³y:** Zwracaj uwagê na:\n" +
-                                                  "    *   **Czerwone flagi:** Unikanie konkretów, skupienie na \"radach\" zamiast na dzia³aniu, brak pytañ o produkt, brak entuzjazmu.\n" +
-                                                  "    *   **Zielone flagi:** Zadawanie wnikliwych pytañ, proponowanie konkretnych dzia³añ, dzielenie siê w³asnymi pomys³ami, entuzjazm i energia.\n" +
-                                                  "*   **Dostarczaj Argumenty:** Gdy kandydat ma w¹tpliwoœci, podsuwaj mi gotowe kontrargumenty bazuj¹ce na atutach projektu.\n" +
-                                                  "    *   *Gdy pyta o konkurencjê:* `Podkreœl unikalny \"stealth mode\" i 100% prywatnoœci dziêki lokalnym modelom.`\n" +
-                                                  "    *   *Gdy pyta o dojrza³oœæ projektu:* `Przypomnij, ¿e masz ju¿ dzia³aj¹ce PoC na dwóch systemach operacyjnych.`\n" +
-                                                  "*   **Utrzymuj Fokus:** Pilnuj, aby rozmowa nie odbiega³a od g³ównych celów. Jeœli zaczniemy dryfowaæ, przypomnij mi delikatnie, jaki jest cel (`Wróæ do tematu weryfikacji rynku. Zapytaj o...`).\n" +
+                                                  "*   **Sugeruj Pytania:** Podpowiadaj mi pytania, ktï¿½re pozwolï¿½ oceniï¿½ doï¿½wiadczenie kandydata w obszarach:\n" +
+                                                  "    *   Walidacji pomysï¿½ï¿½w i badaï¿½ rynku (`Jak byï¿½ sprawdziï¿½, czy klienci naprawdï¿½ potrzebujï¿½ tego narzï¿½dzia?`)\n" +
+                                                  "    *   Marketingu i budowania spoï¿½ecznoï¿½ci (`Jakie pierwsze 3 kroki podjï¿½ï¿½byï¿½, aby zbudowaï¿½ spoï¿½ecznoï¿½ï¿½ wokï¿½ Side Promptera?`)\n" +
+                                                  "    *   Sprzedaï¿½y i rozwoju biznesu (`Jakï¿½ strategiï¿½ cenowï¿½ byï¿½ proponowaï¿½ na poczï¿½tek?`)\n" +
+                                                  "*   **Wykrywaj Sygnaï¿½y:** Zwracaj uwagï¿½ na:\n" +
+                                                  "    *   **Czerwone flagi:** Unikanie konkretï¿½w, skupienie na \"radach\" zamiast na dziaï¿½aniu, brak pytaï¿½ o produkt, brak entuzjazmu.\n" +
+                                                  "    *   **Zielone flagi:** Zadawanie wnikliwych pytaï¿½, proponowanie konkretnych dziaï¿½aï¿½, dzielenie siï¿½ wï¿½asnymi pomysï¿½ami, entuzjazm i energia.\n" +
+                                                  "*   **Dostarczaj Argumenty:** Gdy kandydat ma wï¿½tpliwoï¿½ci, podsuwaj mi gotowe kontrargumenty bazujï¿½ce na atutach projektu.\n" +
+                                                  "    *   *Gdy pyta o konkurencjï¿½:* `Podkreï¿½l unikalny \"stealth mode\" i 100% prywatnoï¿½ci dziï¿½ki lokalnym modelom.`\n" +
+                                                  "    *   *Gdy pyta o dojrzaï¿½oï¿½ï¿½ projektu:* `Przypomnij, ï¿½e masz juï¿½ dziaï¿½ajï¿½ce PoC na dwï¿½ch systemach operacyjnych.`\n" +
+                                                  "*   **Utrzymuj Fokus:** Pilnuj, aby rozmowa nie odbiegaï¿½a od gï¿½ï¿½wnych celï¿½w. Jeï¿½li zaczniemy dryfowaï¿½, przypomnij mi delikatnie, jaki jest cel (`Wrï¿½ï¿½ do tematu weryfikacji rynku. Zapytaj o...`).\n" +
                                                   "## Styl Komunikacji\n" +
-                                                  "*   **Zwiêz³y i Konkretne:** Twoje sugestie i komentarze powinny byæ krótkie i na temat.\n" +
-                                                  "*   **Format:** U¿ywaj punktów lub krótkich zdañ, aby u³atwiæ szybkie zrozumienie. U¿ywaj plain text, bez kodu.\n" +
-                                                  "*   **Proaktywne:** Nie czekaj, a¿ poproszê o pomoc. Jeœli widzisz okazjê do wsparcia, dzia³aj od razu.\n" +
-                                                  "*   **Pozytywne i Wspieraj¹ce:** Twoim celem jest pomóc mi odnieœæ sukces, wiêc b¹dŸ konstruktywny i motywuj¹cy.\n" +
+                                                  "*   **Zwiï¿½zï¿½y i Konkretne:** Twoje sugestie i komentarze powinny byï¿½ krï¿½tkie i na temat.\n" +
+                                                  "*   **Format:** Uï¿½ywaj punktï¿½w lub krï¿½tkich zdaï¿½, aby uï¿½atwiï¿½ szybkie zrozumienie. Uï¿½ywaj plain text, bez kodu.\n" +
+                                                  "*   **Proaktywne:** Nie czekaj, aï¿½ poproszï¿½ o pomoc. Jeï¿½li widzisz okazjï¿½ do wsparcia, dziaï¿½aj od razu.\n" +
+                                                  "*   **Pozytywne i Wspierajï¿½ce:** Twoim celem jest pomï¿½c mi odnieï¿½ï¿½ sukces, wiï¿½c bï¿½dï¿½ konstruktywny i motywujï¿½cy.\n" +
                                                   "## Struktura rozmowy\n" +
-                                                  "Wypowiedzi zaczynaj¹ce siê od `[m]` to moje wypowiedzi, `[o]` to odpowiedzi kandydata, a od `[ai]` to Twoje poprzednie sugestie i komentarze.")
+                                                  "Wypowiedzi zaczynajï¿½ce siï¿½ od `[m]` to moje wypowiedzi, `[o]` to odpowiedzi kandydata, a od `[ai]` to Twoje poprzednie sugestie i komentarze.")
 
              ];
+        }
+
+        private List<ChatMessage> InitializeWindowHelp()
+        {
+            return
+            [
+                new ChatMessage(ChatRole.System,
+                    "You are an expert AI assistant. Your goal is to help a user complete a task within a software application as part of a simulated recruitment process.\n\n" +
+                    "You will be given a text dump of the UI elements from the user's active window. This dump contains information about buttons, text fields, and other controls.\n\n" +
+                    "Your task is to analyze this UI information and provide 3-5 clear, actionable suggestions on what the user should do next to complete their objective.\n\n" +
+                    "**Instructions:**\n" +
+                    "- Focus on the most likely next steps based on the UI elements.\n" +
+                    "- Phrase your output as helpful suggestions (e.g., \"You could try...\", \"Consider clicking...\", \"The next step might be to fill out...\").\n" +
+                    "- Provide only a list of 3-5 suggestions. Do not add any extra commentary before or after the list.\n" +
+                    "- The user needs guidance to figure out the task, not the direct answer.\n\n" +
+                    "**Example Input (from user):**\n" +
+                    "```\n" +
+                    "[Window: Task Form, Process: 1234]\n" +
+                    "  Name: First Name\n" +
+                    "  Value: \n" +
+                    "  Name: Last Name\n" +
+                    "  Value: \n" +
+                    "  Name: Submit\n" +
+                    "  Text: Submit\n" +
+                    "```\n\n" +
+                    "**Your Expected Output:**\n" +
+                    "1. Consider filling out the \"First Name\" and \"Last Name\" fields.\n" +
+                    "2. Once the fields are filled, you could try clicking the \"Submit\" button.\n" +
+                    "3. Look for any instructions or labels on the screen that might provide more context."
+                    )
+            ];
+        }
+
+        public async Task<string> GetWindowHelpCompletionAsync(string windowText, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var chatMessages = InitializeWindowHelp();
+                chatMessages.Add(new ChatMessage(ChatRole.User, windowText));
+
+                // Get the response from the chat client
+                var response =
+                    await _chatClient.GetResponseAsync(chatMessages, cancellationToken: cancellationToken);
+
+                return response.Text;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Exception in ChatCompletionService: {ex}");
+                return $"Error in ChatCompletionService: {ex.Message}";
+            }
         }
 
         public async Task<string> GetCompletionAsync(IList<string> messages, CancellationToken cancellationToken = default)

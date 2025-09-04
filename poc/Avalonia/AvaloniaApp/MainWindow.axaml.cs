@@ -67,6 +67,7 @@ public partial class MainWindow : Window
 #endif
 
         _hotKeyService!.RegisterAiHelpNeededHotKey(Key.OemQuestion, KeyModifiers.Meta, OnAiHelpNeededPressed);
+        _hotKeyService!.RegisterWindowCaptureHotKey(Key.OemQuestion, KeyModifiers.Alt, OnAiContextHelpPressed);
         _elapsedTimer.Tick += (_, _) => UpdateElapsedTime();
 
         ApplySettings();
@@ -76,6 +77,7 @@ public partial class MainWindow : Window
         EnableWindowPrivacyService.SetProtected(this, _windowCaptureHotkeyRegistered);
     }
 
+    
     private void ApplySettings()
     {
         // (Re)initialize transcription service if model changed
@@ -393,8 +395,26 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
+            AiAssistantResponseTextBox.Text = $"[AI Context] Error: {e.Message}";
         }
     }
+
+    private async void OnAiContextHelpPressed()
+    {
+        try
+        {
+            var ctx = await _windowTextExtractionService.GetActiveWindowTextAsync();
+            var result = await _chatCompletionService?.GetWindowHelpCompletionAsync(ctx);
+            AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI.";
+            //AiAssistantResponseTextBox.Text = $"[AI Context] Title: {title}\nContent: {ctx.Result}";
+        }
+        catch (Exception e)
+        {
+            _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
+            AiAssistantResponseTextBox .Text = $"[AI Context] Error: {e.Message}";
+        }
+    }
+
 
     private void UpdateElapsedTime()
     {
