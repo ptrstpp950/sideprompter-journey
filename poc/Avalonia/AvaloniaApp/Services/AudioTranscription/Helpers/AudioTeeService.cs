@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -51,6 +53,7 @@ public class AudioTeeService : IDisposable
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _isRunning;
     private bool _disposed;
+    private static readonly AudioTeeJsonContext JsonContext = new();
 
     /// <summary>
     /// Fired when audio data is received
@@ -313,10 +316,7 @@ public class AudioTeeService : IDisposable
                 try
                 {
                     // TODO: fix parsing. Structure is different
-                    var logMessage = JsonSerializer.Deserialize<LogMessage>(line, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
+                    var logMessage = JsonSerializer.Deserialize(line, JsonContext.LogMessage);
                     
                     if (logMessage != null && string.IsNullOrWhiteSpace(logMessage.Message))
                     {
@@ -382,4 +382,9 @@ public class AudioTeeService : IDisposable
             _process.Dispose();
         }
     }
+}
+
+[JsonSerializable(typeof(LogMessage))]
+internal partial class AudioTeeJsonContext : JsonSerializerContext
+{
 }

@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text;
 using System.Collections.Generic;
 using Avalonia.Controls;
@@ -10,6 +12,24 @@ using Avalonia.Media;
 using AvaloniaApp.Settings;
 
 namespace AvaloniaApp;
+
+public class ChatRequestMessage
+{
+    public string role { get; set; } = string.Empty;
+    public string content { get; set; } = string.Empty;
+}
+
+public class ChatRequestBody
+{
+    public string model { get; set; } = string.Empty;
+    public ChatRequestMessage[] messages { get; set; } = Array.Empty<ChatRequestMessage>();
+    public int? max_tokens { get; set; }
+}
+
+[JsonSerializable(typeof(ChatRequestBody))]
+internal partial class ChatJsonContext : JsonSerializerContext
+{
+}
 
 public class ChatSettingsPage : SettingsPageViewModel
 {
@@ -173,16 +193,25 @@ public class ChatSettingsPage : SettingsPageViewModel
                 req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
                 if (provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase)) req.Headers.Add("HTTP-Referer", "https://sideprompter.local");
             }
-            object body;
+            ChatRequestBody body;
             if (provider.Equals("ollama", StringComparison.OrdinalIgnoreCase))
             {
-                body = new { model = _settings.ChatModel, messages = new[] { new { role = "user", content = "ping" } } };
+                body = new ChatRequestBody
+                {
+                    model = _settings.ChatModel,
+                    messages = new[] { new ChatRequestMessage { role = "user", content = "ping" } }
+                };
             }
             else
             {
-                body = new { model = _settings.ChatModel, messages = new[] { new { role = "user", content = "ping" } }, max_tokens = 4 };
+                body = new ChatRequestBody
+                {
+                    model = _settings.ChatModel,
+                    messages = new[] { new ChatRequestMessage { role = "user", content = "ping" } },
+                    max_tokens = 4
+                };
             }
-            req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+            req.Content = new StringContent(JsonSerializer.Serialize(body, ChatJsonContext.Default.ChatRequestBody), Encoding.UTF8, "application/json");
             var resp = await _http.SendAsync(req);
             var json = await resp.Content.ReadAsStringAsync();
             if (!resp.IsSuccessStatusCode) { _status.Text = $"Failed: {resp.StatusCode}"; return; }

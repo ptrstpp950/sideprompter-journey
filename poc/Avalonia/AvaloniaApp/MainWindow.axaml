@@ -6,6 +6,7 @@
     xmlns:heroIcons="clr-namespace:HeroIconsAvalonia.Controls;assembly=HeroIconsAvalonia"
     x:Class="AvaloniaApp.MainWindow"
     x:DataType="viewModel:ChatViewModel"
+    x:CompileBindings="True"
     Width="640" Height="120"
     CanResize="True"
     WindowStartupLocation="Manual"
@@ -31,6 +32,9 @@
                 </ToggleButton>
                 <Button x:Name="SettingsButton" Classes="IconButton" Width="40" Height="36" Click="SettingsButton_OnClick" ToolTip.Tip="Settings">
                     <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#9ca3af" Kind="Solid" />
+                </Button>
+                <Button x:Name="HistoryButton" Classes="IconButton" Width="40" Height="36" Click="HistoryButton_OnClick" ToolTip.Tip="History">
+                    <heroIcons:HeroIcon Type="ChatBubbleLeftRight" Foreground="#60a5fa" Kind="Solid" />
                 </Button>
                 <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">

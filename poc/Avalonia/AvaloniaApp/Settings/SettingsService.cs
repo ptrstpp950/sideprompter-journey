@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace AvaloniaApp.Settings;
 
@@ -10,6 +12,8 @@ public static class SettingsService
     {
         WriteIndented = true
     };
+
+    private static readonly AppSettingsJsonContext Context = new();
 
     public static string GetSettingsDirectory()
     {
@@ -28,7 +32,7 @@ public static class SettingsService
             var path = GetSettingsPath();
             if (!File.Exists(path)) return new AppSettings();
             var json = File.ReadAllText(path);
-            var s = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+            var s = JsonSerializer.Deserialize(json, Context.AppSettings) ?? new AppSettings();
             return s;
         }
         catch
@@ -43,7 +47,7 @@ public static class SettingsService
         {
             var path = GetSettingsPath();
             settings.FirstConfiguredUtc ??= DateTime.UtcNow;
-            var json = JsonSerializer.Serialize(settings, Options);
+            var json = JsonSerializer.Serialize(settings, Context.AppSettings);
             File.WriteAllText(path, json);
         }
         catch
@@ -51,4 +55,9 @@ public static class SettingsService
             // ignore
         }
     }
+}
+
+[JsonSerializable(typeof(AppSettings))]
+internal partial class AppSettingsJsonContext : JsonSerializerContext
+{
 }

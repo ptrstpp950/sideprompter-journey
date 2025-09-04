@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private SetupWizard? _settingsWindow;
 
     private readonly ChatViewModel _chatViewModel = new();
+    private ChatHistoryWindow? _chatHistoryWindow;
 
     private readonly AppSettings _settings;
     private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
@@ -400,6 +401,23 @@ public partial class MainWindow : Window
         WindowState = WindowState.Minimized;
     }
 
+    private void HistoryButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (_chatHistoryWindow == null || !_chatHistoryWindow.IsVisible)
+        {
+            _chatHistoryWindow = new ChatHistoryWindow
+            {
+                DataContext = _chatViewModel,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            _chatHistoryWindow.Closed += (_, _) => _chatHistoryWindow = null;
+            _chatHistoryWindow.Show(this);
+        }
+        else
+        {
+            _chatHistoryWindow.Activate();
+        }
+    }
     private void CloseButton_OnClick(object? sender, RoutedEventArgs e)
     {
         Close();

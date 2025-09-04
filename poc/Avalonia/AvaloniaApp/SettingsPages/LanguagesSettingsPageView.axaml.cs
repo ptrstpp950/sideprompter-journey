@@ -23,6 +23,8 @@ public partial class LanguagesSettingsPageView : UserControl
     private Button _undoButton = default!;
     private Button _clearButton = default!;
 
+    public LanguagesSettingsPageView() : this(SettingsService.Load()) { }
+
     public LanguagesSettingsPageView(AppSettings settings)
     {
         _settings = settings;

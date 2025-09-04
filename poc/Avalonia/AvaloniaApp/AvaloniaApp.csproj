@@ -4,9 +4,12 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
-    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <PublishAot>true</PublishAot>
+    <!-- Recommended Avalonia trimming settings for Native AOT -->
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <TrimMode>link</TrimMode>
   </PropertyGroup>
 
   <!-- macOS specific properties -->
@@ -28,6 +31,12 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Preserve Avalonia types for reflection -->
+    <TrimmerRootAssembly Include="Avalonia.Themes.Fluent" />
+    <TrimmerRootAssembly Include="Avalonia.Themes.Default" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.4" />
