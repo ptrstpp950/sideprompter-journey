@@ -1,9 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
 using Whisper.net.Ggml;
 
 namespace AvaloniaApp.Settings;
+
+public class Prompt
+{
+    public string Title { get; set; } = string.Empty;
+    public string PromptText { get; set; } = string.Empty;
+}
 
 public class AppSettings
 {
@@ -15,6 +22,7 @@ public class AppSettings
     public string ChatApiKey { get; set; } = string.Empty;
     public string ChatModel { get; set; } = string.Empty; // e.g. gpt-4o-mini, meta-llama, etc.
     public string ChatProvider { get; set; } = string.Empty; // optional friendly label (OpenAI, Ollama, Azure, Groq, etc.)
+    public ObservableCollection<Prompt> Prompts { get; set; } = new();
 
     [JsonIgnore]
     public GgmlType WhisperModelType => Enum.TryParse<GgmlType>(WhisperModel, out var t) ? t : GgmlType.Base;

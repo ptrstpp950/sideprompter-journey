@@ -53,6 +53,7 @@
     <PackageReference Include="FlaUI.Core" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="HotKeyManager.Binding" Version="2.0.0" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.8.0-preview.1.25412.6" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="PortAudioSharp2" Version="1.0.4" />

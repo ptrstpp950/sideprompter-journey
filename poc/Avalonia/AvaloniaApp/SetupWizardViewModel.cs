@@ -81,6 +81,7 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         Pages.Add(new LanguagesSettingsPage(_settings));
         Pages.Add(new ModelSettingsPage(_settings));
         Pages.Add(new ChatSettingsPage(_settings));
+        Pages.Add(new PromptsSettingsPage(_settings));
     }
 
     private async Task PrimaryActionAsync()

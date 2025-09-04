@@ -58,6 +58,7 @@ public static class SettingsService
 }
 
 [JsonSerializable(typeof(AppSettings))]
+[JsonSerializable(typeof(Prompt))]
 internal partial class AppSettingsJsonContext : JsonSerializerContext
 {
 }
