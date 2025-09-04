@@ -7,8 +7,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <PublishAot>true</PublishAot>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <!-- Recommended Avalonia trimming settings for Native AOT -->
-    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
     <TrimMode>link</TrimMode>
   </PropertyGroup>
 
@@ -35,7 +35,6 @@
   <ItemGroup>
     <!-- Preserve Avalonia types for reflection -->
     <TrimmerRootAssembly Include="Avalonia.Themes.Fluent" />
-    <TrimmerRootAssembly Include="Avalonia.Themes.Default" />
   </ItemGroup>
 
   <ItemGroup>
