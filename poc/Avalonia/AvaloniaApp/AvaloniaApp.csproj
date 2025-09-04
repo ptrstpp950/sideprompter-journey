@@ -35,6 +35,7 @@
   <ItemGroup>
     <!-- Preserve Avalonia types for reflection -->
     <TrimmerRootAssembly Include="Avalonia.Themes.Fluent" />
+    <TrimmerRootAssembly Include="NAudio.Wasapi" />
   </ItemGroup>
 
   <ItemGroup>

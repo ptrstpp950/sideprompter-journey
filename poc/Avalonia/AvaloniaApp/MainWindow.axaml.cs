@@ -9,15 +9,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using AvaloniaApp.Services.AudioTranscription;
-using AvaloniaApp.Services.EnableWindowPrivacy;
 using AvaloniaApp.Services.HotKey;
 using AvaloniaApp.Services.TranscriptionService;
 using AvaloniaApp.Services.WindowTextExtraction;
-using Microsoft.Extensions.AI;
 using AvaloniaApp.Services;
 using AvaloniaApp.ViewModel;
 using AvaloniaApp.Settings;
-using HeroIconsAvalonia.Enums;
 
 namespace AvaloniaApp;
 
