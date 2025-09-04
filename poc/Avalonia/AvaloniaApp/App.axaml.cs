@@ -27,6 +27,8 @@ public partial class App : Application
                 wizard.Closed += (_, _) =>
                 {
                     var latest = SettingsService.Load();
+                    latest.SetupCompleted = true;
+                    SettingsService.Save(latest);
                     desktop.MainWindow = new MainWindow(latest);
                     desktop.MainWindow.Show();
                 };
