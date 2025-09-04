@@ -13,6 +13,7 @@ using AvaloniaApp.Services.HotKey;
 using AvaloniaApp.Services.TranscriptionService;
 using AvaloniaApp.Services.WindowTextExtraction;
 using AvaloniaApp.Services;
+using AvaloniaApp.Services.EnableWindowPrivacy;
 using AvaloniaApp.ViewModel;
 using AvaloniaApp.Settings;
 
@@ -29,7 +30,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _elapsedTimer = new() { Interval = TimeSpan.FromSeconds(1)}; 
     private readonly IHotKeyService? _hotKeyService;
     // ReSharper disable once RedundantDefaultMemberInitializer
-    private bool _windowCaptureHotkeyRegistered = false;
+    private bool _windowCaptureHotkeyRegistered = true;
 
     // Settings window (singleton per main window lifetime)
     private SetupWizard? _settingsWindow;
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
 
         // No scrolling area in compact mode; keep handler for potential future UI.
         _chatViewModel.Messages.CollectionChanged += (_, _) => { };
+        EnableWindowPrivacyService.SetProtected(this, _windowCaptureHotkeyRegistered);
     }
 
     private void ApplySettings()
@@ -343,6 +345,32 @@ public partial class MainWindow : Window
         catch (Exception)
         {
             // Log the error but keep the UI responsive
+        }
+    }
+
+    private void PrivacyToggleButton_OnChecked(object? sender, RoutedEventArgs e)
+    {
+        _windowCaptureHotkeyRegistered = true;
+        EnableWindowPrivacyService.SetProtected(this, _windowCaptureHotkeyRegistered);
+        SwitchPrivacyIcon(true);
+    }
+
+    private void PrivacyToggleButton_OnUnchecked(object? sender, RoutedEventArgs e)
+    {
+        _windowCaptureHotkeyRegistered = false;
+        EnableWindowPrivacyService.SetProtected(this, _windowCaptureHotkeyRegistered);
+        SwitchPrivacyIcon(false);
+    }
+
+    private void SwitchPrivacyIcon(bool protectedIconVisible)
+    {
+        if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("ProtectedIcon") is { } protectedIcon)
+        {
+            protectedIcon.IsVisible = protectedIconVisible;
+        }
+        if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("UnprotectedIcon") is { } unprotectedIcon)
+        {
+            unprotectedIcon.IsVisible = !protectedIconVisible;
         }
     }
 
