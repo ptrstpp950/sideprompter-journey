@@ -1,13 +1,14 @@
+using Microsoft.Extensions.AI;
+using OpenAI;
 using System;
 using System.ClientModel;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
+using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.AI;
-using System.Diagnostics;
-using OpenAI;
 
 namespace AvaloniaApp.Services
 {
@@ -32,7 +33,6 @@ namespace AvaloniaApp.Services
     public class ChatCompletionService
     {
         private readonly IChatClient _chatClient;
-        private readonly List<ChatMessage> _messages;
 
         public ChatCompletionService(string endpoint, string apiKey, string model)
         {
@@ -47,23 +47,31 @@ namespace AvaloniaApp.Services
                 .GetChatClient(model)
                 .AsIChatClient();
             //_chatClient = new OllamaApiClient(httpClient, model);
-            _messages = Initialize();
         }
 
         private List<ChatMessage> Initialize()
         {
              return
              [
-                 new ChatMessage(ChatRole.System, "You are a helpful assistant. Tasks:" +
-                                                  "- main goal is to provide me a 1-5 smart questions that I can ask " +
-                                                  "- less questions is better but try to make them IQ 150 " +
-                                                  "- please use language that chat is done " +
-                                                  // "- add short explanation why question is valid" +
-                                                  "- sentence started with [m] is my text, [o] is others " +
-                                                  "- focus on [o] and don't repeat what [m] already asked " +
-                                                  "- for debug purposes add below each question reason why this question is relevant in format '[d] text' " +
-                                                  "- focus more on more recent messages " +
-                                                  "- skip question that was already asked until they are more relevant now - mark them ")
+                 /*new ChatMessage(ChatRole.System, "You are a helpful assistant. Tasks:" +
+                                               "- main goal is to provide me a 1-5 smart questions that I can ask " +
+                                               "- less questions is better but try to make them IQ 150 " +
+                                               "- please use language that chat is done " +
+                                               // "- add short explanation why question is valid" +
+                                               "- sentence started with [m] is my text, [o] is others " +
+                                               "- focus on [o] and don't repeat what [m] already asked " +
+                                               "- for debug purposes add below each question reason why this question is relevant in format '[d] text' " +
+                                               "- focus more on more recent messages " +
+                                               "- skip question that was already asked until they are more relevant now - mark them ")*/
+
+                 new ChatMessage(ChatRole.System, "You are a \"Second Brain\" AI assistant. " +
+                                                  "Your role is to provide immediate and accurate answers to questions that arise during a meeting.\n\n" +
+                                                  "**Task:**\nBased on the user's query, provide a concise and factual answer using ONLY the information from the provided context. " +
+                                                  "If the information is not available, state \"I don't have that information.\" " +
+                                                  "If you use external knowledge give source as a link."),
+                 new ChatMessage(ChatRole.System, "**Details:**\n\n" +
+                                                  "My audio transcription starts with [m], others with [o], your previous responses with [ai]. " +
+                                                  "Make answers short and brief. Use plain text.")
 
              ];
         }
@@ -72,18 +80,15 @@ namespace AvaloniaApp.Services
         {
             try
             {
-                // Add user messages to the conversation
-                foreach (var message in messages)
-                {
-                    _messages.Add(new ChatMessage(ChatRole.User, message));
-                }
+                var chatMessages = Initialize();
+                chatMessages.AddRange(messages.Select(message => new ChatMessage(ChatRole.User, message)));
 
                 // Get the response from the chat client
                 var response =
-                    await _chatClient.GetResponseAsync(_messages, cancellationToken: cancellationToken);
+                    await _chatClient.GetResponseAsync(chatMessages, cancellationToken: cancellationToken);
 
                 // Add the assistant's response to the conversation
-                _messages.AddMessages(response);
+                chatMessages.AddMessages(response);
 
                 return response.Text;
             }

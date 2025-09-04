@@ -100,9 +100,9 @@ public class ChatSettingsPage : SettingsPageViewModel
         var provider = _provider.SelectedItem?.ToString()?.ToLowerInvariant();
         _endpoint.Text = provider switch
         {
-            "openai" => "https://api.openai.com/v1",
-            "openrouter" => "https://openrouter.ai/api/v1",
-            "ollama" => "http://localhost:11434",
+            "openai" => "https://api.openai.com/v1/chat/completions",
+            "openrouter" => "https://openrouter.ai/api/v1/chat/completions",
+            "ollama" => "http://localhost:11434/api/chat",
             _ => _endpoint.Text
         };
     }

@@ -55,14 +55,26 @@ public class AuthorToBackgroundBrushConverter : IValueConverter
         //  - "Me": primary accent (with slight dark/light variant for contrast depending on theme)
         //  - "Other": a lighter (light theme) or darker (dark theme) accent variant to differentiate while staying within palette
 
-        string key = author == MessageAuthor.Me
-            ? theme == ThemeVariant.Dark ? "SystemAccentColorDark1" : "SystemAccentColor1"
-            : theme == ThemeVariant.Dark ? "SystemAccentColorDark3" : "SystemAccentColorLight3";
+        if (author == MessageAuthor.AiAssistant)
+            return new SolidColorBrush(Color.FromRgb(76, 217, 100));
+
+        string key = author switch
+        {
+            MessageAuthor.Me => theme == ThemeVariant.Dark 
+                ? "SystemAccentColorDark1" 
+                : "SystemAccentColorLight1",
+            MessageAuthor.AiAssistant => theme == ThemeVariant.Dark
+                ? "SystemAccentColorDark2" 
+                : "SystemAccentColorLight2",
+            _ => theme == ThemeVariant.Dark
+                ? "SystemAccentColorDark3"
+                : "SystemAccentColorLight3"
+        };
 
         return TryGetBrush(key)
-            ?? TryGetBrush("SystemAccentColor")
-            ?? TryGetBrush("SystemBaseLowColor")
-            ?? new SolidColorBrush(author == MessageAuthor.Me ? Colors.CornflowerBlue : Colors.Gainsboro);
+               ?? TryGetBrush("SystemAccentColor")
+               ?? TryGetBrush("SystemBaseLowColor")
+               ?? new SolidColorBrush(author == MessageAuthor.Me ? Colors.CornflowerBlue : Colors.Gainsboro);
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

@@ -12,5 +12,6 @@ public class ChatMessage
 public enum MessageAuthor
 {
     Me,
-    Other
+    Other,
+    AiAssistant,
 }
