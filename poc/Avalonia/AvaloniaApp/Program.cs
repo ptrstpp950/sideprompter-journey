@@ -1,4 +1,5 @@
 ﻿using Avalonia;
+using Avalonia.Threading;
 using System;
 using DotNetEnv;
 
@@ -12,6 +13,14 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Add global exception handling
+        AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+        {
+            // Log or handle the unhandled exception
+            Console.WriteLine($"Unhandled exception: {e.ExceptionObject}");
+            // You can add logging here, e.g., to a file or external service
+        };
+
         Env.Load();
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);

@@ -36,6 +36,10 @@ namespace AvaloniaApp.Services
 
         public ChatCompletionService(string endpoint, string apiKey, string model)
         {
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                apiKey = "-"; // Default to empty string if API key is not provided
+            }
             _chatClient = new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions
                 {
                     Endpoint = new Uri(endpoint),
