@@ -35,7 +35,7 @@
                         <heroIcons:HeroIcon x:Name="StopIcon" IsVisible="False" Type="StopCircle" Foreground="#c52230" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
-                <ComboBox x:Name="LanguageComboBox" Width="60" MinHeight="32" IsVisible="True"/>
+                <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
                 <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />

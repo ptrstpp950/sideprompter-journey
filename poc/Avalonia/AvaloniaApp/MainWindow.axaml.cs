@@ -29,8 +29,7 @@ public partial class MainWindow : Window
     private DateTime? _startedAt; 
     private readonly DispatcherTimer _elapsedTimer = new() { Interval = TimeSpan.FromSeconds(1)}; 
     private readonly IHotKeyService? _hotKeyService;
-    // ReSharper disable once RedundantDefaultMemberInitializer
-    private bool _windowCaptureHotkeyRegistered = true;
+    private bool _isWindowProtected = true;
 
     // Settings window (singleton per main window lifetime)
     private SetupWizard? _settingsWindow;
@@ -74,7 +73,8 @@ public partial class MainWindow : Window
 
         // No scrolling area in compact mode; keep handler for potential future UI.
         _chatViewModel.Messages.CollectionChanged += (_, _) => { };
-        EnableWindowPrivacyService.SetProtected(this, _windowCaptureHotkeyRegistered);
+
+        EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
     }
 
     
@@ -333,18 +333,25 @@ public partial class MainWindow : Window
         }
     }
 
+
     private void PrivacyToggleButton_OnChecked(object? sender, RoutedEventArgs e)
     {
-        _windowCaptureHotkeyRegistered = true;
-        EnableWindowPrivacyService.SetProtected(this, _windowCaptureHotkeyRegistered);
-        SwitchPrivacyIcon(true);
+        SetWindowsProtection(true);
     }
-
     private void PrivacyToggleButton_OnUnchecked(object? sender, RoutedEventArgs e)
     {
-        _windowCaptureHotkeyRegistered = false;
-        EnableWindowPrivacyService.SetProtected(this, _windowCaptureHotkeyRegistered);
-        SwitchPrivacyIcon(false);
+        SetWindowsProtection(false);
+    }
+
+    private void SetWindowsProtection(bool status)
+    {
+        _isWindowProtected = status;
+        EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
+        if (_chatHistoryWindow != null)
+            EnableWindowPrivacyService.SetProtected(_chatHistoryWindow, _isWindowProtected);
+        if (_settingsWindow != null)
+            EnableWindowPrivacyService.SetProtected(_settingsWindow, _isWindowProtected);
+        SwitchPrivacyIcon(status);
     }
 
     private void SwitchPrivacyIcon(bool protectedIconVisible)
@@ -450,6 +457,7 @@ public partial class MainWindow : Window
         {
             _settingsWindow.Activate();
         }
+        SetWindowsProtection(_isWindowProtected);
     }
 
     private void MinimizeButton_OnClick(object? sender, RoutedEventArgs e)
@@ -473,6 +481,7 @@ public partial class MainWindow : Window
         {
             _chatHistoryWindow.Activate();
         }
+        SetWindowsProtection(_isWindowProtected);
     }
     private void CloseButton_OnClick(object? sender, RoutedEventArgs e)
     {
