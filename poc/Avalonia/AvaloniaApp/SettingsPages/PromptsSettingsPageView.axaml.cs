@@ -37,7 +37,7 @@ public partial class PromptsSettingsPageView : UserControl
         ViewModel.SelectedPrompt = newPrompt;
     }
 
-    private async void RemoveButton_Click(object? sender, RoutedEventArgs e)
+    private void RemoveButton_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not Prompt prompt) return;
 

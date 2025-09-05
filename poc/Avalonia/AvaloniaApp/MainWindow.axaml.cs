@@ -280,15 +280,11 @@ public partial class MainWindow : Window
 
     private void SwitchStartStopIcon(bool startIconVisible = false)
     {
-        if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("StartIcon") is { } startIcon)
-        {
-            startIcon.IsVisible = startIconVisible;
-        }
-        if (this.FindControl<HeroIconsAvalonia.Controls.HeroIcon>("StopIcon") is { } stopIcon)
-        {
-            stopIcon.IsVisible = !startIconVisible;
-        }
+        StartIcon.IsVisible = startIconVisible;
+        BeforeStartRow.IsVisible = startIconVisible;
 
+        StopIcon.IsVisible = !startIconVisible;
+        AiAssistantResponseTextBox.IsVisible = !startIconVisible;
     }
 
     private async void ToggleButton_OnChecked(object? sender, RoutedEventArgs e)
@@ -298,7 +294,7 @@ public partial class MainWindow : Window
             SwitchStartStopIcon(false);
             if (_isTranscribing) return;
             _isTranscribing = true;
-            _chatViewModel.ClearMessages();
+            //_chatViewModel.ClearMessages();
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
 
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
@@ -390,6 +386,14 @@ public partial class MainWindow : Window
 
             if (_chatCompletionService != null)
             {
+                var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
+
+                var selectedPrompt = (PromptComboBox.SelectedItem as Prompt)?.PromptText ??
+                                     "Answer always with 'wrong prompt - fix it'";
+
+                _chatCompletionService.Language = selectedLanguage;
+                _chatCompletionService.Prompt = selectedPrompt;
+
                 var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
                 //_chatViewModel.ClearMessages();
                 _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
@@ -413,8 +417,16 @@ public partial class MainWindow : Window
         {
             AiAssistantResponseTextBox.Text = "Loading window context help...";
             var ctx = await _windowTextExtractionService.GetActiveWindowTextAsync();
-            var result = await _chatCompletionService?.GetWindowHelpCompletionAsync(ctx)!;
-            AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI.";
+
+            var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
+            if (_chatCompletionService != null)
+            {
+                _chatCompletionService.Language = selectedLanguage;
+
+                var result = await _chatCompletionService?.GetWindowHelpCompletionAsync(ctx)!;
+                AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI.";
+            }
+
             //AiAssistantResponseTextBox.Text = $"[AI Context] Title: {title}\nContent: {ctx.Result}";
         }
         catch (Exception e)

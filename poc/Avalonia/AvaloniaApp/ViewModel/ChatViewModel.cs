@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
+using AvaloniaApp.Settings;
 
 namespace AvaloniaApp.ViewModel;
 
@@ -31,11 +32,26 @@ public class ChatViewModel : INotifyPropertyChanged
         }
     }
 
+    public AppSettings Settings { get; }
+
+    private Prompt? _selectedPrompt;
+    public Prompt? SelectedPrompt
+    {
+        get => _selectedPrompt;
+        set
+        {
+            _selectedPrompt = value;
+            OnPropertyChanged();
+        }
+    }
+
     public ChatViewModel()
     {
-        AddMessage("me: Lorem ipsum dolor sit amet, consectetur adipiscing elit.", MessageAuthor.Me);
+        Settings = SettingsService.Load();
+        SelectedPrompt = Settings.Prompts.FirstOrDefault();
+        /*AddMessage("me: Lorem ipsum dolor sit amet, consectetur adipiscing elit.", MessageAuthor.Me);
         AddMessage("other: Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", MessageAuthor.Other);
-        AddMessage("And AI response could be", MessageAuthor.AiAssistant);
+        AddMessage("And AI response could be", MessageAuthor.AiAssistant);*/
     }
 
     public void AddMessage(string text, MessageAuthor author)

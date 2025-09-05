@@ -23,7 +23,7 @@
     Opacity="0.7"
     -->
 
-    <Grid RowDefinitions="Auto,Auto" Margin="0,6,0,6">
+    <Grid RowDefinitions="Auto,Auto,Auto" Margin="0,6,0,6">
         <!-- Controls row -->
         <DockPanel Grid.Row="0" Margin="12,4,12,0" LastChildFill="False">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -35,7 +35,6 @@
                         <heroIcons:HeroIcon x:Name="StopIcon" IsVisible="False" Type="StopCircle" Foreground="#c52230" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
-                <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
                 <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />
@@ -68,9 +67,19 @@
                 </Border>
             </StackPanel>
         </DockPanel>
-        <TextBox Grid.Row="1" x:Name="AiAssistantResponseTextBox" Text="Press WIN+? to get your first tip"
+        <!-- Prompt selection row -->
+        <DockPanel Grid.Row="1" x:Name="BeforeStartRow"  Margin="12,4,12,0" LastChildFill="False" IsVisible="True">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Text="Language:" VerticalAlignment="Center"/>
+                <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
+                <TextBlock Text="Prompt:" VerticalAlignment="Center"/>
+                <ComboBox x:Name="PromptComboBox" MinHeight="32" ItemsSource="{Binding Settings.Prompts}" DisplayMemberBinding="{Binding Title}" SelectedItem="{Binding SelectedPrompt}"/>
+            </StackPanel>
+        </DockPanel>
+        <TextBox Grid.Row="2" x:Name="AiAssistantResponseTextBox" Text="Press WIN+? to get your first tip"
                  Margin="12,0,12,4" IsReadOnly="True"
                  TextWrapping="Wrap" Height="120" MaxHeight="120"
+                 IsVisible="False"
                  ScrollViewer.VerticalScrollBarVisibility="Visible" />
     <!-- Placeholder (no logs displayed) -->
     </Grid>
