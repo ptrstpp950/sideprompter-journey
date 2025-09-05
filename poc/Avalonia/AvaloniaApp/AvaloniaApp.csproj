@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <PublishAot>true</PublishAot>
+    <PublishAot>false</PublishAot>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <!-- Recommended Avalonia trimming settings for Native AOT -->
     <TrimMode>link</TrimMode>
