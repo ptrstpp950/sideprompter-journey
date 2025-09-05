@@ -413,7 +413,7 @@ public partial class MainWindow : Window
         {
             AiAssistantResponseTextBox.Text = "Loading window context help...";
             var ctx = await _windowTextExtractionService.GetActiveWindowTextAsync();
-            var result = await _chatCompletionService?.GetWindowHelpCompletionAsync(ctx);
+            var result = await _chatCompletionService?.GetWindowHelpCompletionAsync(ctx)!;
             AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI.";
             //AiAssistantResponseTextBox.Text = $"[AI Context] Title: {title}\nContent: {ctx.Result}";
         }
