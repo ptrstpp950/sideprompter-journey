@@ -1,4 +1,5 @@
-#if WINDOWS
+#if NONE
+// This implementation uses PortAudioSharp2 for audio capture on Windows.
 using System;
 using System.Collections.Concurrent;
 using System.IO;
