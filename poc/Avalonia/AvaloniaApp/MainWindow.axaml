@@ -35,6 +35,9 @@
                         <heroIcons:HeroIcon x:Name="StopIcon" IsVisible="False" Type="StopCircle" Foreground="#c52230" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
+                <Button x:Name="ResetButton" Classes="IconButton" Width="40" Height="36" Click="ResetButton_OnClick" ToolTip.Tip="Reset Chat">
+                    <heroIcons:HeroIcon Type="ArrowPath" Foreground="#f59e0b" Kind="Solid" />
+                </Button>
                 <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />

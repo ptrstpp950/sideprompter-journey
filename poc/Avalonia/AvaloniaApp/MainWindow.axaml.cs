@@ -495,6 +495,11 @@ public partial class MainWindow : Window
         }
         SetWindowsProtection(_isWindowProtected);
     }
+
+    private void ResetButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        _chatViewModel.ClearMessages();
+    }
     private void CloseButton_OnClick(object? sender, RoutedEventArgs e)
     {
         Close();
