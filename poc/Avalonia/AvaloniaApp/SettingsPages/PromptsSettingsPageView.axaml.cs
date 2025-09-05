@@ -1,12 +1,8 @@
-using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using AvaloniaApp.Settings;
-using System.Linq;
 using Avalonia.Interactivity;
-using System.Threading.Tasks;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Enums;
+using System.ComponentModel;
 
 namespace AvaloniaApp;
 
@@ -23,9 +19,11 @@ public partial class PromptsSettingsPageView : UserControl
     {
         _settings = settings;
         EnsureDefaultPrompts();
-        DataContext = _settings;
+        DataContext = new PromptsSettingsViewModel(_settings);
         InitializeComponent();
     }
+
+    private PromptsSettingsViewModel ViewModel => (PromptsSettingsViewModel)DataContext!;
 
     private void InitializeComponent()
     {
@@ -34,41 +32,58 @@ public partial class PromptsSettingsPageView : UserControl
 
     private void AddButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (_settings is null) return;
-        _settings.Prompts.Add(new Prompt { Title = "New Prompt", PromptText = "" });
+        var newPrompt = new Prompt { Title = "New Prompt", PromptText = "" };
+        ViewModel.Settings.Prompts.Add(newPrompt);
+        ViewModel.SelectedPrompt = newPrompt;
     }
 
     private async void RemoveButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (_settings is null || sender is not Button btn || btn.Tag is not Prompt prompt) return;
+        if (sender is not Button btn || btn.Tag is not Prompt prompt) return;
 
-        var messageBox = MessageBoxManager.GetMessageBoxStandard("Delete prompt", "Are you sure?", ButtonEnum.YesNo);
-        var result = await messageBox.ShowAsync();
-
-        if (result == ButtonResult.Yes)
+        ViewModel.Settings.Prompts.Remove(prompt);
+        if (ViewModel.SelectedPrompt == prompt)
         {
-            _settings.Prompts.Remove(prompt);
+            ViewModel.SelectedPrompt = null;
         }
     }
 
     private void MoveUpButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (_settings is null || sender is not Button btn || btn.Tag is not Prompt prompt) return;
-        var index = _settings.Prompts.IndexOf(prompt);
+        if (sender is not Button btn || btn.Tag is not Prompt prompt) return;
+        var index = ViewModel.Settings.Prompts.IndexOf(prompt);
         if (index > 0)
         {
-            _settings.Prompts.Move(index, index - 1);
+            ViewModel.Settings.Prompts.Move(index, index - 1);
         }
     }
 
     private void MoveDownButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (_settings is null || sender is not Button btn || btn.Tag is not Prompt prompt) return;
-        var index = _settings.Prompts.IndexOf(prompt);
-        if (index < _settings.Prompts.Count - 1)
+        if (sender is not Button btn || btn.Tag is not Prompt prompt) return;
+        var index = ViewModel.Settings.Prompts.IndexOf(prompt);
+        if (index < ViewModel.Settings.Prompts.Count - 1)
         {
-            _settings.Prompts.Move(index, index + 1);
+            ViewModel.Settings.Prompts.Move(index, index + 1);
         }
+    }
+
+    private void EditButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is Prompt prompt)
+        {
+            ViewModel.SelectedPrompt = prompt;
+        }
+    }
+
+    private void SaveButton_Click(object? sender, RoutedEventArgs e)
+    {
+        ViewModel.SelectedPrompt = null;
+    }
+
+    private void CancelButton_Click(object? sender, RoutedEventArgs e)
+    {
+        ViewModel.SelectedPrompt = null;
     }
 
     private void EnsureDefaultPrompts()
@@ -123,5 +138,28 @@ Based on the entire conversation, generate a summary of key outcomes. The summar
 
 If no items are identified for a category, state ""None."""
         });
+    }
+}
+
+public class PromptsSettingsViewModel : INotifyPropertyChanged
+{
+    public AppSettings Settings { get; }
+
+    private Prompt? _selectedPrompt;
+    public Prompt? SelectedPrompt
+    {
+        get => _selectedPrompt;
+        set
+        {
+            _selectedPrompt = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedPrompt)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public PromptsSettingsViewModel(AppSettings settings)
+    {
+        Settings = settings;
     }
 }
