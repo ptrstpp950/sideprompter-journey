@@ -77,6 +77,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
         }
         catch (Exception ex)
         {
+            StatusChanged?.Invoke("Error starting processing");
             LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
             _cancellationTokenSource = null;
         }
@@ -153,18 +154,18 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
             }
 
             StatusChanged?.Invoke($"Transcribing {audioData.Length} bytes of audio...");
-            
+
             // Use the transcription service
             var sampleRate = 16000; // This should match your MicrophoneOptions.SampleRate
             var channels = 1;
             var bitsPerSample = 16;
 
             var results = await _transcriptionService.TranscribeAudioAsync(
-                audioData, 
-                sampleRate, 
-                bitsPerSample, 
+                audioData,
+                sampleRate,
+                bitsPerSample,
                 channels);
-                
+
             if (results.Length > 0)
             {
                 foreach (var result in results)
@@ -172,13 +173,18 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
                     TranscriptionReceived?.Invoke(
                         new TranscriptionMessage { MessageType = TranscriptionMessageType.Mic, Message = result.Text });
                 }
-                
+
                 StatusChanged?.Invoke("Transcription completed");
+            }
+            else
+            {
+                StatusChanged?.Invoke("No transcription results");
             }
         }
         catch (Exception ex)
         {
-            LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = ex.Message});
+            StatusChanged?.Invoke("Error during transcription: " + ex.Message);
+            LogReceived?.Invoke(new LogMessage { MessageType = MessageType.Error, Message = ex.Message });
         }
     }
 

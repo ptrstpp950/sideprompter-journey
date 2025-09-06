@@ -98,6 +98,7 @@ public partial class MainWindow : Window
             }
 
             var transcriptionCore = new WhisperTranscriptionService(desiredModel);
+            transcriptionCore.StatusChanged += (status) => Dispatcher.UIThread.Post(() => TranscriptionServiceOnLogReceived(new LogMessage(){MessageType = MessageType.Info, Message = status, Timestamp = DateTime.UtcNow}));
 #if MACOS || OSX || MACCATALYST
             _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionCore);
 #elif WINDOWS

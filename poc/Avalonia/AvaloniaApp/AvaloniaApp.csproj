@@ -24,6 +24,20 @@
     <CFBundlePackageType>APPL</CFBundlePackageType>
     <NSPrincipalClass>NSApplication</NSPrincipalClass>
     <NSHighResolutionCapable>true</NSHighResolutionCapable>
+    <!-- Enable Universal Binary support -->
+    <RuntimeIdentifiers>osx-x64;osx-arm64</RuntimeIdentifiers>
+    <!-- Enable entitlements -->
+    <!-- For Debug builds, disable code signing for testing -->
+    <EnableCodeSigning Condition="'$(Configuration)' == 'Release'">true</EnableCodeSigning>
+    <EnablePackageSigning Condition="'$(Configuration)' == 'Release'">false</EnablePackageSigning>
+    <EnableCodeSigning Condition="'$(Configuration)' != 'Release'">false</EnableCodeSigning>
+    <EnablePackageSigning Condition="'$(Configuration)' != 'Release'">false</EnablePackageSigning>
+    <PackageSigningKey>Apple Development</PackageSigningKey>
+    <CodeSigningKey>Apple Development: ptrstpp950@gmail.com (3MF59T34B3)</CodeSigningKey>
+    <UseHardenedRuntime>false</UseHardenedRuntime>
+    <CodesignTimestamp>false</CodesignTimestamp>
+    <PackageEntitlementsFile>AvaloniaApp.entitlements</PackageEntitlementsFile>
+    <CodesignEntitlement>AvaloniaApp.entitlements</CodesignEntitlement>
   </PropertyGroup>
 
   <!-- Windows specific properties -->
@@ -64,6 +78,9 @@
     <None Include="Info.plist">
       <Link>Info.plist</Link>
     </None>
+    <None Include="AvaloniaApp.entitlements">
+      <Link>AvaloniaApp.entitlements</Link>
+    </None>
   </ItemGroup>
 
   <!-- Copy Whisper.NET native libraries to the correct location for macOS -->
@@ -75,25 +92,35 @@
     <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-blas-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
-  <!-- Copy AudioTee binary to output directory -->
+  <!-- For macOS app bundles, copy resources to Resources folder -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
-    <None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" />
-  </ItemGroup>
-
-  <!-- For macOS app bundles, copy to Resources folder -->
-  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <!-- Use BundleResource for macOS app bundle -->
     <BundleResource Include="libs/audioteejs/bin/audiotee">
       <LogicalName>libs/audioteejs/bin/audiotee</LogicalName>
     </BundleResource>
+    <!-- Add ggml-metal.metal as a BundleResource to fix code signing issue -->
+    <BundleResource Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/ggml-metal.metal">
+      <LogicalName>ggml-metal.metal</LogicalName>
+    </BundleResource>
+    <!-- Add .env as a BundleResource -->
+    <BundleResource Include=".env">
+      <LogicalName>.env</LogicalName>
+    </BundleResource>
   </ItemGroup>
+
+  <!-- For non-bundle output, copy files to output directory -->
   <ItemGroup>
-    <None Update=".env">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include=".env" CopyToOutputDirectory="Always" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
   </ItemGroup>
 
   <Target Name="BuildActiveWindowTextGetter" Condition="$([MSBuild]::IsOSPlatform('OSX'))" BeforeTargets="Build" Inputs="libs/activeWindowTextGetter/Sources/**/*.swift" Outputs="libs/activeWindowTextGetter/.build/release/activeWindowTextGetter">
     <Exec Command="cd libs/activeWindowTextGetter &amp;&amp; swift build --configuration release" />
+  </Target>
+
+  <!-- Remove ggml-metal.metal from root directory of app bundle to fix code signing -->
+  <Target Name="RemoveMetalFileFromRoot" AfterTargets="_CompileToNative" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Delete Files="$(OutputPath)$(AssemblyName).app/ggml-metal.metal" />
   </Target>
 
 </Project>

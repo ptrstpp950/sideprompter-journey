@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Logging;
 using NAudio.Wave;
 using Whisper.net;
 using Whisper.net.Ggml;
+using Whisper.net.Logger;
 
 namespace AvaloniaApp.Services.TranscriptionService;
 
@@ -166,13 +168,18 @@ public class WhisperTranscriptionService : ITranscriptionService
             await EnsureModelDownloadedAsync(_modelType, StatusChanged, cancellationToken);
         }
 
+        /*LogProvider.AddConsoleLogging(minLevel: WhisperLogLevel.Debug);
+        LogProvider.AddLogger((level, message) =>
+        {
+            StatusChanged?.Invoke($"[Whisper Log][{level}]: {message}");
+        });*/
         // Initialize the Whisper model
         _whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
         _whisperProcessor = _whisperFactory.CreateBuilder()
             .WithLanguage(language)
             .WithThreads(Environment.ProcessorCount)
             .Build();
-            
+        
         StatusChanged?.Invoke($"Whisper model initialized with language: {language}");
     }
 
@@ -188,10 +195,12 @@ public class WhisperTranscriptionService : ITranscriptionService
     {
         if (_whisperProcessor == null)
             throw new InvalidOperationException("Whisper transcription service not initialized. Call InitializeAsync first.");
-            
-        if (audioData.Length == 0 || IsAllZeros(audioData))
-            return Array.Empty<TranscriptionResult>();
 
+        if (audioData.Length == 0 || IsAllZeros(audioData))
+        {
+            StatusChanged?.Invoke($"No valid audio data provided - length: {audioData.Length} or IsAllZeros - skipping transcription.");
+            return Array.Empty<TranscriptionResult>();
+        }
         // Convert raw PCM data to WAV format
         using var stream = new MemoryStream();
         await using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
@@ -209,17 +218,21 @@ public class WhisperTranscriptionService : ITranscriptionService
         await foreach (var whisperResult in _whisperProcessor.ProcessAsync(stream, cancellationToken))
         {
             if (IsEmptyOrSound(whisperResult.Text))
+            {
+                StatusChanged?.Invoke($"Skipping empty or sound effect transcription: '{whisperResult.Text}'");
                 continue;
-                
+            }   
             results.Add(new TranscriptionResult(
                 whisperResult.Text,
                 "audio",
                 DateTime.UtcNow
             ));
         }
-        if(results.Count == 0)
+        if (results.Count == 0)
+        {
+            StatusChanged?.Invoke($"No valid transcriptions found.");
             return Array.Empty<TranscriptionResult>();
-
+        }
         return results.ToArray();
     }
     
