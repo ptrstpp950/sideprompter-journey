@@ -12,38 +12,16 @@
     <TrimMode>link</TrimMode>
   </PropertyGroup>
 
-  <!-- macOS specific properties -->
-  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
-    <TargetFramework>net9.0-macos</TargetFramework>
-    <ApplicationId>com.sideprompter.app</ApplicationId>
-    <CFBundleIdentifier>com.sideprompter.app</CFBundleIdentifier>
-    <CFBundleName>AvaloniaApp</CFBundleName>
-    <CFBundleDisplayName>Avalonia App</CFBundleDisplayName>
-    <CFBundleVersion>1.0</CFBundleVersion>
-    <CFBundleShortVersionString>1.0</CFBundleShortVersionString>
-    <CFBundlePackageType>APPL</CFBundlePackageType>
-    <NSPrincipalClass>NSApplication</NSPrincipalClass>
-    <NSHighResolutionCapable>true</NSHighResolutionCapable>
-    <!-- Enable Universal Binary support -->
-    <RuntimeIdentifiers>osx-x64;osx-arm64</RuntimeIdentifiers>
-    <!-- Enable entitlements -->
-    <!-- For Debug builds, disable code signing for testing -->
-    <EnableCodeSigning Condition="'$(Configuration)' == 'Release'">true</EnableCodeSigning>
-    <EnablePackageSigning Condition="'$(Configuration)' == 'Release'">false</EnablePackageSigning>
-    <EnableCodeSigning Condition="'$(Configuration)' != 'Release'">false</EnableCodeSigning>
-    <EnablePackageSigning Condition="'$(Configuration)' != 'Release'">false</EnablePackageSigning>
-    <PackageSigningKey>Apple Development</PackageSigningKey>
-    <CodeSigningKey>Apple Development: ptrstpp950@gmail.com (3MF59T34B3)</CodeSigningKey>
-    <UseHardenedRuntime>false</UseHardenedRuntime>
-    <CodesignTimestamp>false</CodesignTimestamp>
-    <PackageEntitlementsFile>AvaloniaApp.entitlements</PackageEntitlementsFile>
-    <CodesignEntitlement>AvaloniaApp.entitlements</CodesignEntitlement>
-  </PropertyGroup>
-
+  
   <!-- Windows specific properties -->
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <TargetFramework>net9.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <TargetFramework>net9.0-macos</TargetFramework>
+    <CreatePackage>false</CreatePackage>
   </PropertyGroup>
 
   <ItemGroup>

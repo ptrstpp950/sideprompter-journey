@@ -1,160 +1,172 @@
 #!/bin/bash
 
-# Exit on error
-set -e
+set -e  # Exit on any error
 
-# Clean previous builds
-echo "Cleaning previous builds..."
-dotnet clean -c Release
+# Set variables
+APP_NAME="AvaloniaApp"
+BUNDLE_ID="com.sideprompter.app"
+VERSION="1.0.0"
+DMG_NAME="${APP_NAME}-${VERSION}.dmg"
+STAGING_DIR="./bin/dmg-staging"
+APP_BUNDLE_PATH="${STAGING_DIR}/${APP_NAME}.app"
+PUBLISH_DIR="bin/publish"
+BACKGROUND_IMAGE="installer_background.jpg"
+TEMP_DMG="${APP_NAME}-temp.dmg"
+MOUNT_DIR="/Volumes/${APP_NAME}"
 
-# Build for x64
-echo "Building for Intel (x64)..."
-#dotnet publish -c Release -r osx-x64 --self-contained true
-dotnet publish -c Release -r osx-x64 --self-contained true -p:graph=true -p:PublishReadyToRun=false -p:PublishTrimmed=true
+# Function to clean up on error
+cleanup() {
+    echo "Cleaning up..."
+    if [ -d "${MOUNT_DIR}" ]; then
+        hdiutil detach "${MOUNT_DIR}" -force 2>/dev/null || true
+    fi
+    rm -rf "${STAGING_DIR}"
+    rm -f "${TEMP_DMG}"
+    rm -f "${DMG_NAME}"
+}
 
-# Build for arm64
-echo "Building for Apple Silicon (arm64)..."
-#dotnet publish -c Release -r osx-arm64 --self-contained true
-dotnet publish -c Release -r osx-arm64 --self-contained true -p:graph=true -p:PublishReadyToRun=false -p:PublishTrimmed=true
+# Set trap to clean up on error
+trap cleanup ERR
 
-# Create output directory
-UNIVERSAL_DIR="bin/Release/net9.0-macos/universal"
-mkdir -p "$UNIVERSAL_DIR"
+# Clean up previous build artifacts
+rm -rf "${STAGING_DIR}"
+rm -f "${PUBLISH_DIR}/${DMG_NAME}"
+rm -f "${TEMP_DMG}"
+mkdir -p "${PUBLISH_DIR}"
 
-# Copy the x64 app as the base
-echo "Creating universal app bundle..."
-cp -R "bin/Release/net9.0-macos/osx-x64/AvaloniaApp.app" "$UNIVERSAL_DIR/"
-
-# Use lipo to create universal binaries for all dylibs and the main executable
-find "bin/Release/net9.0-macos/osx-x64/AvaloniaApp.app" -name "*.dylib" | while read x64_lib; do
-    rel_path=${x64_lib#bin/Release/net9.0-macos/osx-x64/AvaloniaApp.app/}
-    arm64_lib="bin/Release/net9.0-macos/osx-arm64/AvaloniaApp.app/$rel_path"
-    universal_lib="$UNIVERSAL_DIR/AvaloniaApp.app/$rel_path"
-    
-    if [ -f "$arm64_lib" ]; then
-        # Check architectures before combining
-        x64_arch=$(lipo -archs "$x64_lib")
-        arm64_arch=$(lipo -archs "$arm64_lib")
-        
-        if [ "$x64_arch" == "$arm64_arch" ]; then
-            echo "⚠️ Skipping $rel_path - both files have the same architecture: $x64_arch"
-            # Just copy the x64 version as it already exists in the universal dir
-        else
-            echo "Creating universal binary for $rel_path"
-            lipo -create "$x64_lib" "$arm64_lib" -output "$universal_lib" || {
-                echo "⚠️ Failed to create universal binary for $rel_path, copying x64 version instead"
-                # If lipo fails, use the x64 version
-                cp "$x64_lib" "$universal_lib"
-            }
-        fi
+# Unmount any existing DMG volumes that might be left over
+echo "Cleaning up any existing DMG mounts..."
+# Force unmount all AvaloniaApp related volumes
+for vol in /Volumes/AvaloniaApp*; do
+    if [ -d "$vol" ]; then
+        echo "Unmounting $vol..."
+        hdiutil detach "$vol" -force 2>/dev/null || true
+        umount "$vol" 2>/dev/null || true
+        rm -rf "$vol" 2>/dev/null || true
     fi
 done
+# Also try to unmount the specific mount point
+hdiutil detach "${MOUNT_DIR}" -force 2>/dev/null || true
+umount "${MOUNT_DIR}" 2>/dev/null || true
+rm -rf "${MOUNT_DIR}" 2>/dev/null || true
 
-# Create universal binary for the main executable
-MAIN_EXEC="Contents/MacOS/AvaloniaApp"
-x64_exec="bin/Release/net9.0-macos/osx-x64/AvaloniaApp.app/$MAIN_EXEC"
-arm64_exec="bin/Release/net9.0-macos/osx-arm64/AvaloniaApp.app/$MAIN_EXEC"
-universal_exec="$UNIVERSAL_DIR/AvaloniaApp.app/$MAIN_EXEC"
-
-# Check architectures of main executable
-x64_arch=$(lipo -archs "$x64_exec")
-arm64_arch=$(lipo -archs "$arm64_exec")
-
-if [ "$x64_arch" == "$arm64_arch" ]; then
-    echo "⚠️ Main executable has the same architecture in both builds: $x64_arch"
-    # The x64 version is already in the universal directory
+# Verify cleanup was successful
+if [ -d "${MOUNT_DIR}" ]; then
+    echo "Warning: Could not clean up ${MOUNT_DIR}, this might cause issues."
 else
-    echo "Creating universal binary for main executable"
-    lipo -create "$x64_exec" "$arm64_exec" -output "$universal_exec" || {
-        echo "⚠️ Failed to create universal binary for main executable, keeping x64 version"
-    }
+    echo "Mount directory cleaned up successfully."
 fi
 
-# Verify the architecture of the main executable
-echo "Verifying architectures of final application:"
-echo "Main executable: $(lipo -archs "$UNIVERSAL_DIR/AvaloniaApp.app/$MAIN_EXEC")"
+# Build the Avalonia app (uncomment if needed)
+#dotnet build AvaloniaApp.csproj -c Release -r osx-x64
 
-# Find all dylibs and check their architecture
-echo "Checking architectures of libraries in the universal app:"
-find "$UNIVERSAL_DIR/AvaloniaApp.app" -name "*.dylib" | sort | head -5 | while read lib; do
-    rel_path=${lib#$UNIVERSAL_DIR/AvaloniaApp.app/}
-    echo "- $rel_path: $(lipo -archs "$lib")"
-done
-echo "... (and more libraries)"
+# Check if app bundle exists
+if [ ! -d "./bin/Release/net9.0-macos/osx-x64/${APP_NAME}.app" ]; then
+    echo "Error: App bundle not found. Please build the app first."
+    exit 1
+fi
 
-# Create a DMG file for easy distribution
-echo "Creating DMG image of the universal app..."
-APP_NAME="AvaloniaApp"
-APP_PATH="$UNIVERSAL_DIR/$APP_NAME.app"
-DMG_FILE="$UNIVERSAL_DIR/$APP_NAME-Universal.dmg"
-DMG_TEMP="$UNIVERSAL_DIR/pack.temp.dmg"
-DMG_VOLUME="$APP_NAME Installer"
-DMG_SIZE=500m
+# Check if background image exists
+if [ ! -f "${BACKGROUND_IMAGE}" ]; then
+    echo "Error: Background image '${BACKGROUND_IMAGE}' not found."
+    exit 1
+fi
 
-# Create a temporary directory for DMG contents
-STAGING_DIR="$UNIVERSAL_DIR/staging"
-mkdir -p "$STAGING_DIR"
-cp -R "$APP_PATH" "$STAGING_DIR"
+# Create the staging directory
+mkdir -p "${STAGING_DIR}"
 
-# Create a symlink to /Applications
-pushd "$STAGING_DIR" > /dev/null
-ln -s /Applications Applications
-popd > /dev/null
+# Copy the app bundle to the staging directory
+cp -R "./bin/Release/net9.0-macos/osx-x64/${APP_NAME}.app" "${STAGING_DIR}"
 
+# Copy the background image to the staging directory using the conventional .background folder
+mkdir -p "${STAGING_DIR}/.background"
+cp "${BACKGROUND_IMAGE}" "${STAGING_DIR}/.background/background.jpg"
+
+# Verify the background image was copied
+if [ ! -f "${STAGING_DIR}/.background/background.jpg" ]; then
+    echo "Error: Failed to copy background image to staging directory."
+    exit 1
+fi
+
+# Create a symbolic link to the /Applications folder
+ln -s /Applications "${STAGING_DIR}/Applications"
+
+echo "Creating temporary DMG..."
 # Create a temporary DMG
-hdiutil create -volname "$DMG_VOLUME" -srcfolder "$STAGING_DIR" -ov -format UDRW "$DMG_TEMP"
+hdiutil create -volname "${APP_NAME}" -srcfolder "${STAGING_DIR}" -ov -format UDRW -size 200m "${TEMP_DMG}"
 
+echo "Mounting DMG..."
 # Mount the temporary DMG
-DEVICE=$(hdiutil attach -readwrite -noverify -noautoopen "$DMG_TEMP" | grep "Apple_HFS" | cut -d ' ' -f 1)
+hdiutil attach "${TEMP_DMG}" -mountpoint "${MOUNT_DIR}" -nobrowse
 
-# Give it some time to mount
+# Wait for the mount to complete
 sleep 3
 
-# Optional: Set a custom icon for the volume
-# This requires a .VolumeIcon.icns file
-# cp /path/to/your/VolumeIcon.icns "/Volumes/$DMG_VOLUME/.VolumeIcon.icns"
-# SetFile -a C "/Volumes/$DMG_VOLUME"
+# Verify the background image is accessible in the mounted volume (inside .background)
+if [ ! -f "${MOUNT_DIR}/.background/background.jpg" ]; then
+    echo "Error: Background image not found in mounted volume."
+    exit 1
+fi
 
-# Optional: Set the background image 
-# This requires a background image
-# mkdir -p "/Volumes/$DMG_VOLUME/.background"
-# cp /path/to/your/background.png "/Volumes/$DMG_VOLUME/.background/background.png"
+echo "Configuring DMG appearance..."
+# Set the background image using AppleScript
+if ! osascript >/dev/null <<EOF
+tell application "Finder"
+    tell disk "${APP_NAME}"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set bounds of container window to {400, 100, 1000, 600}
+        tell icon view options of container window
+            set arrangement to arranged by name
+            set icon size to 72
+            set text size to 12
+        end tell
+        try
+            -- Use the Finder-style reference to the file inside the .background folder
+            set background picture of icon view options of container window to file ".background:background.jpg" of container window
+        on error errMsg
+            log "Error setting background: " & errMsg
+            -- Continue without background image
+        end try
+        set position of item "${APP_NAME}.app" of container window to {150, 200}
+        set position of item "Applications" of container window to {450, 200}
+        close
+        open
+        update without registering applications
+        delay 2
+    end tell
+end tell
+EOF
+then
+    echo "Warning: AppleScript encountered an error, but continuing..."
+fi
 
-# Optional: Position icons on the DMG
-# This requires applescript
-# osascript <<EOF
-# tell application "Finder"
-#     tell disk "$DMG_VOLUME"
-#         open
-#         set current view of container window to icon view
-#         set toolbar visible of container window to false
-#         set statusbar visible of container window to false
-#         set the bounds of container window to {400, 100, 900, 450}
-#         set theViewOptions to the icon view options of container window
-#         set arrangement of theViewOptions to not arranged
-#         set icon size of theViewOptions to 72
-#         set background picture of theViewOptions to file ".background:background.png"
-#         set position of item "$APP_NAME.app" of container window to {120, 180}
-#         set position of item "Applications" of container window to {380, 180}
-#         close
-#         open
-#         update without registering applications
-#         delay 5
-#         close
-#     end tell
-# end tell
-# EOF
+echo "AppleScript completed."
 
-# Unmount the temporary DMG
-hdiutil detach "$DEVICE"
+# Give Finder a moment to process the changes
+sleep 2
 
-# Convert the temporary DMG to the final compressed DMG
-hdiutil convert "$DMG_TEMP" -format UDZO -imagekey zlib-level=9 -o "$DMG_FILE"
-rm -f "$DMG_TEMP"
+# Wait a bit more
+sleep 2
 
-# Clean up the staging directory
-rm -rf "$STAGING_DIR"
+echo "Unmounting DMG..."
+# Force unmount if needed
+hdiutil detach "${MOUNT_DIR}" -force 2>/dev/null || hdiutil detach "${MOUNT_DIR}" 2>/dev/null || true
 
-echo "Universal app created successfully in $UNIVERSAL_DIR"
-echo "- Universal App: $UNIVERSAL_DIR/$APP_NAME.app"
-echo "- DMG Installer: $DMG_FILE"
+# Wait for unmount
+sleep 2
+
+echo "Converting to compressed DMG..."
+# Convert to compressed DMG
+hdiutil convert "${TEMP_DMG}" -format UDZO -imagekey zlib-level=9 -o "${DMG_NAME}"
+
+# Move DMG to publish folder
+mv "${DMG_NAME}" "${PUBLISH_DIR}/"
+
+# Clean up
+rm -rf "${STAGING_DIR}"
+rm -f "${TEMP_DMG}"
+
+echo "Successfully created ${DMG_NAME} with background image at ${PUBLISH_DIR}"

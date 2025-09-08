@@ -16,13 +16,17 @@
 	<string>Avalonia App</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This application requires access to the microphone for audio transcription.</string>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>This application requires accessibility permissions to use global hotkeys.</string>
+	<string>This application requires accessibility permissions to read text from other windows and for global hotkeys.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>This application requires permission to send Apple Events to other applications for system audio recording.</string>
 	<key>CFBundleIconFile</key>
 	<string>Icon.icns</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
-	<key>NSAudioCaptureUsageDescription</key>
-	<string>This application requires access to the microphone for audio transcription.</string>
+	<key>LSUIElement</key>
+	<true/>
 </dict>
 </plist>
