@@ -13,6 +13,10 @@ PUBLISH_DIR="bin/publish"
 BACKGROUND_IMAGE="installer_background.jpg"
 TEMP_DMG="${APP_NAME}-temp.dmg"
 MOUNT_DIR="/Volumes/${APP_NAME}"
+APP_PROJECT="AvaloniaApp.csproj"
+# Publish output folders for each architecture
+X64_OUTPUT="./bin/Release/net9.0-macos/osx-x64"
+ARM_OUTPUT="./bin/Release/net9.0-macos/osx-arm64"
 
 # Function to clean up on error
 cleanup() {
@@ -58,12 +62,62 @@ else
 fi
 
 # Build the Avalonia app (uncomment if needed)
-#dotnet build AvaloniaApp.csproj -c Release -r osx-x64
+echo "Publishing for x64 and arm64..."
+# Publish for both architectures so the script can create a universal binary
+#dotnet publish "${APP_PROJECT}" -c Release -r osx-x64 -o "${X64_OUTPUT}"
+#dotnet publish "${APP_PROJECT}" -c Release -r osx-arm64 -o "${ARM_OUTPUT}"
+
 
 # Check if app bundle exists
-if [ ! -d "./bin/Release/net9.0-macos/osx-x64/${APP_NAME}.app" ]; then
-    echo "Error: App bundle not found. Please build the app first."
+X64_APP_PATH="${X64_OUTPUT}/${APP_NAME}.app"
+ARM_APP_PATH="${ARM_OUTPUT}/${APP_NAME}.app"
+
+# Ensure at least one build exists
+if [ ! -d "${X64_APP_PATH}" ] && [ ! -d "${ARM_APP_PATH}" ]; then
+    echo "Error: Neither x64 nor arm64 app bundles were found. Please build the app first."
     exit 1
+fi
+
+# Prepare a universal app if possible
+UNIVERSAL_APP_STAGING="${STAGING_DIR}/${APP_NAME}.app"
+mkdir -p "${STAGING_DIR}"
+
+if [ -d "${X64_APP_PATH}" ] && [ -d "${ARM_APP_PATH}" ]; then
+    echo "Both x64 and arm64 builds present. Creating universal app..."
+    # Copy x64 bundle as base
+    cp -R "${X64_APP_PATH}" "${UNIVERSAL_APP_STAGING}"
+
+    # Path to executable inside .app - try to detect the main binary under Contents/MacOS
+    X64_BIN="$(/bin/ls "${X64_APP_PATH}/Contents/MacOS" | head -n1)"
+    ARM_BIN="$(/bin/ls "${ARM_APP_PATH}/Contents/MacOS" | head -n1)"
+    BASE_BIN_NAME="${X64_BIN}"
+
+    if [ -z "${BASE_BIN_NAME}" ]; then
+        echo "Warning: Could not detect executable inside app bundle. Skipping lipo; using x64 bundle as-is."
+    else
+        X64_BIN_PATH="${X64_APP_PATH}/Contents/MacOS/${BASE_BIN_NAME}"
+        ARM_BIN_PATH="${ARM_APP_PATH}/Contents/MacOS/${BASE_BIN_NAME}"
+        UNIVERSAL_BIN_PATH="${UNIVERSAL_APP_STAGING}/Contents/MacOS/${BASE_BIN_NAME}"
+
+        if command -v lipo >/dev/null 2>&1; then
+            echo "Merging binaries with lipo..."
+            lipo -create -output "${UNIVERSAL_BIN_PATH}" "${X64_BIN_PATH}" "${ARM_BIN_PATH}" || {
+                echo "lipo failed, leaving x64 binary in place"
+            }
+            chmod +x "${UNIVERSAL_BIN_PATH}"
+        else
+            echo "lipo not available; skipping universal binary creation."
+        fi
+    fi
+else
+    # Copy whichever build exists into staging
+    if [ -d "${ARM_APP_PATH}" ]; then
+        echo "Only arm64 build found. Copying arm64 bundle to staging."
+        cp -R "${ARM_APP_PATH}" "${UNIVERSAL_APP_STAGING}"
+    else
+        echo "Only x64 build found. Copying x64 bundle to staging."
+        cp -R "${X64_APP_PATH}" "${UNIVERSAL_APP_STAGING}"
+    fi
 fi
 
 # Check if background image exists
@@ -72,11 +126,11 @@ if [ ! -f "${BACKGROUND_IMAGE}" ]; then
     exit 1
 fi
 
-# Create the staging directory
-mkdir -p "${STAGING_DIR}"
-
-# Copy the app bundle to the staging directory
-cp -R "./bin/Release/net9.0-macos/osx-x64/${APP_NAME}.app" "${STAGING_DIR}"
+# At this point the universal (or single-arch) app bundle should be at ${UNIVERSAL_APP_STAGING}
+if [ ! -d "${UNIVERSAL_APP_STAGING}" ]; then
+    echo "Error: expected app bundle at ${UNIVERSAL_APP_STAGING} but not found"
+    exit 1
+fi
 
 # Copy the background image to the staging directory using the conventional .background folder
 mkdir -p "${STAGING_DIR}/.background"
@@ -88,85 +142,44 @@ if [ ! -f "${STAGING_DIR}/.background/background.jpg" ]; then
     exit 1
 fi
 
-# Create a symbolic link to the /Applications folder
-ln -s /Applications "${STAGING_DIR}/Applications"
+# Do not create an Applications symlink in the staging folder.
+# The create-dmg tool will create the Applications link inside the mounted image when
+# we pass --app-drop-link, and creating it in the source folder causes a duplicate
+# link error (create-dmg tries to create the same link and fails with "File exists").
 
-echo "Creating temporary DMG..."
-# Create a temporary DMG
-hdiutil create -volname "${APP_NAME}" -srcfolder "${STAGING_DIR}" -ov -format UDRW -size 200m "${TEMP_DMG}"
+echo "Ensuring create-dmg is installed (Homebrew will be used if necessary)..."
 
-echo "Mounting DMG..."
-# Mount the temporary DMG
-hdiutil attach "${TEMP_DMG}" -mountpoint "${MOUNT_DIR}" -nobrowse
+if ! command -v create-dmg >/dev/null 2>&1; then
+    if command -v brew >/dev/null 2>&1; then
+        echo "Installing create-dmg via Homebrew..."
+        brew install create-dmg
+    else
+        echo "Error: create-dmg not found and Homebrew is not available. Please install Homebrew and run: brew install create-dmg"
+        exit 1
+    fi
+fi
 
-# Wait for the mount to complete
-sleep 3
+echo "Using create-dmg to produce a polished DMG from staging directory..."
+# Create the DMG
+create-dmg \
+  --volname "${APP_NAME}" \
+  --background "${STAGING_DIR}/.background/background.jpg" \
+  --window-pos 200 120 \
+  --window-size 800 400 \
+  --icon-size 100 \
+  --icon "${APP_NAME}.app" 200 190 \
+  --hide-extension "${APP_NAME}.app" \
+  --app-drop-link 600 185 \
+  "${PUBLISH_DIR}/${DMG_NAME}" \
+  "${STAGING_DIR}"
 
-# Verify the background image is accessible in the mounted volume (inside .background)
-if [ ! -f "${MOUNT_DIR}/.background/background.jpg" ]; then
-    echo "Error: Background image not found in mounted volume."
+if [ -f "${PUBLISH_DIR}/${DMG_NAME}" ]; then
+    echo "Successfully created ${DMG_NAME} at ${PUBLISH_DIR}"
+else
+    echo "create-dmg failed to produce a DMG in ${PUBLISH_DIR}"
     exit 1
 fi
 
-echo "Configuring DMG appearance..."
-# Set the background image using AppleScript
-if ! osascript >/dev/null <<EOF
-tell application "Finder"
-    tell disk "${APP_NAME}"
-        open
-        set current view of container window to icon view
-        set toolbar visible of container window to false
-        set statusbar visible of container window to false
-        set bounds of container window to {400, 100, 1000, 600}
-        tell icon view options of container window
-            set arrangement to arranged by name
-            set icon size to 72
-            set text size to 12
-        end tell
-        try
-            -- Use the Finder-style reference to the file inside the .background folder
-            set background picture of icon view options of container window to file ".background:background.jpg" of container window
-        on error errMsg
-            log "Error setting background: " & errMsg
-            -- Continue without background image
-        end try
-        set position of item "${APP_NAME}.app" of container window to {150, 200}
-        set position of item "Applications" of container window to {450, 200}
-        close
-        open
-        update without registering applications
-        delay 2
-    end tell
-end tell
-EOF
-then
-    echo "Warning: AppleScript encountered an error, but continuing..."
-fi
-
-echo "AppleScript completed."
-
-# Give Finder a moment to process the changes
-sleep 2
-
-# Wait a bit more
-sleep 2
-
-echo "Unmounting DMG..."
-# Force unmount if needed
-hdiutil detach "${MOUNT_DIR}" -force 2>/dev/null || hdiutil detach "${MOUNT_DIR}" 2>/dev/null || true
-
-# Wait for unmount
-sleep 2
-
-echo "Converting to compressed DMG..."
-# Convert to compressed DMG
-hdiutil convert "${TEMP_DMG}" -format UDZO -imagekey zlib-level=9 -o "${DMG_NAME}"
-
-# Move DMG to publish folder
-mv "${DMG_NAME}" "${PUBLISH_DIR}/"
-
-# Clean up
+# Clean up staging
 rm -rf "${STAGING_DIR}"
-rm -f "${TEMP_DMG}"
-
-echo "Successfully created ${DMG_NAME} with background image at ${PUBLISH_DIR}"
+exit 0
