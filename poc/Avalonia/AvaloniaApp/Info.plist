@@ -16,6 +16,8 @@
 	<string>Avalonia App</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>This application requires access to audio input for audio transcription.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This application requires access to the microphone for audio transcription.</string>
 	<key>NSAccessibilityUsageDescription</key>
@@ -27,6 +29,6 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>LSUIElement</key>
-	<true/>
+	<false/>
 </dict>
 </plist>

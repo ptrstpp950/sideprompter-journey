@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# SIGN_ID="Apple Development: ptrstpp950@gmail.com (3MF59T34B3)" ./build-dmg.sh
+
 set -e  # Exit on any error
 
 # Set variables
@@ -14,6 +16,7 @@ BACKGROUND_IMAGE="installer_background.jpg"
 TEMP_DMG="${APP_NAME}-temp.dmg"
 MOUNT_DIR="/Volumes/${APP_NAME}"
 APP_PROJECT="AvaloniaApp.csproj"
+ENTITLEMENTS="AvaloniaApp.entitlements"
 # Publish output folders for each architecture
 X64_OUTPUT="./bin/Release/net9.0-macos/osx-x64"
 ARM_OUTPUT="./bin/Release/net9.0-macos/osx-arm64"
@@ -64,8 +67,8 @@ fi
 # Build the Avalonia app (uncomment if needed)
 echo "Publishing for x64 and arm64..."
 # Publish for both architectures so the script can create a universal binary
-#dotnet publish "${APP_PROJECT}" -c Release -r osx-x64 -o "${X64_OUTPUT}"
-#dotnet publish "${APP_PROJECT}" -c Release -r osx-arm64 -o "${ARM_OUTPUT}"
+dotnet publish "${APP_PROJECT}" -c Release -r osx-x64 -o "${X64_OUTPUT}"
+dotnet publish "${APP_PROJECT}" -c Release -r osx-arm64 -o "${ARM_OUTPUT}"
 
 
 # Check if app bundle exists
@@ -148,6 +151,71 @@ fi
 # link error (create-dmg tries to create the same link and fails with "File exists").
 
 echo "Ensuring create-dmg is installed (Homebrew will be used if necessary)..."
+
+# Signing / Notarization configuration
+# Set these environment variables before running the script if you want signing/notarization:
+# SIGN_ID - the codesign identity (e.g. "Developer ID Application: Your Name (TEAMID)")
+# NOTARY_KEY_PATH - path to the API key .p8 for notarytool (optional)
+# NOTARY_KEY_ID - key id for notarytool (optional)
+# NOTARY_ISSUER - issuer/team id for notarytool (optional)
+
+SIGN_ID="${SIGN_ID:-}"
+NOTARY_KEY_PATH="${NOTARY_KEY_PATH:-}"
+NOTARY_KEY_ID="${NOTARY_KEY_ID:-}"
+NOTARY_ISSUER="${NOTARY_ISSUER:-}"
+
+# If signing is configured, sign nested helper(s) and then the app bundle
+if [ -n "$SIGN_ID" ]; then
+    echo "Signing bundle and nested helpers with identity: $SIGN_ID"
+
+    echo "Signing nested native libraries and executables under the app bundle"
+    # Find common native items to sign: .dylib, .so, .jnilib, frameworks and executables in Contents/MacOS
+    # Use a conservative list so we don't attempt to sign non-native files.
+    find "${UNIVERSAL_APP_STAGING}" -type f \( -name '*.dylib' -o -name '*.so' -o -name '*.jnilib' -o -path '*/Contents/MacOS/*' -o -path '*/Resources/libs/*/bin/*' \) -print0 | while IFS= read -r -d '' file; do
+        echo "Signing nested file: $file"
+        codesign --sign "$SIGN_ID" --options runtime --timestamp --force "$file" || echo "Warning: failed to sign $file"
+    done
+
+    # Also sign frameworks directories (if any). Sign each binary within Frameworks if present.
+    if [ -d "${UNIVERSAL_APP_STAGING}/Contents/Frameworks" ]; then
+        find "${UNIVERSAL_APP_STAGING}/Contents/Frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' fw; do
+            echo "Signing framework dylib: $fw"
+            codesign --sign "$SIGN_ID" --options runtime --timestamp --force "$fw" || echo "Warning: failed to sign $fw"
+        done
+    fi
+
+    # Sign the top-level bundle. Use entitlements if present.
+    if [ -f "${ENTITLEMENTS}" ]; then
+        echo "Signing app bundle with entitlements: ${ENTITLEMENTS}"
+        codesign --sign "$SIGN_ID" --options runtime --entitlements "${ENTITLEMENTS}" --timestamp --force --deep "${UNIVERSAL_APP_STAGING}" || echo "Warning: failed to sign app bundle"
+    else
+        echo "Signing app bundle (no entitlements file found)"
+        codesign --sign "$SIGN_ID" --options runtime --timestamp --force --deep "${UNIVERSAL_APP_STAGING}" || echo "Warning: failed to sign app bundle"
+    fi
+
+    # Verify signature
+    codesign -dv --verbose=4 "${UNIVERSAL_APP_STAGING}" || true
+    spctl -a -vv "${UNIVERSAL_APP_STAGING}" || true
+fi
+
+# Notarize if credentials are provided
+if [ -n "$NOTARY_KEY_PATH" ] && [ -n "$NOTARY_KEY_ID" ] && [ -n "$NOTARY_ISSUER" ]; then
+    echo "Notarizing app using notarytool (this may take several minutes)"
+    # Create a zip of the app for notarization
+    echo "Creating zip for notarization"
+    (cd "${STAGING_DIR}" && zip -r "${PUBLISH_DIR}/${APP_NAME}.zip" "${APP_NAME}.app")
+
+    echo "Submitting to notarytool..."
+    xcrun notarytool submit "${PUBLISH_DIR}/${APP_NAME}.zip" --key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait || {
+        echo "Notarization failed or notarytool not available; please notarize manually or check credentials"
+    }
+
+    echo "Stapling notarization result to the app"
+    xcrun stapler staple "${UNIVERSAL_APP_STAGING}" || echo "Warning: stapler failed"
+
+    # Optionally remove the zip
+    rm -f "${PUBLISH_DIR}/${APP_NAME}.zip"
+fi
 
 if ! command -v create-dmg >/dev/null 2>&1; then
     if command -v brew >/dev/null 2>&1; then

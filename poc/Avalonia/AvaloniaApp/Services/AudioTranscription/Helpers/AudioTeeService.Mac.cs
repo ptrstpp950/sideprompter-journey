@@ -317,10 +317,19 @@ public class AudioTeeService : IDisposable
                 {
                     // TODO: fix parsing. Structure is different
                     var logMessage = JsonSerializer.Deserialize(line, JsonContext.LogMessage);
-                    
-                    if (logMessage != null && string.IsNullOrWhiteSpace(logMessage.Message))
+
+                    if (logMessage != null && !string.IsNullOrWhiteSpace(logMessage.Message))
                     {
                         LogReceived?.Invoke(this, logMessage);
+                    }
+                    else
+                    {
+                        LogReceived?.Invoke(this, new LogMessage
+                        {
+                            Timestamp = DateTime.UtcNow,
+                            MessageType = MessageType.Info,
+                            Message = "JSON line: " + line
+                        });
                     }
                 }
                 catch (JsonException)

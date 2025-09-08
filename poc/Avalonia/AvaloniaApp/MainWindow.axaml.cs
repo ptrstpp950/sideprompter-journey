@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private DateTime? _startedAt; 
     private readonly DispatcherTimer _elapsedTimer = new() { Interval = TimeSpan.FromSeconds(1)}; 
     private readonly IHotKeyService? _hotKeyService;
+    private readonly IMacOsPermissionsService? _macOsPermissionsService;
     private bool _isWindowProtected = true;
 
     // Settings window (singleton per main window lifetime)
@@ -60,6 +61,7 @@ public partial class MainWindow : Window
 #if MACOS || OSX || MACCATALYST
         _windowTextExtractionService = new WindowTextExtractionServiceMac();
         _hotKeyService = new HotKeyServiceMacOptionTwo(this);
+        _macOsPermissionsService = new MacOsPermissionsService();
 #elif WINDOWS
         _windowTextExtractionService = new WindowTextExtractionServiceWin();
         _hotKeyService = new HotKeyServiceWindows(this);
@@ -556,5 +558,35 @@ public partial class MainWindow : Window
 
         var result = await _chatCompletionService.GetCompletionAsync(list);
         _chatViewModel.AddLogMessage("[AI TEST] " + result);
+    }
+
+    private async void AccessibilityButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+#if MACOS || OSX || MACCATALYST
+        if (_macOsPermissionsService == null)
+        {
+            _chatViewModel.AddLogMessage("[Permissions] Service not available.");
+            return;
+        }
+
+        _chatViewModel.AddLogMessage("[Permissions] Requesting Accessibility access...");
+        await _macOsPermissionsService.RequestAccessibilityPermission();
+
+        // There's a delay between the call and the system showing the prompt.
+        // We check the status after a short delay.
+        await Task.Delay(200);
+
+        if (_macOsPermissionsService.HasAccessibilityPermission())
+        {
+            _chatViewModel.AddLogMessage("[Permissions] Accessibility permission granted.");
+        }
+        else
+        {
+            _chatViewModel.AddLogMessage("[Permissions] Accessibility permission NOT granted. Please grant it in System Settings > Privacy & Security > Accessibility.");
+        }
+#else
+        _chatViewModel.AddLogMessage("[Permissions] This feature is only available on macOS.");
+        await Task.CompletedTask;
+#endif
     }
 }

@@ -47,6 +47,9 @@
                 <Button x:Name="SettingsButton" Classes="IconButton" Width="40" Height="36" Click="SettingsButton_OnClick" ToolTip.Tip="Settings">
                     <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#9ca3af" Kind="Solid" />
                 </Button>
+                <Button x:Name="AccessibilityButton" Classes="IconButton" Width="40" Height="36" Click="AccessibilityButton_OnClick" ToolTip.Tip="Request Accessibility Permission">
+                    <heroIcons:HeroIcon Type="Key" Foreground="#fbbf24" Kind="Solid" />
+                </Button>
                 <Button x:Name="HistoryButton" Classes="IconButton" Width="40" Height="36" Click="HistoryButton_OnClick" ToolTip.Tip="History">
                     <heroIcons:HeroIcon Type="ChatBubbleLeftRight" Foreground="#60a5fa" Kind="Solid" />
                 </Button>
