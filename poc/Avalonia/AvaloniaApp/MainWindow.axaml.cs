@@ -67,8 +67,12 @@ public partial class MainWindow : Window
         _hotKeyService = new HotKeyServiceWindows(this);
 #endif
 
-        _hotKeyService!.RegisterAiHelpNeededHotKey(Key.OemQuestion, KeyModifiers.Meta, OnAiHelpNeededPressed);
-        _hotKeyService!.RegisterWindowCaptureHotKey(Key.OemQuestion, KeyModifiers.Alt, OnAiContextHelpPressed);
+    // Defer registering macOS hotkeys until the window is opened. In debug builds
+    // the Objective-C runtime and native services may not be fully initialized
+    // at constructor time which can cause NullReferenceExceptions. Register
+    // on the Opened event instead.
+    this.Opened += MainWindow_Opened;
+    this.Closed += MainWindow_Closed;
         _elapsedTimer.Tick += (_, _) => UpdateElapsedTime();
 
         ApplySettings();
@@ -77,6 +81,35 @@ public partial class MainWindow : Window
         _chatViewModel.Messages.CollectionChanged += (_, _) => { };
 
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
+    }
+
+    private void MainWindow_Opened(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_hotKeyService != null)
+            {
+                _hotKeyService.RegisterAiHelpNeededHotKey(Key.OemQuestion, KeyModifiers.Meta, OnAiHelpNeededPressed);
+                _hotKeyService.RegisterWindowCaptureHotKey(Key.OemQuestion, KeyModifiers.Alt, OnAiContextHelpPressed);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log but don't crash the app if hotkey registration fails in debug.
+            _chatViewModel.AddLogMessage($"[HotKey] Failed to register hotkeys: {ex.Message}");
+        }
+    }
+
+    private void MainWindow_Closed(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_hotKeyService is IDisposable d) d.Dispose();
+        }
+        catch { }
+
+        this.Opened -= MainWindow_Opened;
+        this.Closed -= MainWindow_Closed;
     }
 
     

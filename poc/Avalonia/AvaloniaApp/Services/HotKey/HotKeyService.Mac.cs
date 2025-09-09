@@ -12,17 +12,27 @@ using HotKeyManager;
 
 namespace AvaloniaApp.Services.HotKey
 {
-    public class HotKeyServiceMacOptionTwo : NSObject, IHotKeyService
+    public class HotKeyServiceMacOptionTwo : IHotKeyService
     {
-        private readonly JFHotkeyManager _hotkeyManager;
+        private JFHotkeyManager? _hotkeyManager;
         private Action? _startRecordingAction;
         private Action? _windowCaptureAction;
         private bool _startRecordingRegistered = false;
         private bool _windowCaptureRegistered = false;
         private bool _disposed = false;
+        private HotkeyTarget? _startRecordingTarget;
+        private HotkeyTarget? _windowCaptureTarget;
 
         public HotKeyServiceMacOptionTwo(Window _)
         {
+            // Defer creation of any Objective-C/Foundation objects (JFHotkeyManager, NSObject targets)
+            // to avoid touching the ObjC runtime during construction. Create them lazily when
+            // registering the first hotkey.
+        }
+
+        private void EnsureHotkeyManager()
+        {
+            if (_hotkeyManager != null) return;
             _hotkeyManager = new JFHotkeyManager();
         }
 
@@ -38,12 +48,18 @@ namespace AvaloniaApp.Services.HotKey
 
             try
             {
+                EnsureHotkeyManager();
+
                 // Convert Avalonia Key and KeyModifiers to macOS equivalents
                 var macModifiers = ConvertToMacModifiers(modifiers);
                 var keyCode = ConvertToMacKeyCode(key);
 
-                var selector = new ObjCRuntime.Selector(nameof(OnStartRecordingExecuted));
-                _hotkeyManager.BindKeyRef(keyCode, macModifiers, this, selector);
+                // Create a small NSObject target for the selector (deferred to avoid early ObjC usage)
+                _startRecordingTarget ??= new HotkeyTarget();
+                _startRecordingTarget.SetAction(action);
+
+                var selector = new ObjCRuntime.Selector(nameof(HotkeyTarget.Invoke));
+                _hotkeyManager.BindKeyRef(keyCode, macModifiers, _startRecordingTarget, selector);
 
                 _startRecordingRegistered = true;
             }
@@ -67,12 +83,17 @@ namespace AvaloniaApp.Services.HotKey
 
             try
             {
+                EnsureHotkeyManager();
+
                 // Convert Avalonia Key and KeyModifiers to macOS equivalents
                 var macModifiers = ConvertToMacModifiers(modifiers);
                 var keyCode = ConvertToMacKeyCode(key);
 
-                var selector = new ObjCRuntime.Selector(nameof(OnWindowCaptureExecuted));
-                _hotkeyManager.BindKeyRef(keyCode, macModifiers, this, selector);
+                _windowCaptureTarget ??= new HotkeyTarget();
+                _windowCaptureTarget.SetAction(action);
+
+                var selector = new ObjCRuntime.Selector(nameof(HotkeyTarget.Invoke));
+                _hotkeyManager.BindKeyRef(keyCode, macModifiers, _windowCaptureTarget, selector);
 
                 _windowCaptureRegistered = true;
             }
@@ -178,27 +199,47 @@ namespace AvaloniaApp.Services.HotKey
             }
         }
 
-        public new void Dispose()
+        public void Dispose()
         {
-            Dispose(true);
+            if (_disposed) return;
+
+            // Unregister all hotkeys
+            UnregisterStartRecordingHotKey();
+            UnregisterWindowCaptureHotKey();
+
+            if (_hotkeyManager != null)
+            {
+                try { _hotkeyManager.Dispose(); } catch { }
+                _hotkeyManager = null;
+            }
+
+            // Dispose any targets
+            if (_startRecordingTarget != null) { try { _startRecordingTarget.Dispose(); } catch { } _startRecordingTarget = null; }
+            if (_windowCaptureTarget != null) { try { _windowCaptureTarget.Dispose(); } catch { } _windowCaptureTarget = null; }
+
+            _disposed = true;
             GC.SuppressFinalize(this);
         }
 
-        protected override void Dispose(bool disposing)
+        // A tiny NSObject wrapper that stores a managed Action and exposes a selector the native code can call.
+        private sealed class HotkeyTarget : NSObject
         {
-            if (_disposed) 
-                return;
-            
-            if (disposing)
+            private Action? _action;
+
+            public void SetAction(Action action) => _action = action;
+
+            [Export("Invoke")]
+            public void Invoke()
             {
-                // Unregister all hotkeys
-                UnregisterStartRecordingHotKey();
-                UnregisterWindowCaptureHotKey();
-
-                _hotkeyManager.Dispose();
+                try
+                {
+                    _action?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in hotkey target invoke: {ex.Message}");
+                }
             }
-
-            _disposed = true;
         }
     }
 }
