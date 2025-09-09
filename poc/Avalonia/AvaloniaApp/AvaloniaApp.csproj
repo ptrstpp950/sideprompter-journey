@@ -10,6 +10,7 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <!-- Recommended Avalonia trimming settings for Native AOT -->
     <TrimMode>link</TrimMode>
+    <WhisperNetRuntimeVersion>1.8.1</WhisperNetRuntimeVersion>
   </PropertyGroup>
 
   
@@ -62,13 +63,12 @@
   </ItemGroup>
 
   <!-- Copy Whisper.NET native libraries to the correct location for macOS -->
-  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libwhisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-base-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-cpu-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/macos-x64/libggml-blas-whisper.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-  </ItemGroup>
+  <!--ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Content Include="$(NuGetPackageRoot)whisper.net.runtime/$(WhisperNetRuntimeVersion)/runtimes/$(RuntimeIdentifier)/native/*.*">
+      <Link>%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup-->
 
   <!-- For macOS app bundles, copy resources to Resources folder -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
@@ -77,7 +77,7 @@
       <LogicalName>libs/audioteejs/bin/audiotee</LogicalName>
     </BundleResource>
     <!-- Add ggml-metal.metal as a BundleResource to fix code signing issue -->
-    <BundleResource Include="$(NuGetPackageRoot)whisper.net.runtime/1.8.1/build/ggml-metal.metal">
+    <BundleResource Include="$(NuGetPackageRoot)whisper.net.runtime/$(WhisperNetRuntimeVersion)/build/ggml-metal.metal">
       <LogicalName>ggml-metal.metal</LogicalName>
     </BundleResource>
     <!-- Add .env as a BundleResource -->

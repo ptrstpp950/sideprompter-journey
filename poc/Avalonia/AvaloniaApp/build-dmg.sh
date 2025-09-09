@@ -67,8 +67,15 @@ fi
 # Build the Avalonia app (uncomment if needed)
 echo "Publishing for x64 and arm64..."
 # Publish for both architectures so the script can create a universal binary
-dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
-dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
+
+# Temporarily commented out to avoid long build times during testing
+#dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
+#dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
+
+# NOTE: runtime-specific library copying is done later, after the app bundle
+# paths (X64_APP_PATH and ARM_APP_PATH) are known. This avoids referencing
+# those variables before they are defined and ensures we copy from the
+# correct locations inside each built app bundle.
 
 
 # Check if app bundle exists
@@ -85,33 +92,76 @@ fi
 UNIVERSAL_APP_STAGING="${STAGING_DIR}/${APP_NAME}.app"
 mkdir -p "${STAGING_DIR}"
 
+# Copy runtime-specific libraries from each built app into that app's
+# Contents/MonoBundle/runtimes/ folder (merge macos-x64 and macos-arm64
+# into the runtimes/ folder inside each app bundle). This makes it easy
+# for the later lipo loop to find arch-specific binaries to merge.
+copy_runtimes_for_arch() {
+    app_path="$1"
+    arch="$2" # expected: macos-x64 or macos-arm64
+    if [ ! -d "${app_path}" ]; then
+        return
+    fi
+    # Source arch folder inside the built app bundle
+    src_arch_dir="${app_path}/Contents/MonoBundle/runtimes/${arch}"
+    # Target is Contents/MonoBundle (per your request)
+    target_dir="${app_path}/Contents/MonoBundle"
+    if [ -d "${src_arch_dir}" ]; then
+        echo "Copying ${arch} files from ${src_arch_dir} into ${target_dir} for app ${app_path}..."
+        mkdir -p "${target_dir}"
+        if command -v rsync >/dev/null 2>&1; then
+            rsync -a "${src_arch_dir}/" "${target_dir}/" || cp -R "${src_arch_dir}"/* "${target_dir}/" 2>/dev/null || true
+        else
+            cp -R "${src_arch_dir}/"* "${target_dir}/" 2>/dev/null || true
+        fi
+    else
+        echo "No ${arch} runtime folder in ${app_path}; skipping."
+    fi
+}
+
+# Copy only the matching arch runtimes into each app bundle's Contents/MonoBundle
+# so the lipo merging later will see the correct per-architecture binaries.
+if [ -d "${X64_APP_PATH}" ]; then
+    copy_runtimes_for_arch "${X64_APP_PATH}" "macos-x64"
+fi
+if [ -d "${ARM_APP_PATH}" ]; then
+    copy_runtimes_for_arch "${ARM_APP_PATH}" "macos-arm64"
+fi
+
 if [ -d "${X64_APP_PATH}" ] && [ -d "${ARM_APP_PATH}" ]; then
     echo "Both x64 and arm64 builds present. Creating universal app..."
     # Copy x64 bundle as base
     cp -R "${X64_APP_PATH}" "${UNIVERSAL_APP_STAGING}"
 
-    # Path to executable inside .app - try to detect the main binary under Contents/MacOS
-    X64_BIN="$(/bin/ls "${X64_APP_PATH}/Contents/MacOS" | head -n1)"
-    ARM_BIN="$(/bin/ls "${ARM_APP_PATH}/Contents/MacOS" | head -n1)"
-    BASE_BIN_NAME="${X64_BIN}"
+    echo "Making binaries and dylibs universal..."
+    find "${ARM_APP_PATH}" -type f | while read -r arm_file; do
+        relative_path="${arm_file#${ARM_APP_PATH}/}"
+        universal_file="${UNIVERSAL_APP_STAGING}/${relative_path}"
+        x64_file="${X64_APP_PATH}/${relative_path}"
 
-    if [ -z "${BASE_BIN_NAME}" ]; then
-        echo "Warning: Could not detect executable inside app bundle. Skipping lipo; using x64 bundle as-is."
-    else
-        X64_BIN_PATH="${X64_APP_PATH}/Contents/MacOS/${BASE_BIN_NAME}"
-        ARM_BIN_PATH="${ARM_APP_PATH}/Contents/MacOS/${BASE_BIN_NAME}"
-        UNIVERSAL_BIN_PATH="${UNIVERSAL_APP_STAGING}/Contents/MacOS/${BASE_BIN_NAME}"
-
-        if command -v lipo >/dev/null 2>&1; then
-            echo "Merging binaries with lipo..."
-            lipo -create -output "${UNIVERSAL_BIN_PATH}" "${X64_BIN_PATH}" "${ARM_BIN_PATH}" || {
-                echo "lipo failed, leaving x64 binary in place"
-            }
-            chmod +x "${UNIVERSAL_BIN_PATH}"
-        else
-            echo "lipo not available; skipping universal binary creation."
+        # If file doesn't exist in the base (x64), copy it from arm.
+        if [ ! -f "${x64_file}" ]; then
+            echo "Copying arm64-only file: ${relative_path}"
+            mkdir -p "$(dirname "${universal_file}")"
+            cp "${arm_file}" "${universal_file}"
+        # If it's a Mach-O file, merge it, but only if the architectures are different
+        elif file -b "${arm_file}" | grep -q "Mach-O"; then
+            x64_arch=$(lipo -info "${x64_file}" | awk -F ": " '{print $NF}')
+            arm_arch=$(lipo -info "${arm_file}" | awk -F ": " '{print $NF}')
+            if [ "$x64_arch" != "$arm_arch" ]; then
+                echo "lipo: Merging ${relative_path}"
+                lipo -create -output "${universal_file}" "${x64_file}" "${arm_file}" || {
+                    echo "Warning: lipo failed for ${relative_path}. The universal build might be incomplete."
+                }
+            else
+                echo "Skipping lipo for ${relative_path} as architectures are the same."
+            fi
         fi
-    fi
+        # For non-Mach-O files that exist in both, we keep the x64 version. This is the default from the initial copy.
+    done
+
+    # Make sure all executables are executable
+    find "${UNIVERSAL_APP_STAGING}/Contents/MacOS" -type f -exec chmod +x {} +
 else
     # Copy whichever build exists into staging
     if [ -d "${ARM_APP_PATH}" ]; then
@@ -148,7 +198,7 @@ fi
 # Do not create an Applications symlink in the staging folder.
 # The create-dmg tool will create the Applications link inside the mounted image when
 # we pass --app-drop-link, and creating it in the source folder causes a duplicate
-# link error (create-dmg tries to create the same link and fails with "File exists").
+# link error \(create-dmg tries to create the same link and fails with "File exists"\).
 
 echo "Ensuring create-dmg is installed (Homebrew will be used if necessary)..."
 
