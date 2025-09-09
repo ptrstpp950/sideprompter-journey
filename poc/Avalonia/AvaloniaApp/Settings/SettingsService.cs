@@ -17,6 +17,7 @@ public static class SettingsService
 
     public static string GetSettingsDirectory()
     {
+        // cd ~/Library/Application\ Support/SidePrompter/
         var appSupport = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var dir = Path.Combine(appSupport, "SidePrompter");
         if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);

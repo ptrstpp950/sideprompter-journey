@@ -10,9 +10,9 @@
         x:CompileBindings="True"
         mc:Ignorable="d"
         x:DataType="vm:SetupWizardViewModel">
-  <Design.DataContext>
+  <d:Design.DataContext>
     <vm:SetupWizardViewModel />
-  </Design.DataContext>
+  </d:Design.DataContext>
   <Grid ColumnDefinitions="220, *" RowDefinitions="* Auto" Margin="0">
     <!-- Navigation -->
     <Border Background="{DynamicResource ThemeControlLowBrush}" BorderBrush="{DynamicResource ThemeBorderMidBrush}" BorderThickness="0,0,1,0">

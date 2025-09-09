@@ -7,7 +7,7 @@ set -e  # Exit on any error
 # Set variables
 APP_NAME="AvaloniaApp"
 BUNDLE_ID="com.sideprompter.app"
-VERSION="1.0.0"
+VERSION="0.0.1"
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 STAGING_DIR="./bin/dmg-staging"
 APP_BUNDLE_PATH="${STAGING_DIR}/${APP_NAME}.app"
@@ -31,6 +31,15 @@ cleanup() {
     rm -f "${TEMP_DMG}"
     rm -f "${DMG_NAME}"
 }
+
+# Require SIGN_ID to be provided. Exit early if it's not set so we don't
+# proceed without a signing identity.
+if [ -z "${SIGN_ID}" ]; then
+    echo "Error: SIGN_ID is not set. Please set SIGN_ID to your code signing identity and re-run."
+    echo "Example: SIGN_ID=\"Apple Development: Your Name (TEAMID)\" ./build-dmg.sh"
+    exit 1
+fi
+
 
 # Set trap to clean up on error
 trap cleanup ERR
@@ -69,8 +78,8 @@ echo "Publishing for x64 and arm64..."
 # Publish for both architectures so the script can create a universal binary
 
 # Temporarily commented out to avoid long build times during testing
-#dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
-#dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
+# dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
+# dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
 
 # NOTE: runtime-specific library copying is done later, after the app bundle
 # paths (X64_APP_PATH and ARM_APP_PATH) are known. This avoids referencing
@@ -200,7 +209,7 @@ fi
 # we pass --app-drop-link, and creating it in the source folder causes a duplicate
 # link error \(create-dmg tries to create the same link and fails with "File exists"\).
 
-echo "Ensuring create-dmg is installed (Homebrew will be used if necessary)..."
+printf "%s\n" "Ensuring create-dmg is installed (Homebrew will be used if necessary)..."
 
 # Signing / Notarization configuration
 # Set these environment variables before running the script if you want signing/notarization:
@@ -214,6 +223,7 @@ NOTARY_KEY_PATH="${NOTARY_KEY_PATH:-}"
 NOTARY_KEY_ID="${NOTARY_KEY_ID:-}"
 NOTARY_ISSUER="${NOTARY_ISSUER:-}"
 
+
 # If signing is configured, sign nested helper(s) and then the app bundle
 if [ -n "$SIGN_ID" ]; then
     echo "Signing bundle and nested helpers with identity: $SIGN_ID"
@@ -221,26 +231,52 @@ if [ -n "$SIGN_ID" ]; then
     echo "Signing nested native libraries and executables under the app bundle"
     # Find common native items to sign: .dylib, .so, .jnilib, frameworks and executables in Contents/MacOS
     # Use a conservative list so we don't attempt to sign non-native files.
-    find "${UNIVERSAL_APP_STAGING}" -type f \( -name '*.dylib' -o -name '*.so' -o -name '*.jnilib' -o -path '*/Contents/MacOS/*' -o -path '*/Resources/libs/*/bin/*' \) -print0 | while IFS= read -r -d '' file; do
-        echo "Signing nested file: $file"
-        codesign --sign "$SIGN_ID" --options runtime --timestamp --force "$file" || echo "Warning: failed to sign $file"
-    done
+    # Helper to sign a file and continue on failure
+    sign_file() {
+        fpath="$1"
+        echo "Signing: ${fpath}"
+        codesign --sign "$SIGN_ID" --options runtime --timestamp --force "${fpath}" || echo "Warning: failed to sign ${fpath}"
+    }
 
-    # Also sign frameworks directories (if any). Sign each binary within Frameworks if present.
-    if [ -d "${UNIVERSAL_APP_STAGING}/Contents/Frameworks" ]; then
-        find "${UNIVERSAL_APP_STAGING}/Contents/Frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' fw; do
-            echo "Signing framework dylib: $fw"
-            codesign --sign "$SIGN_ID" --options runtime --timestamp --force "$fw" || echo "Warning: failed to sign $fw"
+    # 1) Sign native libraries first (MonoBundle and runtimes)
+    if [ -d "${UNIVERSAL_APP_STAGING}/Contents/MonoBundle" ]; then
+        find "${UNIVERSAL_APP_STAGING}/Contents/MonoBundle" -type f \( -name '*.dylib' -o -name '*.so' -o -name '*.jnilib' \) -print0 | while IFS= read -r -d '' f; do
+            sign_file "$f"
         done
     fi
 
-    # Sign the top-level bundle. Use entitlements if present.
+    # 2) Sign framework dylibs inside Contents/Frameworks
+    if [ -d "${UNIVERSAL_APP_STAGING}/Contents/Frameworks" ]; then
+        find "${UNIVERSAL_APP_STAGING}/Contents/Frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' fw; do
+            sign_file "$fw"
+        done
+    fi
+
+    # 3) Sign executables in Contents/MacOS
+    if [ -d "${UNIVERSAL_APP_STAGING}/Contents/MacOS" ]; then
+        find "${UNIVERSAL_APP_STAGING}/Contents/MacOS" -type f -print0 | while IFS= read -r -d '' exe; do
+            # Only attempt to sign regular files (skip symlinks)
+            if [ -f "$exe" ]; then
+                sign_file "$exe"
+            fi
+        done
+    fi
+
+    # 4) Sign any nested helpers or tools under Contents/Helpers or similar
+    find "${UNIVERSAL_APP_STAGING}" -type d \( -path '*/Helpers' -o -path '*/Helpers/*' -o -path '*/Contents/Library/*' \) -prune -o -type f \( -name '*.dylib' -o -name '*.so' -o -path '*/Contents/MacOS/*' \) -print0 2>/dev/null | while IFS= read -r -d '' f; do
+        # already signed above, but this is a safety net; only sign if not signed
+        if ! codesign --verify --verbose=0 "$f" >/dev/null 2>&1; then
+            sign_file "$f"
+        fi
+    done || true
+
+    # 5) Now sign the top-level bundle (do not use --deep; nested items were signed)
     if [ -f "${ENTITLEMENTS}" ]; then
         echo "Signing app bundle with entitlements: ${ENTITLEMENTS}"
-        codesign --sign "$SIGN_ID" --options runtime --entitlements "${ENTITLEMENTS}" --timestamp --force --deep "${UNIVERSAL_APP_STAGING}" || echo "Warning: failed to sign app bundle"
+        codesign --sign "$SIGN_ID" --options runtime --entitlements "${ENTITLEMENTS}" --timestamp --force "${UNIVERSAL_APP_STAGING}" || echo "Warning: failed to sign app bundle"
     else
         echo "Signing app bundle (no entitlements file found)"
-        codesign --sign "$SIGN_ID" --options runtime --timestamp --force --deep "${UNIVERSAL_APP_STAGING}" || echo "Warning: failed to sign app bundle"
+        codesign --sign "$SIGN_ID" --options runtime --timestamp --force "${UNIVERSAL_APP_STAGING}" || echo "Warning: failed to sign app bundle"
     fi
 
     # Verify signature

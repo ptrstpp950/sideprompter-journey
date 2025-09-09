@@ -59,7 +59,7 @@ namespace AvaloniaApp.Services.HotKey
                 _startRecordingTarget.SetAction(action);
 
                 var selector = new ObjCRuntime.Selector(nameof(HotkeyTarget.Invoke));
-                _hotkeyManager.BindKeyRef(keyCode, macModifiers, _startRecordingTarget, selector);
+                _hotkeyManager?.BindKeyRef(keyCode, macModifiers, _startRecordingTarget, selector);
 
                 _startRecordingRegistered = true;
             }
@@ -93,7 +93,7 @@ namespace AvaloniaApp.Services.HotKey
                 _windowCaptureTarget.SetAction(action);
 
                 var selector = new ObjCRuntime.Selector(nameof(HotkeyTarget.Invoke));
-                _hotkeyManager.BindKeyRef(keyCode, macModifiers, _windowCaptureTarget, selector);
+                _hotkeyManager?.BindKeyRef(keyCode, macModifiers, _windowCaptureTarget, selector);
 
                 _windowCaptureRegistered = true;
             }
