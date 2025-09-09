@@ -78,8 +78,8 @@ echo "Publishing for x64 and arm64..."
 # Publish for both architectures so the script can create a universal binary
 
 # Temporarily commented out to avoid long build times during testing
-# dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
-# dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
+dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
+dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
 
 # NOTE: runtime-specific library copying is done later, after the app bundle
 # paths (X64_APP_PATH and ARM_APP_PATH) are known. This avoids referencing

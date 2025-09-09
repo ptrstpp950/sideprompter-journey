@@ -59,9 +59,22 @@ public partial class MainWindow : Window
         }
         // Platform specific static services
 #if MACOS || OSX || MACCATALYST
-        _windowTextExtractionService = new WindowTextExtractionServiceMac();
-        _hotKeyService = new HotKeyServiceMacOptionTwo(this);
-        _macOsPermissionsService = new MacOsPermissionsService();
+        try
+        {
+            _windowTextExtractionService = new WindowTextExtractionServiceMac();
+            Serilog.Log.Information("WindowTextExtractionServiceMac initialized.");
+
+            _hotKeyService = new HotKeyServiceMacOptionTwo(this);
+            Serilog.Log.Information("HotKeyServiceMacOptionTwo initialized.");
+
+            _macOsPermissionsService = new MacOsPermissionsService();
+            Serilog.Log.Information("MacOsPermissionsService initialized.");
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Error initializing macOS-specific services.");
+            // Optionally, show an error message to the user
+        }
 #elif WINDOWS
         _windowTextExtractionService = new WindowTextExtractionServiceWin();
         _hotKeyService = new HotKeyServiceWindows(this);

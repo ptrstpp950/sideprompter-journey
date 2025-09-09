@@ -1,7 +1,8 @@
 ﻿using Avalonia;
-using Avalonia.Threading;
 using System;
+using System.IO;
 using DotNetEnv;
+using Serilog;
 
 namespace AvaloniaApp;
 
@@ -13,18 +14,35 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // Add global exception handling
-        AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
-        {
-            //TODO: dialog box with error details
-            // Log or handle the unhandled exception
-            Console.WriteLine($"Unhandled exception: {e.ExceptionObject}");
-            // You can add logging here, e.g., to a file or external service
-        };
+        var logDirectory = GetSettingsDirectory();
+        var logFilePath = Path.Combine(logDirectory, "log-.txt");
 
-        Env.Load();
-        BuildAvaloniaApp()
-            .StartWithClassicDesktopLifetime(args);
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.File(
+                logFilePath,
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 7,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+                flushToDiskInterval: TimeSpan.Zero
+            )
+            .CreateLogger();
+
+        try
+        {
+            Log.Information("Starting application");
+            Env.Load();
+            BuildAvaloniaApp()
+                .StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Application terminated unexpectedly");
+        }
+        finally
+        {
+            Log.CloseAndFlush();
+        }
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
@@ -33,4 +51,12 @@ class Program
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
+
+    public static string GetSettingsDirectory()
+    {
+        var appSupport = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var dir = Path.Combine(appSupport, "SidePrompter");
+        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        return dir;
+    }
 }
