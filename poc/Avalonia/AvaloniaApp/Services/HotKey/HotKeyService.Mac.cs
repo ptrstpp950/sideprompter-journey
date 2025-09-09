@@ -47,7 +47,7 @@ namespace AvaloniaApp.Services.HotKey
         private void EnsureNotDisposed()
         {
             if (_disposed)
-                throw new ObjectDisposedException(nameof(HotKeyService));
+                throw new ObjectDisposedException(nameof(HotKeyServiceMac));
         }
 
         private void EnsureProcessStarted()
