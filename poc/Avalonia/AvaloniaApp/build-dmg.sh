@@ -17,9 +17,6 @@ TEMP_DMG="${APP_NAME}-temp.dmg"
 MOUNT_DIR="/Volumes/${APP_NAME}"
 APP_PROJECT="AvaloniaApp.csproj"
 ENTITLEMENTS="AvaloniaApp.entitlements"
-# Publish output folders for each architecture
-X64_OUTPUT="./bin/Release/net9.0-macos/osx-x64"
-ARM_OUTPUT="./bin/Release/net9.0-macos/osx-arm64"
 
 # Function to clean up on error
 cleanup() {
@@ -37,7 +34,7 @@ trap cleanup ERR
 
 # Clean up previous build artifacts
 rm -rf "${STAGING_DIR}"
-rm -f "${PUBLISH_DIR}/${DMG_NAME}"
+rm -rf "${PUBLISH_DIR}"
 rm -f "${TEMP_DMG}"
 mkdir -p "${PUBLISH_DIR}"
 
@@ -64,16 +61,17 @@ else
     echo "Mount directory cleaned up successfully."
 fi
 
-# Build the Avalonia app (uncomment if needed)
+# Build the Avalonia app with self-contained deployments
 echo "Publishing for x64 and arm64..."
-# Publish for both architectures so the script can create a universal binary
-dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
-dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
+# Create PUBLISH_DIR and publish both architectures as self-contained builds
+mkdir -p "${PUBLISH_DIR}"
+dotnet publish "${APP_PROJECT}" -c Release -r osx-x64 --self-contained true -o "${PUBLISH_DIR}/osx-x64"
+dotnet publish "${APP_PROJECT}" -c Release -r osx-arm64 --self-contained true -o "${PUBLISH_DIR}/osx-arm64"
 
 
 # Check if app bundle exists
-X64_APP_PATH="${X64_OUTPUT}/${APP_NAME}.app"
-ARM_APP_PATH="${ARM_OUTPUT}/${APP_NAME}.app"
+X64_APP_PATH="${PUBLISH_DIR}/osx-x64/${APP_NAME}.app"
+ARM_APP_PATH="${PUBLISH_DIR}/osx-arm64/${APP_NAME}.app"
 
 # Ensure at least one build exists
 if [ ! -d "${X64_APP_PATH}" ] && [ ! -d "${ARM_APP_PATH}" ]; then
@@ -87,27 +85,57 @@ mkdir -p "${STAGING_DIR}"
 
 if [ -d "${X64_APP_PATH}" ] && [ -d "${ARM_APP_PATH}" ]; then
     echo "Both x64 and arm64 builds present. Creating universal app..."
-    # Copy x64 bundle as base
-    cp -R "${X64_APP_PATH}" "${UNIVERSAL_APP_STAGING}"
+    # Use arm64 bundle as base (per requirements)
+    cp -R "${ARM_APP_PATH}" "${UNIVERSAL_APP_STAGING}"
 
     # Path to executable inside .app - try to detect the main binary under Contents/MacOS
     X64_BIN="$(/bin/ls "${X64_APP_PATH}/Contents/MacOS" | head -n1)"
     ARM_BIN="$(/bin/ls "${ARM_APP_PATH}/Contents/MacOS" | head -n1)"
-    BASE_BIN_NAME="${X64_BIN}"
+    BASE_BIN_NAME="${ARM_BIN}"
 
     if [ -z "${BASE_BIN_NAME}" ]; then
-        echo "Warning: Could not detect executable inside app bundle. Skipping lipo; using x64 bundle as-is."
+        echo "Warning: Could not detect executable inside app bundle. Skipping lipo; using arm64 bundle as-is."
     else
         X64_BIN_PATH="${X64_APP_PATH}/Contents/MacOS/${BASE_BIN_NAME}"
         ARM_BIN_PATH="${ARM_APP_PATH}/Contents/MacOS/${BASE_BIN_NAME}"
         UNIVERSAL_BIN_PATH="${UNIVERSAL_APP_STAGING}/Contents/MacOS/${BASE_BIN_NAME}"
 
         if command -v lipo >/dev/null 2>&1; then
-            echo "Merging binaries with lipo..."
+            echo "Merging main executable with lipo..."
             lipo -create -output "${UNIVERSAL_BIN_PATH}" "${X64_BIN_PATH}" "${ARM_BIN_PATH}" || {
-                echo "lipo failed, leaving x64 binary in place"
+                echo "lipo failed, leaving arm64 binary in place"
             }
             chmod +x "${UNIVERSAL_BIN_PATH}"
+
+            # Combine all native libraries in Contents/MonoBundle/
+            echo "Combining native libraries in Contents/MonoBundle/..."
+            if [ -d "${X64_APP_PATH}/Contents/MonoBundle" ] && [ -d "${ARM_APP_PATH}/Contents/MonoBundle" ]; then
+                # Find all native libraries and executables to combine
+                find "${ARM_APP_PATH}/Contents/MonoBundle" -type f \( -name '*.dylib' -o -name '*.so' -o -executable \) | while IFS= read -r arm_lib; do
+                    # Get relative path from MonoBundle
+                    rel_path="${arm_lib#${ARM_APP_PATH}/Contents/MonoBundle/}"
+                    x64_lib="${X64_APP_PATH}/Contents/MonoBundle/${rel_path}"
+                    universal_lib="${UNIVERSAL_APP_STAGING}/Contents/MonoBundle/${rel_path}"
+                    
+                    if [ -f "${x64_lib}" ]; then
+                        echo "Combining ${rel_path}..."
+                        # Check if files are actually different architectures before lipo
+                        if file "${arm_lib}" | grep -q "Mach-O" && file "${x64_lib}" | grep -q "Mach-O"; then
+                            lipo -create -output "${universal_lib}" "${x64_lib}" "${arm_lib}" || {
+                                echo "Warning: lipo failed for ${rel_path}, keeping arm64 version"
+                            }
+                            # Copy permissions from original file
+                            if [ -n "$(command -v stat)" ]; then
+                                chmod "$(stat -f '%Mp%Lp' "${arm_lib}")" "${universal_lib}" 2>/dev/null || chmod +x "${universal_lib}"
+                            else
+                                chmod +x "${universal_lib}"
+                            fi
+                        fi
+                    fi
+                done
+            else
+                echo "Warning: MonoBundle directory not found in one or both builds"
+            fi
         else
             echo "lipo not available; skipping universal binary creation."
         fi
@@ -117,7 +145,7 @@ else
     if [ -d "${ARM_APP_PATH}" ]; then
         echo "Only arm64 build found. Copying arm64 bundle to staging."
         cp -R "${ARM_APP_PATH}" "${UNIVERSAL_APP_STAGING}"
-    else
+    elif [ -d "${X64_APP_PATH}" ]; then
         echo "Only x64 build found. Copying x64 bundle to staging."
         cp -R "${X64_APP_PATH}" "${UNIVERSAL_APP_STAGING}"
     fi
