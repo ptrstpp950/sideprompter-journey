@@ -97,6 +97,9 @@
   <Target Name="BuildActiveWindowTextGetter" Condition="$([MSBuild]::IsOSPlatform('OSX'))" BeforeTargets="Build" Inputs="libs/activeWindowTextGetter/Sources/**/*.swift" Outputs="libs/activeWindowTextGetter/.build/release/activeWindowTextGetter">
     <Exec Command="cd libs/activeWindowTextGetter &amp;&amp; swift build --configuration release" />
   </Target>
+  <Target Name="BuildHotKeyListener" Condition="$([MSBuild]::IsOSPlatform('OSX'))" BeforeTargets="Build" Inputs="libs/hotkeyListener/Sources/**/*.swift" Outputs="libs/hotkeyListener/.build/release/hotkeyListener">
+    <Exec Command="cd libs/hotkeyListener &amp;&amp; swift build --configuration release" />
+  </Target>
 
   <!-- Remove ggml-metal.metal from root directory of app bundle to fix code signing -->
   <Target Name="RemoveMetalFileFromRoot" AfterTargets="_CompileToNative" Condition="$([MSBuild]::IsOSPlatform('OSX'))">

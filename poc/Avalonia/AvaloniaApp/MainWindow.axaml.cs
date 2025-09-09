@@ -22,7 +22,7 @@ namespace AvaloniaApp;
 public partial class MainWindow : Window
 {
     private IAudioTranscriptionService? _audioTranscriptionService; // model-dependent, can be recreated
-    private readonly IWindowTextExtractionService _windowTextExtractionService;
+    private readonly IWindowTextExtractionService? _windowTextExtractionService;
     private ChatCompletionService? _chatCompletionService; // now nullable until configured
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
@@ -64,8 +64,8 @@ public partial class MainWindow : Window
             _windowTextExtractionService = new WindowTextExtractionServiceMac();
             Serilog.Log.Information("WindowTextExtractionServiceMac initialized.");
 
-            _hotKeyService = new HotKeyServiceMacOptionTwo(this);
-            Serilog.Log.Information("HotKeyServiceMacOptionTwo initialized.");
+            _hotKeyService = new HotKeyServiceMac();
+            Serilog.Log.Information("HotKeyServiceMac initialized.");
 
             _macOsPermissionsService = new MacOsPermissionsService();
             Serilog.Log.Information("MacOsPermissionsService initialized.");
@@ -300,6 +300,11 @@ public partial class MainWindow : Window
     {
         try
         {
+            if(_windowTextExtractionService == null)
+            {
+                AddMessage("Window text extraction service not available on this platform.");
+                return;
+            }
             string windowText = await _windowTextExtractionService.GetActiveWindowTextAsync();
             AddMessage($"--- Text from window: {_windowTextExtractionService.GetActiveWindowTitle()} ---");
             AddMessage(windowText);
@@ -464,6 +469,11 @@ public partial class MainWindow : Window
     {
         try
         {
+            if(_windowTextExtractionService == null)
+            {
+                AddMessage("Window text extraction service not available on this platform.");
+                return;
+            }
             AiAssistantResponseTextBox.Text = "Loading window context help...";
             var ctx = await _windowTextExtractionService.GetActiveWindowTextAsync();
 

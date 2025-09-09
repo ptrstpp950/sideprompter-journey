@@ -1,247 +1,261 @@
-// macOS implementation of IHotKeyService using Cocoa NSEvent monitoring and Objective-C runtime
-// This file is conditionally compiled only on macOS targets.
-
-#if MACOS || OSX || MACCATALYST
-
 using System;
-using Avalonia.Controls;
+using System.Diagnostics;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Input;
-using Foundation;
-using HotKeyManager;
-// ReSharper disable RedundantDefaultMemberInitializer
 
 namespace AvaloniaApp.Services.HotKey
 {
-    public class HotKeyServiceMacOptionTwo : IHotKeyService
+    /// <summary>
+    /// macOS implementation that wraps the Swift hotkey-listener binary.
+    /// It starts the native helper, reads stdout lines and invokes the actions
+    /// registered via the IHotKeyService methods.
+    /// </summary>
+    public class HotKeyServiceMac : IHotKeyService
     {
-        private JFHotkeyManager? _hotkeyManager;
-        private Action? _startRecordingAction;
+        private Process? _process;
+        private CancellationTokenSource? _cts;
+        private Action? _aiHelpAction;
         private Action? _windowCaptureAction;
-        private bool _startRecordingRegistered = false;
-        private bool _windowCaptureRegistered = false;
-        private bool _disposed = false;
-        private HotkeyTarget? _startRecordingTarget;
-        private HotkeyTarget? _windowCaptureTarget;
-
-        public HotKeyServiceMacOptionTwo(Window _)
-        {
-            // Defer creation of any Objective-C/Foundation objects (JFHotkeyManager, NSObject targets)
-            // to avoid touching the ObjC runtime during construction. Create them lazily when
-            // registering the first hotkey.
-        }
-
-        private void EnsureHotkeyManager()
-        {
-            if (_hotkeyManager != null) return;
-            _hotkeyManager = new JFHotkeyManager();
-        }
+        private bool _disposed;
 
         public void RegisterAiHelpNeededHotKey(Key key, KeyModifiers modifiers, Action action)
         {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(HotKeyServiceMacOptionTwo));
-
-            if (_startRecordingRegistered)
-                throw new InvalidOperationException("Start recording hotkey is already registered");
-
-            _startRecordingAction = action;
-
-            try
-            {
-                EnsureHotkeyManager();
-
-                // Convert Avalonia Key and KeyModifiers to macOS equivalents
-                var macModifiers = ConvertToMacModifiers(modifiers);
-                var keyCode = ConvertToMacKeyCode(key);
-
-                // Create a small NSObject target for the selector (deferred to avoid early ObjC usage)
-                _startRecordingTarget ??= new HotkeyTarget();
-                _startRecordingTarget.SetAction(action);
-
-                var selector = new ObjCRuntime.Selector(nameof(HotkeyTarget.Invoke));
-                _hotkeyManager?.BindKeyRef(keyCode, macModifiers, _startRecordingTarget, selector);
-
-                _startRecordingRegistered = true;
-            }
-            catch (Exception ex)
-            {
-                _startRecordingAction = null;
-                throw new InvalidOperationException(
-                    $"Failed to register start recording hotkey {key}+{modifiers}: {ex.Message}", ex);
-            }
+            EnsureNotDisposed();
+            _aiHelpAction = action ?? throw new ArgumentNullException(nameof(action));
+            EnsureProcessStarted();
         }
 
         public void RegisterWindowCaptureHotKey(Key key, KeyModifiers modifiers, Action action)
         {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(HotKeyServiceMacOptionTwo));
-
-            if (_windowCaptureRegistered)
-                throw new InvalidOperationException("Window capture hotkey is already registered");
-
-            _windowCaptureAction = action;
-
-            try
-            {
-                EnsureHotkeyManager();
-
-                // Convert Avalonia Key and KeyModifiers to macOS equivalents
-                var macModifiers = ConvertToMacModifiers(modifiers);
-                var keyCode = ConvertToMacKeyCode(key);
-
-                _windowCaptureTarget ??= new HotkeyTarget();
-                _windowCaptureTarget.SetAction(action);
-
-                var selector = new ObjCRuntime.Selector(nameof(HotkeyTarget.Invoke));
-                _hotkeyManager?.BindKeyRef(keyCode, macModifiers, _windowCaptureTarget, selector);
-
-                _windowCaptureRegistered = true;
-            }
-            catch (Exception ex)
-            {
-                _windowCaptureAction = null;
-                throw new InvalidOperationException(
-                    $"Failed to register window capture hotkey {key}+{modifiers}: {ex.Message}", ex);
-            }
+            EnsureNotDisposed();
+            _windowCaptureAction = action ?? throw new ArgumentNullException(nameof(action));
+            EnsureProcessStarted();
         }
 
         public void UnregisterStartRecordingHotKey()
         {
-            if (_disposed)
-                return;
-
-            if (_startRecordingRegistered)
-            {
-                _startRecordingAction = null;
-                _startRecordingRegistered = false;
-                // Note: JFHotkeyManager might not have an unbind method
-                // You may need to implement this based on the actual API
-            }
+            _aiHelpAction = null;
         }
 
         public void UnregisterWindowCaptureHotKey()
         {
+            _windowCaptureAction = null;
+        }
+
+        private void EnsureNotDisposed()
+        {
             if (_disposed)
+                throw new ObjectDisposedException(nameof(HotKeyService));
+        }
+
+        private void EnsureProcessStarted()
+        {
+            if (_process != null && !_process.HasExited)
                 return;
 
-            if (_windowCaptureRegistered)
-            {
-                _windowCaptureAction = null;
-                _windowCaptureRegistered = false;
-                // Note: JFHotkeyManager might not have an unbind method
-                // You may need to implement this based on the actual API
-            }
-        }
+            _cts = new CancellationTokenSource();
 
-        private uint ConvertToMacModifiers(KeyModifiers modifiers)
-        {
-            uint macModifiers = 0;
-
-            // Based on the original code, we know CmdKey and ShiftKey exist
-            // Map common modifiers to macOS equivalents
-            if (modifiers.HasFlag(KeyModifiers.Control))
-                macModifiers |= (uint)EModifierKeys.CmdKey; // On macOS, Ctrl often maps to Cmd
-            if (modifiers.HasFlag(KeyModifiers.Shift))
-                macModifiers |= (uint)EModifierKeys.ShiftKey;
-            if (modifiers.HasFlag(KeyModifiers.Meta))
-                macModifiers |= (uint)EModifierKeys.CmdKey; // Meta is typically Cmd on macOS
-            if (modifiers.HasFlag(KeyModifiers.Alt))
-                macModifiers |= (uint)EModifierKeys.OptionKey;
-
-            return macModifiers;
-        }
-
-        private uint ConvertToMacKeyCode(Key key)
-        {
-            // macOS virtual key codes - this is a simplified mapping
-            // You'll need to expand this based on your needs
-            return key switch
-            {
-                Key.Space => 49, // Space bar
-                Key.OemQuestion => 44, // Forward slash key (/)
-                Key.Enter => 36, // Return key
-                Key.Escape => 53, // Escape key
-                Key.Tab => 48, // Tab key
-                Key.OemPeriod => 47,
-                Key.A => 0, // A key
-                Key.S => 1, // S key
-                Key.D => 2, // D key
-                Key.F => 3, // F key
-                // Add more key mappings as needed
-                _ => throw new NotSupportedException(
-                    $"Key {key} is not supported in this implementation. Please add the mapping for this key.")
-            };
-        }
-
-        [Export(nameof(OnStartRecordingExecuted))]
-        void OnStartRecordingExecuted()
-        {
             try
             {
-                _startRecordingAction?.Invoke();
+                var binary = GetHotKeyListenerBinaryPath();
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = binary,
+                    Arguments = string.Empty,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+                _process.Exited += OnProcessExited;
+
+                if (!_process.Start())
+                {
+                    throw new InvalidOperationException("Failed to start hotkey-listener process");
+                }
+
+                // Fire-and-forget readers
+                _ = Task.Run(() => ReadStdoutLoopAsync(_process, _cts.Token), _cts.Token);
+                _ = Task.Run(() => ReadStderrLoopAsync(_process, _cts.Token), _cts.Token);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error executing start recording hotkey action: {ex.Message}");
+                Debug.WriteLine($"HotKeyService: failed to start process: {ex}");
+                throw;
             }
         }
 
-        [Export(nameof(OnWindowCaptureExecuted))]
-        void OnWindowCaptureExecuted()
+        private string GetHotKeyListenerBinaryPath()
+        {
+            // Look for bundled app resources first (app bundle layout)
+            if (OperatingSystem.IsMacOS())
+            {
+                var resourcesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                    "..", "Resources", "libs", "hotkey-listener", "bin", "hotkey-listener");
+                if (File.Exists(resourcesPath))
+                    return resourcesPath;
+            }
+
+            // Try base directory libs
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var libsPath = Path.Combine(baseDir, "libs", "hotkey-listener", "bin", "hotkey-listener");
+            if (File.Exists(libsPath))
+                return libsPath;
+
+            // Try current working directory layout (development)
+            var cwdPath = Path.Combine(Directory.GetCurrentDirectory(), "libs", "hotkey-listener", "bin", "hotkey-listener");
+            if (File.Exists(cwdPath))
+                return cwdPath;
+
+            // Last resort: rely on PATH
+            return "hotkey-listener";
+        }
+
+        private async Task ReadStdoutLoopAsync(Process process, CancellationToken cancellationToken)
         {
             try
             {
-                _windowCaptureAction?.Invoke();
+                var reader = process.StandardOutput;
+                if (reader is null)
+                    return;
+
+                using var _reader = reader;
+
+                while (!cancellationToken.IsCancellationRequested && !process.HasExited)
+                {
+                    var line = await _reader.ReadLineAsync(cancellationToken);
+                    if (string.IsNullOrEmpty(line))
+                        continue;
+
+                    HandleOutputLine(line);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // expected on shutdown
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error executing window capture hotkey action: {ex.Message}");
+                Debug.WriteLine($"HotKeyService stdout error: {ex}");
             }
+        }
+
+        private async Task ReadStderrLoopAsync(Process process, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var reader = process.StandardError;
+                if (reader is null)
+                    return;
+
+                using var _reader = reader;
+
+                while (!cancellationToken.IsCancellationRequested && !process.HasExited)
+                {
+                    var line = await _reader.ReadLineAsync(cancellationToken);
+                    if (string.IsNullOrEmpty(line))
+                        continue;
+
+                    Debug.WriteLine($"hotkey-listener stderr: {line}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // expected
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"HotKeyService stderr error: {ex}");
+            }
+        }
+
+        private void HandleOutputLine(string line)
+        {
+            // The provided Swift sample prints "CMD+?" and "OPTION+?" when hotkeys are pressed.
+            // Map those to the registered actions. This can be extended to parse structured JSON.
+            try
+            {
+                var trimmed = line.Trim();
+
+                if (trimmed.Contains("CMD+?", StringComparison.OrdinalIgnoreCase))
+                {
+                    _aiHelpAction?.Invoke();
+                    return;
+                }
+
+                if (trimmed.Contains("OPTION+?", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.Contains("OPT+?", StringComparison.OrdinalIgnoreCase))
+                {
+                    _windowCaptureAction?.Invoke();
+                    return;
+                }
+
+                // If the helper prints something else, try to match heuristics
+                if (trimmed.IndexOf("cmd", StringComparison.OrdinalIgnoreCase) >= 0 && trimmed.IndexOf("?", StringComparison.Ordinal) >= 0)
+                {
+                    _aiHelpAction?.Invoke();
+                    return;
+                }
+
+                if (trimmed.IndexOf("option", StringComparison.OrdinalIgnoreCase) >= 0 && trimmed.IndexOf("?", StringComparison.Ordinal) >= 0)
+                {
+                    _windowCaptureAction?.Invoke();
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"HotKeyService dispatch error: {ex}");
+            }
+        }
+
+        private void OnProcessExited(object? sender, EventArgs e)
+        {
+            Debug.WriteLine("hotkey-listener process exited");
+            // process exited; keep state and allow restart on next Register call
         }
 
         public void Dispose()
         {
-            if (_disposed) return;
-
-            // Unregister all hotkeys
-            UnregisterStartRecordingHotKey();
-            UnregisterWindowCaptureHotKey();
-
-            if (_hotkeyManager != null)
-            {
-                try { _hotkeyManager.Dispose(); } catch { }
-                _hotkeyManager = null;
-            }
-
-            // Dispose any targets
-            if (_startRecordingTarget != null) { try { _startRecordingTarget.Dispose(); } catch { } _startRecordingTarget = null; }
-            if (_windowCaptureTarget != null) { try { _windowCaptureTarget.Dispose(); } catch { } _windowCaptureTarget = null; }
+            if (_disposed)
+                return;
 
             _disposed = true;
-            GC.SuppressFinalize(this);
-        }
 
-        // A tiny NSObject wrapper that stores a managed Action and exposes a selector the native code can call.
-        private sealed class HotkeyTarget : NSObject
-        {
-            private Action? _action;
-
-            public void SetAction(Action action) => _action = action;
-
-            [Export("Invoke")]
-            public void Invoke()
+            try
             {
+                _cts?.Cancel();
+            }
+            catch { }
+
+            if (_process != null)
+            {
+                _process.Exited -= OnProcessExited;
+
                 try
                 {
-                    _action?.Invoke();
+                    if (!_process.HasExited)
+                    {
+                        _process.Kill();
+                        _process.WaitForExit(3000);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error in hotkey target invoke: {ex.Message}");
+                    Debug.WriteLine($"Error killing hotkey-listener: {ex}");
                 }
+
+                _process.Dispose();
+                _process = null;
             }
+
+            _cts?.Dispose();
+            _cts = null;
         }
     }
 }
-
-#endif
