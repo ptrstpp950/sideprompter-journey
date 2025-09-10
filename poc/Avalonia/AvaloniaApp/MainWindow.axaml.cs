@@ -273,21 +273,21 @@ public partial class MainWindow : Window
         if (OperatingSystem.IsMacOS())
         {
             var resourcesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
-                "..", "Resources", "libs", "activeWindowTextGetter", "bin", "activeWindowTextGetter");
+                "..", "Resources", "libs", "activeWindowTextGetter", "activeWindowTextGetter");
             if (File.Exists(resourcesPath))
                 return resourcesPath;
         }
 
         // For regular builds, try the libs directory
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var libsPath = Path.Combine(baseDir, "libs", "activeWindowTextGetter", "bin", "activeWindowTextGetter");
+        var libsPath = Path.Combine(baseDir, "libs", "activeWindowTextGetter", "activeWindowTextGetter");
         
         if (File.Exists(libsPath))
             return libsPath;
 
         // Fallback to looking in the current directory structure
         var currentDir = Directory.GetCurrentDirectory();
-        var projectPath = Path.Combine(currentDir, "libs", "activeWindowTextGetter", "bin", "activeWindowTextGetter");
+        var projectPath = Path.Combine(currentDir, "libs", "activeWindowTextGetter", "activeWindowTextGetter");
         
         if (File.Exists(projectPath))
             return projectPath;
@@ -430,7 +430,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            AiAssistantResponseTextBox.Text = "Loading conversation help...";
+            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = "Loading conversation help..."; });
             // Create a snapshot of the Messages collection to avoid modification during enumeration
             var messagesSnapshot = _chatViewModel.Messages.ToList();
 
@@ -451,7 +451,7 @@ public partial class MainWindow : Window
                 var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
                 //_chatViewModel.ClearMessages();
                 _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
-                AiAssistantResponseTextBox.Text = chatResult;
+                Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = chatResult; });
             }
             else
             {
@@ -461,7 +461,7 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
-            AiAssistantResponseTextBox.Text = $"[AI Context] Error: {e.Message}";
+            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = $"[AI Context] Error: {e.Message}"; });
         }
     }
 
@@ -474,7 +474,7 @@ public partial class MainWindow : Window
                 AddMessage("Window text extraction service not available on this platform.");
                 return;
             }
-            AiAssistantResponseTextBox.Text = "Loading window context help...";
+            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = "Loading window context help..."; });
             var ctx = await _windowTextExtractionService.GetActiveWindowTextAsync();
 
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
@@ -483,7 +483,7 @@ public partial class MainWindow : Window
                 _chatCompletionService.Language = selectedLanguage;
 
                 var result = await _chatCompletionService?.GetWindowHelpCompletionAsync(ctx)!;
-                AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI.";
+                Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI."; });
             }
 
             //AiAssistantResponseTextBox.Text = $"[AI Context] Title: {title}\nContent: {ctx.Result}";
@@ -491,7 +491,7 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
-            AiAssistantResponseTextBox .Text = $"[AI Context] Error: {e.Message}";
+            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = $"[AI Context] Error: {e.Message}"; });
         }
     }
 

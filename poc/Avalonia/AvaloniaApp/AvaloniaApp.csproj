@@ -9,7 +9,7 @@
     <PublishAot>false</PublishAot>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <!-- Recommended Avalonia trimming settings for Native AOT -->
-    <TrimMode>link</TrimMode>
+    <TrimMode Condition="'$(Configuration)' == 'Release'">link</TrimMode>
     <WhisperNetRuntimeVersion>1.8.1</WhisperNetRuntimeVersion>
   </PropertyGroup>
 
@@ -86,12 +86,35 @@
     <BundleResource Include=".env">
       <LogicalName>.env</LogicalName>
     </BundleResource>
+    <!-- Add Swift-built helper binaries into the app Resources -->
+    <BundleResource Include="libs/activeWindowTextGetter/.build/apple/Products/Release/activeWindowTextGetter">
+      <LogicalName>libs/activeWindowTextGetter/activeWindowTextGetter</LogicalName>
+    </BundleResource>
+    <BundleResource Include="libs/hotkeyListener/.build/apple/Products/Release/hotkeyListener">
+      <LogicalName>libs/hotkeyListener/hotkeyListener</LogicalName>
+    </BundleResource>
   </ItemGroup>
 
   <!-- For non-bundle output, copy files to output directory -->
   <ItemGroup>
     <None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
     <None Include=".env" CopyToOutputDirectory="Always" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
+  </ItemGroup>
+
+  <!-- Copy Swift-built helper binaries into the Debug output dir on macOS for local debugging -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$(Configuration)' == 'Debug'">
+    <Content Include="libs/activeWindowTextGetter/.build/apple/Products/Release/activeWindowTextGetter">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>libs/activeWindowTextGetter/activeWindowTextGetter</TargetPath>
+    </Content>
+    <Content Include="libs/hotkeyListener/.build/apple/Products/Release/hotkeyListener">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>libs/hotkeyListener/hotkeyListener</TargetPath>
+    </Content>
+    <Content Include="libs/audioteejs/bin/audiotee">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>libs/audioteejs/bin/audiotee</TargetPath>
+    </Content>
   </ItemGroup>
 
   <Target Name="BuildActiveWindowTextGetter" Condition="$([MSBuild]::IsOSPlatform('OSX'))" BeforeTargets="Build" Inputs="libs/activeWindowTextGetter/Sources/**/*.swift" Outputs="libs/activeWindowTextGetter/.build/apple/Products/Release/activeWindowTextGetter">
@@ -105,5 +128,18 @@
   <Target Name="RemoveMetalFileFromRoot" AfterTargets="_CompileToNative" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <Delete Files="$(OutputPath)$(AssemblyName).app/ggml-metal.metal" />
   </Target>
+
+  <!-- Ensure helper binaries inside the .app bundle are executable -->
+  <Target Name="SetBinariesExecutable" AfterTargets="_CompileToNative" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+  <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/activeWindowTextGetter/activeWindowTextGetter&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/activeWindowTextGetter/activeWindowTextGetter')" />
+  <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/hotkeyListener/hotkeyListener&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/hotkeyListener/hotkeyListener')" />
+  <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/audioteejs/bin/audiotee&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/audioteejs/bin/audiotee')" />
+  </Target>
+
+  <!-- Ensure Swift helper binaries inside the .app bundle are executable -->
+  <!--Target Name="SetSwiftBinariesExecutable" AfterTargets="_CompileToNative" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Exec Command="/bin/bash -lc 'if [ -f \"$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/activeWindowTextGetter/activeWindowTextGetter\" ]; then chmod +x \"$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/activeWindowTextGetter/activeWindowTextGetter\"; fi'" />
+    <Exec Command="/bin/bash -lc 'if [ -f \"$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/hotkeyListener/hotkeyListener\" ]; then chmod +x \"$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/hotkeyListener/hotkeyListener\"; fi'" />
+  </Target-->
 
 </Project>

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
 using Avalonia.Input;
 
 namespace AvaloniaApp.Services.HotKey
@@ -76,11 +77,11 @@ namespace AvaloniaApp.Services.HotKey
 
                 if (!_process.Start())
                 {
+                    _process = null;
                     throw new InvalidOperationException("Failed to start hotkey-listener process");
                 }
 
                 // Fire-and-forget readers
-                _ = Task.Run(() => ReadStdoutLoopAsync(_process, _cts.Token), _cts.Token);
                 _ = Task.Run(() => ReadStderrLoopAsync(_process, _cts.Token), _cts.Token);
             }
             catch (Exception ex)
@@ -96,55 +97,25 @@ namespace AvaloniaApp.Services.HotKey
             if (OperatingSystem.IsMacOS())
             {
                 var resourcesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-                    "..", "Resources", "libs", "hotkey-listener", "bin", "hotkey-listener");
+                    "..", "Resources", "libs", "hotkeyListener", "hotkeyListener");
                 if (File.Exists(resourcesPath))
                     return resourcesPath;
             }
 
             // Try base directory libs
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var libsPath = Path.Combine(baseDir, "libs", "hotkey-listener", "bin", "hotkey-listener");
+            var libsPath = Path.Combine(baseDir, "libs", "hotkeyListener", "hotkeyListener");
             if (File.Exists(libsPath))
                 return libsPath;
 
             // Try current working directory layout (development)
-            var cwdPath = Path.Combine(Directory.GetCurrentDirectory(), "libs", "hotkey-listener", "bin", "hotkey-listener");
+            var cwdPath = Path.Combine(Directory.GetCurrentDirectory(), "libs", "hotkeyListener", "hotkeyListener");
             if (File.Exists(cwdPath))
                 return cwdPath;
 
             // Last resort: rely on PATH
-            return "hotkey-listener";
+            return "hotkeyListener";
         }
-
-        private async Task ReadStdoutLoopAsync(Process process, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var reader = process.StandardOutput;
-                if (reader is null)
-                    return;
-
-                using var _reader = reader;
-
-                while (!cancellationToken.IsCancellationRequested && !process.HasExited)
-                {
-                    var line = await _reader.ReadLineAsync(cancellationToken);
-                    if (string.IsNullOrEmpty(line))
-                        continue;
-
-                    HandleOutputLine(line);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // expected on shutdown
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"HotKeyService stdout error: {ex}");
-            }
-        }
-
         private async Task ReadStderrLoopAsync(Process process, CancellationToken cancellationToken)
         {
             try
@@ -161,7 +132,7 @@ namespace AvaloniaApp.Services.HotKey
                     if (string.IsNullOrEmpty(line))
                         continue;
 
-                    Debug.WriteLine($"hotkey-listener stderr: {line}");
+                    HandleOutputLine(line);
                 }
             }
             catch (OperationCanceledException)
@@ -176,6 +147,15 @@ namespace AvaloniaApp.Services.HotKey
 
         private void HandleOutputLine(string line)
         {
+            if (!line.Contains("[Event]"))
+            {
+                Debug.WriteLine($"hotkey-listener debug info: {line}");
+                return;
+            }
+            else
+            {
+                Debug.WriteLine($"hotkey-listener processing event: {line}");
+            }
             // The provided Swift sample prints "CMD+?" and "OPTION+?" when hotkeys are pressed.
             // Map those to the registered actions. This can be extended to parse structured JSON.
             try
