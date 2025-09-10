@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using AvaloniaApp.Settings;
+using Serilog;
 using System;
 
 namespace AvaloniaApp;
@@ -29,14 +30,14 @@ public partial class App : Application
                     var latest = SettingsService.Load();
                     latest.SetupCompleted = true;
                     SettingsService.Save(latest);
-                    desktop.MainWindow = new MainWindow(latest);
+                    desktop.MainWindow = new MainWindow(latest, Log.Logger);
                     desktop.MainWindow.Show();
                 };
                 wizard.Show();
             }
             else
             {
-                desktop.MainWindow = new MainWindow(settings);
+                desktop.MainWindow = new MainWindow(settings, Log.Logger);
             }
         }
 

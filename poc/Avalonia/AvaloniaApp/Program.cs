@@ -27,7 +27,7 @@ class Program
                 flushToDiskInterval: TimeSpan.Zero
             )
             .CreateLogger();
-
+ 
         try
         {
             Log.Information("Starting application");

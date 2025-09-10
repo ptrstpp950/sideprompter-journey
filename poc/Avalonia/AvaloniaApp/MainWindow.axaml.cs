@@ -16,6 +16,7 @@ using AvaloniaApp.Services;
 using AvaloniaApp.Services.EnableWindowPrivacy;
 using AvaloniaApp.ViewModel;
 using AvaloniaApp.Settings;
+using Serilog;
 
 namespace AvaloniaApp;
 
@@ -39,14 +40,16 @@ public partial class MainWindow : Window
     private ChatHistoryWindow? _chatHistoryWindow;
 
     private readonly AppSettings _settings;
+    private readonly ILogger logger;
     private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
 
-    public MainWindow() : this(null) {}
+    public MainWindow() : this(null, null) {}
 
-    public MainWindow(AppSettings? settings)
+    public MainWindow(AppSettings? settings, ILogger? logger)
     {
         InitializeComponent();
         _settings = settings ?? SettingsService.Load();
+        this.logger = logger ?? Serilog.Log.Logger;
         DataContext = _chatViewModel;
         // Position window top-center with margin from top (e.g., 20px)
         var screen = Screens.Primary;
