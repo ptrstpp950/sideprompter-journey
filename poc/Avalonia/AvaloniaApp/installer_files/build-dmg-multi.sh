@@ -14,7 +14,7 @@ VERSION="0.0.1"
 DMG_NAME="${APP_NAME}-${VERSION}-multi.dmg"
 STAGING_DIR="./bin/dmg-multi-staging"
 PUBLISH_DIR="bin/publish"
-BACKGROUND_IMAGE="installer_background.jpg"
+BACKGROUND_IMAGE="installer_files/installer_background.jpg"
 APP_PROJECT="AvaloniaApp.csproj"
 ENTITLEMENTS="AvaloniaApp.entitlements"
 
