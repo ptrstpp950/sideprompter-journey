@@ -42,6 +42,7 @@ class Program
         finally
         {
             Log.CloseAndFlush();
+            //TODO: think why without this the app hangs on exit
             Environment.Exit(0);
         }
     }
