@@ -42,6 +42,7 @@ class Program
         finally
         {
             Log.CloseAndFlush();
+            Environment.Exit(0);
         }
     }
 
