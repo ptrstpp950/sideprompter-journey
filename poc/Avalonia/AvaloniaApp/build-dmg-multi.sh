@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# This script produces a DMG containing both the x64 and arm64 app bundles
-# (no lipo merging). Each bundle is signed separately. The DMG also contains
-# a tiny launcher script which auto-selects the appropriate bundle for the
-# current machine and a README explaining choices.
+# This script produces a DMG with a guided installer that lets users install
+# the correct app bundle (x64 or arm64) for their machine.
 #
 # Usage:
 #  SIGN_ID="Developer ID Application: Your Name (TEAMID)" ./build-dmg-multi.sh
@@ -39,8 +37,7 @@ if [ -z "${SIGN_ID:-}" ]; then
     exit 1
 fi
 
-# Only run cleanup on error. Previously we also ran cleanup on EXIT which
-# removed the produced DMG even on success. Keep EXIT free so the DMG stays.
+# Only run cleanup on error.
 trap cleanup ERR
 
 echo "Preparing directories..."
@@ -49,7 +46,7 @@ rm -rf "${PUBLISH_DIR}"
 mkdir -p "${STAGING_DIR}"
 mkdir -p "${PUBLISH_DIR}"
 
-echo "Publishing for x64 and arm64 (Release, self-contained)..."
+# The script assumes the apps have been published.
 #dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
 #dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
 
@@ -61,8 +58,7 @@ if [ ! -d "${X64_APP_PATH}" ] && [ ! -d "${ARM_APP_PATH}" ]; then
     exit 1
 fi
 
-# Helper to copy arch-specific runtimes into the app bundle; do NOT merge
-# binaries between archs. Each app bundle keeps only its own arch runtimes.
+# Helper to copy arch-specific runtimes into the app bundle.
 copy_runtimes_for_arch() {
     app_path="$1"
     arch="$2" # expected: macos-x64 or macos-arm64
@@ -74,28 +70,32 @@ copy_runtimes_for_arch() {
     if [ -d "${src_arch_dir}" ]; then
         echo "Copying ${arch} files from ${src_arch_dir} into ${target_dir} for app ${app_path}..."
         mkdir -p "${target_dir}"
-        if command -v rsync >/dev/null 2>&1; then
+        if command -v rsync >/dev/null 2>&1;
+ then
             rsync -a "${src_arch_dir}/" "${target_dir}/" || cp -R "${src_arch_dir}"/* "${target_dir}/" 2>/dev/null || true
         else
-            cp -R "${src_arch_dir}/"* "${target_dir}/" 2>/dev/null || true
+            cp -R "${src_arch_dir}"/* "${target_dir}/" 2>/dev/null || true
         fi
     else
         echo "No ${arch} runtime folder in ${app_path}; skipping."
     fi
 }
 
-STAGED_X64_APP="${STAGING_DIR}/${APP_NAME}-x64.app"
-STAGED_ARM_APP="${STAGING_DIR}/${APP_NAME}-arm64.app"
+# Create a hidden directory inside the staging area for the app bundles
+HIDDEN_APP_DIR="${STAGING_DIR}/.apps"
+mkdir -p "${HIDDEN_APP_DIR}"
+
+STAGED_X64_APP="${HIDDEN_APP_DIR}/${APP_NAME}-x64.app"
+STAGED_ARM_APP="${HIDDEN_APP_DIR}/${APP_NAME}-arm64.app"
 
 if [ -d "${X64_APP_PATH}" ]; then
-    echo "Staging x64 app as ${STAGED_X64_APP}"
+    echo "Staging x64 app to hidden directory..."
     cp -R "${X64_APP_PATH}" "${STAGED_X64_APP}"
-    # copy arch runtimes into staged bundle (keeps only x64 runtimes)
     copy_runtimes_for_arch "${STAGED_X64_APP}" "macos-x64"
 fi
 
 if [ -d "${ARM_APP_PATH}" ]; then
-    echo "Staging arm64 app as ${STAGED_ARM_APP}"
+    echo "Staging arm64 app to hidden directory..."
     cp -R "${ARM_APP_PATH}" "${STAGED_ARM_APP}"
     copy_runtimes_for_arch "${STAGED_ARM_APP}" "macos-arm64"
 fi
@@ -110,21 +110,16 @@ sign_file() {
 sign_bundle() {
     bundle_path="$1"
     echo "Signing nested items in ${bundle_path}..."
-    # 1) Sign native libs under MonoBundle
     if [ -d "${bundle_path}/Contents/MonoBundle" ]; then
         find "${bundle_path}/Contents/MonoBundle" -type f \( -name '*.dylib' -o -name '*.so' -o -name '*.jnilib' \) -print0 | while IFS= read -r -d '' f; do
             sign_file "$f"
         done
     fi
-
-    # 2) Sign framework dylibs
     if [ -d "${bundle_path}/Contents/Frameworks" ]; then
         find "${bundle_path}/Contents/Frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' fw; do
             sign_file "$fw"
         done
     fi
-
-    # 3) Sign executables in Contents/MacOS
     if [ -d "${bundle_path}/Contents/MacOS" ]; then
         find "${bundle_path}/Contents/MacOS" -type f -print0 | while IFS= read -r -d '' exe; do
             if [ -f "$exe" ]; then
@@ -132,8 +127,6 @@ sign_bundle() {
             fi
         done
     fi
-
-    # 4) Final top-level sign (use entitlements if available)
     if [ -f "${ENTITLEMENTS}" ]; then
         echo "Signing ${bundle_path} with entitlements file ${ENTITLEMENTS}"
         codesign --sign "${SIGN_ID}" --options runtime --entitlements "${ENTITLEMENTS}" --timestamp --force "${bundle_path}" || echo "Warning: failed to sign ${bundle_path}"
@@ -141,7 +134,6 @@ sign_bundle() {
         echo "Signing ${bundle_path} without entitlements"
         codesign --sign "${SIGN_ID}" --options runtime --timestamp --force "${bundle_path}" || echo "Warning: failed to sign ${bundle_path}"
     fi
-
     echo "Verification for ${bundle_path}:"
     codesign -dv --verbose=4 "${bundle_path}" || true
 }
@@ -153,42 +145,75 @@ if [ -d "${STAGED_ARM_APP}" ]; then
     sign_bundle "${STAGED_ARM_APP}"
 fi
 
-# Create a small launcher script that auto-selects the right bundle inside the DMG
-LAUNCHER="${STAGING_DIR}/Launch ${APP_NAME}.command"
-cat > "${LAUNCHER}" <<'LAUNCH_SCRIPT'
+# Create the guided installer script
+INSTALLER_SCRIPT="${STAGING_DIR}/Install ${APP_NAME}.command"
+echo "Creating guided installer script at ${INSTALLER_SCRIPT}..."
+cat > "${INSTALLER_SCRIPT}" <<INSTALL_SCRIPT
 #!/bin/bash
-# Auto-launcher: detects host architecture and opens the matching app bundle
-HERE="$(dirname "$0")"
-OS_ARCH="$(uname -m)"
-if [ "$OS_ARCH" = "arm64" ]; then
-    TARGET_APP="$HERE/AvaloniaApp-arm64.app"
+# This script provides a guided installation for the user.
+
+HERE="\$(dirname "\$0")"
+OS_ARCH="\$(uname -m)"
+APP_NAME="${APP_NAME}"
+BUNDLE_ID="${BUNDLE_ID}"
+
+if [ "\$OS_ARCH" = "arm64" ]; then
+    TARGET_APP_NAME="${APP_NAME}-arm64.app"
+    ARCH_FRIENDLY_NAME="Apple Silicon"
 else
-    TARGET_APP="$HERE/AvaloniaApp-x64.app"
+    TARGET_APP_NAME="${APP_NAME}-x64.app"
+    ARCH_FRIENDLY_NAME="Intel"
 fi
-if [ -d "$TARGET_APP" ]; then
-    open "$TARGET_APP"
-else
-    # Fallback: ask user which to open
-    /usr/bin/osascript -e 'set t to {"AvaloniaApp (x64)", "AvaloniaApp (arm64)"}' -e 'choose from list t with prompt "Could not determine correct app; choose which to open:" default items {item 1 of t}' >/dev/null 2>&1
-    # If user selected, try to open the one they picked (handled via dialog above)
+
+TARGET_APP_PATH="\$HERE/.apps/\$TARGET_APP_NAME"
+
+if [ ! -d "\$TARGET_APP_PATH" ]; then
+    /usr/bin/osascript -e "display dialog \"Error: The application bundle for your Mac\'s architecture (\$ARCH_FRIENDLY_NAME) could not be found.\" with icon stop buttons {\"OK\"} default button \"OK\""
+    exit 1
 fi
-LAUNCH_SCRIPT
-chmod +x "${LAUNCHER}"
 
-# Create a README with guidance for users (also helps when DMG is opened)
-cat > "${STAGING_DIR}/README.txt" <<README
-This disk image contains two versions of ${APP_NAME}:
+choice=\$(/usr/bin/osascript <<EOD
+tell application (path to frontmost application as text)
+    set dialogResult to display dialog "Welcome to ${APP_NAME}!\n\nThis will install the correct version for your Mac (\$ARCH_FRIENDLY_NAME)." buttons {"Install", "Run from DMG", "Cancel"} default button "Install" with icon note
+    set buttonReturned to button returned of dialogResult
+    return buttonReturned
+end tell
+EOD
+)
 
-- ${APP_NAME}-x64.app  (for Intel macs)
-- ${APP_NAME}-arm64.app (for Apple Silicon macs)
-
-If you double-click "Launch ${APP_NAME}.command" the DMG will attempt to
-open the correct build automatically for your Mac.
-
-To install, drag the appropriate .app to the Applications folder.
-On modern macs you should use the arm64 build; on Intel-based Macs use the x64 build.
-If unsure, use the launcher to auto-select.
-README
+case "\$choice" in
+    "Install")
+        /usr/bin/osascript -e "display notification \"Installing ${APP_NAME}...\" with title \"${APP_NAME} Installer\""
+        
+        # Use rsync for robust copying. It's pre-installed on macOS.
+        rsync -a "\$TARGET_APP_PATH" "/Applications/"
+        
+        if [ \$? -eq 0 ]; then
+            installed_path="/Applications/\$TARGET_APP_NAME"
+            # Ask to launch the app
+            launch_choice=\$(/usr/bin/osascript <<EOD
+tell application (path to frontmost application as text)
+    display dialog "${APP_NAME} has been successfully installed in your Applications folder." buttons {"Launch App", "OK"} default button "Launch App"
+    return button returned of result
+end tell
+EOD
+)
+            if [ "\$launch_choice" = "Launch App" ]; then
+                open "\$installed_path"
+            fi
+        else
+            /usr/bin/osascript -e 'display dialog "Installation failed.\n\nCould not copy the app to /Applications. You may need to grant permissions or drag it manually from the hidden .apps folder." with icon stop'
+        fi
+        ;;
+    "Run from DMG")
+        open "\$TARGET_APP_PATH"
+        ;;
+    "Cancel")
+        # Do nothing
+        ;;
+esac
+INSTALL_SCRIPT
+chmod +x "${INSTALLER_SCRIPT}"
 
 # Copy background image into staging if present
 if [ -f "${BACKGROUND_IMAGE}" ]; then
@@ -196,8 +221,10 @@ if [ -f "${BACKGROUND_IMAGE}" ]; then
     cp "${BACKGROUND_IMAGE}" "${STAGING_DIR}/.background/background.jpg"
 fi
 
-if ! command -v create-dmg >/dev/null 2>&1; then
-    if command -v brew >/dev/null 2>&1; then
+if ! command -v create-dmg >/dev/null 2>&1;
+ then
+    if command -v brew >/dev/null 2>&1;
+ then
         echo "Installing create-dmg via Homebrew..."
         brew install create-dmg
     else
@@ -206,28 +233,25 @@ if ! command -v create-dmg >/dev/null 2>&1; then
     fi
 fi
 
-echo "Creating DMG with both app bundles and launcher..."
-CREATE_DMG_CMD=(create-dmg
+# Create the DMG with the guided installer
+echo "Creating DMG with guided installer..."
+
+# Build arguments for create-dmg
+DMG_ARGS=(
   --volname "${APP_NAME}"
-)
-if [ -f "${STAGING_DIR}/.background/background.jpg" ]; then
-  CREATE_DMG_CMD+=(--background "${STAGING_DIR}/.background/background.jpg")
-fi
-CREATE_DMG_CMD+=(
   --window-pos 200 120
-  --window-size 800 400
-  --icon-size 100
-  --icon "${APP_NAME}-x64.app" 180 190
-  --icon "${APP_NAME}-arm64.app" 380 190
-  --icon "Launch ${APP_NAME}.command" 280 300
-  --hide-extension "${APP_NAME}-x64.app"
-  --hide-extension "${APP_NAME}-arm64.app"
-  --app-drop-link 600 185
-  "${PUBLISH_DIR}/${DMG_NAME}"
-  "${STAGING_DIR}"
+  --window-size 600 350
+  --icon-size 128
+  --app-drop-link 425 150
+  --icon "Install ${APP_NAME}.command" 175 150
 )
 
-"${CREATE_DMG_CMD[@]}"
+if [ -f "${STAGING_DIR}/.background/background.jpg" ]; then
+  DMG_ARGS+=(--background "${STAGING_DIR}/.background/background.jpg")
+fi
+
+# Execute create-dmg with options and positional arguments
+create-dmg "${DMG_ARGS[@]}" "${PUBLISH_DIR}/${DMG_NAME}" "${STAGING_DIR}"
 
 if [ -f "${PUBLISH_DIR}/${DMG_NAME}" ]; then
     echo "Successfully created ${DMG_NAME} at ${PUBLISH_DIR}"
