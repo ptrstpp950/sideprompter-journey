@@ -12,6 +12,7 @@
     <TrimMode Condition="'$(Configuration)' == 'Release'">link</TrimMode>
     <WhisperNetRuntimeVersion>1.8.1</WhisperNetRuntimeVersion>
     <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
+    <AssemblyName>SidePrompter</AssemblyName>
   </PropertyGroup>
 
   
