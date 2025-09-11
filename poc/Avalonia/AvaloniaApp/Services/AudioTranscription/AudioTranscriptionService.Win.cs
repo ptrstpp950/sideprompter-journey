@@ -1,12 +1,13 @@
 #if WINDOWS
+using AvaloniaApp.Services.TranscriptionService;
+using NAudio.CoreAudioApi;
+using NAudio.Wave;
 using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using AvaloniaApp.Services.TranscriptionService;
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
+using Tmds.DBus.Protocol;
 
 namespace AvaloniaApp.Services.AudioTranscription;
 
@@ -66,7 +67,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
                 var waveIn = new WasapiCapture();
                 _micCapture = new AudioCapture(waveIn, TranscriptionMessageType.Mic, _transcriptionService, token);
                 _micCapture.LogReceived += OnLogReceived;
-                _micCapture.TranscriptionReceived += OnTranscriptionReceived;
+                _micCapture.TranscriptionReceived += OnTranscriptionReceivedWithDelay;
                 _micCapture.Start();
                 Log(MessageType.Info, "Microphone capture started.");
             }
@@ -106,6 +107,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
         return initTask;
     }
 
+
     public Task StopProcessing()
     {
         if (!IsRunning)
@@ -130,6 +132,21 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
         StatusChanged?.Invoke("Audio processing stopped.");
         return Task.CompletedTask;
     }
+
+    private async void OnTranscriptionReceivedWithDelay(TranscriptionMessage obj)
+    {
+        try
+        {
+            await Task.Delay(500); // 500ms delay to reduce overlap
+            OnTranscriptionReceived(obj);
+        }
+        catch (Exception ex)
+        {
+            Log(MessageType.Error, $"Error in OnTranscriptionReceivedWithDelay {ex.Message}.", ex);
+
+        }
+    }
+
 
     private void OnTranscriptionReceived(TranscriptionMessage message)
     { 

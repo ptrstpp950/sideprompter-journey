@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using AvaloniaApp.Settings;
+using OpenAI.VectorStores;
 
 namespace AvaloniaApp.ViewModel;
 
@@ -56,8 +57,21 @@ public class ChatViewModel : INotifyPropertyChanged
 
     public void AddMessage(string text, MessageAuthor author)
     {
+        text = text.Trim();
         if(author == MessageAuthor.Me && Messages.Count>0 && Messages.Last().Text != null && Messages.Last().Text!.Contains(text))
             return;
+        if (author == MessageAuthor.Other && Messages.Count > 0 && Messages.Last().Text != null)
+        {
+            // Remove duplicate
+            var last = Messages.Last().Text ?? "";
+            var overlap = GetOverlap(last, text);
+            if (overlap.Length > 0)
+            {
+                text = text.Substring(overlap.Length).Trim();
+            }
+            if (string.IsNullOrWhiteSpace(text) || text == last)
+                return;
+        }
         Dispatcher.UIThread.InvokeAsync(() =>
         {
             var lastMessage = Messages.LastOrDefault();
@@ -97,6 +111,19 @@ public class ChatViewModel : INotifyPropertyChanged
         {
             LogMessages.Clear();
         });
+    }
+
+    private string GetOverlap(string s1, string s2)
+    {
+        for (int len = Math.Min(s1.Length, s2.Length); len > 0; len--)
+        {
+            string suffix = s1.Substring(s1.Length - len);
+            if (s2.StartsWith(suffix))
+            {
+                return suffix;
+            }
+        }
+        return "";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

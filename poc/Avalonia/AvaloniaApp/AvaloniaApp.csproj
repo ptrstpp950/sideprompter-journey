@@ -96,7 +96,7 @@
 
   <!-- For non-bundle output, copy files to output directory -->
   <ItemGroup>
-    <None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
+    <!--None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" /-->
     <None Include=".env" CopyToOutputDirectory="Always" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
   </ItemGroup>
 

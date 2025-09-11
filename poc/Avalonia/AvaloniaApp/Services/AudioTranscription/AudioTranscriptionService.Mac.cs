@@ -14,7 +14,7 @@ namespace AvaloniaApp.Services.AudioTranscription
         public AudioTranscriptionServiceMac(ITranscriptionService transcriptionService)
         {
             _micAudioTranscriptionService = new MicrophoneTranscriptionService(transcriptionService);
-            _micAudioTranscriptionService.TranscriptionReceived += (msg) => TranscriptionReceived?.Invoke(msg);
+            _micAudioTranscriptionService.TranscriptionReceived += MicAudioTranscriptionServiceOnTranscriptionReceived;
             _micAudioTranscriptionService.LogReceived += (log) => LogReceived?.Invoke(log);
             _micAudioTranscriptionService.StatusChanged += (status) => StatusChanged?.Invoke(status);
 
@@ -24,6 +24,24 @@ namespace AvaloniaApp.Services.AudioTranscription
             _speakerAudioTranscriptionService.StatusChanged += (status) => StatusChanged?.Invoke(status);
 
         }
+
+        private async void MicAudioTranscriptionServiceOnTranscriptionReceived(TranscriptionMessage msg)
+        {
+            try
+            {
+                await Task.Delay(500); // 500ms delay to reduce overlap
+                TranscriptionReceived?.Invoke(msg);
+            }
+            catch (Exception ex)
+            {
+                LogReceived?.Invoke(new LogMessage()
+                {
+                    MessageType = MessageType.Error,
+                    Message = $"Error in OnTranscriptionReceivedWithDelay {ex.Message}.", Context = ex
+                });
+            }
+        }
+
         public event Action<TranscriptionMessage>? TranscriptionReceived;
         public event Action<LogMessage>? LogReceived;
         public event Action<string>? StatusChanged;
