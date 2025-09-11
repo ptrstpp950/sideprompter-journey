@@ -5,7 +5,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using AvaloniaApp.Settings;
-using OpenAI.VectorStores;
 
 namespace AvaloniaApp.ViewModel;
 
