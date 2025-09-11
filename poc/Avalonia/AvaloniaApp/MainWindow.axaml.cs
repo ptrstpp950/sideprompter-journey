@@ -30,7 +30,9 @@ public partial class MainWindow : Window
     private DateTime? _startedAt; 
     private readonly DispatcherTimer _elapsedTimer = new() { Interval = TimeSpan.FromSeconds(1)}; 
     private readonly IHotKeyService? _hotKeyService;
+#if MACOS || OSX || MACCATALYST
     private readonly IMacOsPermissionsService? _macOsPermissionsService;
+#endif
     private bool _isWindowProtected = true;
 
     // Settings window (singleton per main window lifetime)
@@ -342,6 +344,9 @@ public partial class MainWindow : Window
 
         StopIcon.IsVisible = !startIconVisible;
         AiAssistantResponseTextBox.IsVisible = !startIconVisible;
+
+        SettingsButton.IsVisible = startIconVisible;
+        
     }
 
     private async void ToggleButton_OnChecked(object? sender, RoutedEventArgs e)
@@ -647,5 +652,15 @@ public partial class MainWindow : Window
         _chatViewModel.AddLogMessage("[Permissions] This feature is only available on macOS.");
         await Task.CompletedTask;
 #endif
+    }
+
+    private void AskAiButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        OnAiHelpNeededPressed();
+    }
+
+    private void AddContextButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        OnAiContextHelpPressed();
     }
 }
