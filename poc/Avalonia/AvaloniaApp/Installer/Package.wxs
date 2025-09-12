@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+    <Package Name="SidePrompter" Manufacturer="SidePrompter.com" Version="0.0.1" UpgradeCode="689df884-79ae-4fee-9e28-a4ec6f166e6b">
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+        <MediaTemplate EmbedCab="yes" />
+        <StandardDirectory Id="ProgramFiles6432Folder">
+            <Directory Id="INSTALLFOLDER" Name="SidePrompter" />
+        </StandardDirectory>
+
+        <StandardDirectory Id="ProgramMenuFolder">
+            <Directory Id="ApplicationProgramsFolder" Name="SidePrompter"/>
+        </StandardDirectory>
+
+        <Feature Id="Main">
+            <ComponentGroupRef Id="App.Components" />
+            <ComponentRef Id="App.Shortcut" />
+        </Feature>
+
+    <ui:WixUI Id="WixUI_InstallDir" />
+
+        <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    </Package>
+
+    <!-- Reference the standard UI dialogs (InstallDir) -->
+    <Fragment>
+        <UIRef Id="WixUI_InstallDir" />
+    </Fragment>
+
+    <Fragment>
+        <ComponentGroup Id="App.Components" Directory="INSTALLFOLDER">
+            <Component>
+                <File Id="SidePrompter.exe" Source="..\bin\publish\SidePrompter.exe" />
+            </Component>
+        </ComponentGroup>
+    </Fragment>
+
+    <!-- Custom action to launch the installed application after successful install -->
+    <Fragment>
+        <!-- Use FileRef to point at the installed executable file and run it with no arguments -->
+        <CustomAction Id="LaunchAppAfterInstall"
+                      FileRef="SidePrompter.exe"
+                      ExeCommand=""
+                      Execute="commit"
+                      Impersonate="no"
+                      Return="asyncNoWait" />
+
+        <!-- Schedule the custom action to run after InstallFinalize on fresh install only -->
+        <InstallExecuteSequence>
+            <Custom Action="LaunchAppAfterInstall" After="InstallFinalize" Condition="NOT Installed AND WIXUI_EXITDIALOGOPTIONALCHECKBOX=1" />
+        </InstallExecuteSequence>
+    </Fragment>
+
+    <!-- Use standard WixUI properties to add an optional checkbox on the Exit/Finish dialog -->
+    <Fragment>
+        <!-- If this property is present, WixUI will show an optional checkbox on the Exit dialog. Default checked (1) -->
+        <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+        <!-- The label text for the optional checkbox -->
+        <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch SidePrompter" />
+    </Fragment>
+
+    <Fragment>
+        <Component Id="App.Shortcut" Directory="ApplicationProgramsFolder">
+            <Shortcut Id="AppShortcut"
+                      Name="SidePrompter"
+                      Target="[INSTALLFOLDER]SidePrompter.exe"
+                      WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
+            <RegistryValue Root="HKCU" Key="Software\SidePrompter\SidePrompter" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+    </Fragment>
+
+    
+</Wix>
