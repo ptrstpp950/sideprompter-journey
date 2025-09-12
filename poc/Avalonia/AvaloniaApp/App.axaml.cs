@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using AvaloniaApp.Settings;
+using AvaloniaApp.Services.Notification;
 using Serilog;
 using System;
 
@@ -10,6 +11,7 @@ namespace AvaloniaApp;
 
 public partial class App : Application
 {
+    public static NotificationService Notifications { get; private set; } = null!;
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -21,6 +23,7 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            Notifications = new NotificationService();
             var settings = SettingsService.Load();
             if (!settings.SetupCompleted)
             {

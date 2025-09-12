@@ -71,6 +71,12 @@
                         <TextBlock Text="Add Ctx (Alt+?)" Foreground="#cbd5e1" FontSize="11"/>
                     </StackPanel>
                 </Button>
+                <Button x:Name="NotifyTestButton" Classes="HeaderChip" Height="36" ToolTip.Tip="Show Test Notification" Click="NotifyTestButton_OnClick">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <heroIcons:HeroIcon Type="Bell" Foreground="#38bdf8" Width="16" Height="16" Kind="Solid" />
+                        <TextBlock Text="Notify" Foreground="#cbd5e1" FontSize="11"/>
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </DockPanel>
         <!-- Prompt selection row -->

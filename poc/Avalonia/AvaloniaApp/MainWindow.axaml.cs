@@ -459,7 +459,8 @@ public partial class MainWindow : Window
                 var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
                 //_chatViewModel.ClearMessages();
                 _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
-                Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = chatResult; });
+                //Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = chatResult; });
+                App.Notifications.Show(chatResult);
             }
             else
             {
@@ -491,7 +492,8 @@ public partial class MainWindow : Window
                 _chatCompletionService.Language = selectedLanguage;
 
                 var result = await _chatCompletionService?.GetWindowHelpCompletionAsync(ctx)!;
-                Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI."; });
+                //Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = result ?? "[AI Context] No response from AI."; });
+                App.Notifications.Show(result ?? "[AI Context] No response from AI.");
             }
 
             //AiAssistantResponseTextBox.Text = $"[AI Context] Title: {title}\nContent: {ctx.Result}";
@@ -662,5 +664,17 @@ public partial class MainWindow : Window
     private void AddContextButton_OnClick(object? sender, RoutedEventArgs e)
     {
         OnAiContextHelpPressed();
+    }
+
+    private void NotifyTestButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            App.Notifications.Show($"Notification at {DateTime.Now:HH:mm:ss} Lorem Ipsum jest tekstem stosowanym jako przykładowy wypełniacz w przemyśle poligraficznym. Został po raz pierwszy użyty w XV w. przez nieznanego drukarza do wypełnienia tekstem próbnej książki. Pięć wieków później zaczął być używany przemyśle elektronicznym, pozostając praktycznie niezmienionym. Spopularyzował się w latach 60. XX w. wraz z publikacją arkuszy Letrasetu, zawierających fragmenty Lorem Ipsum, a ostatnio z zawierającym różne wersje Lorem Ipsum oprogramowaniem przeznaczonym do realizacji druków na komputerach osobistych, jak Aldus PageMaker", TimeSpan.FromSeconds(50));
+        }
+        catch (Exception ex)
+        {
+            _chatViewModel.AddLogMessage($"[Notify] {ex.Message}");
+        }
     }
 }
