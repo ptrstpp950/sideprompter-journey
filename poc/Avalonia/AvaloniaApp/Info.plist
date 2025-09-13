@@ -9,11 +9,11 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>CFBundleExecutable</key>
-	<string>AvaloniaApp</string>
+	<string>SidePrompter</string>
 	<key>CFBundleName</key>
-	<string>AvaloniaApp</string>
+	<string>SidePrompter</string>
 	<key>CFBundleDisplayName</key>
-	<string>Avalonia App</string>
+	<string>SidePrompter</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSAudioCaptureUsageDescription</key>
@@ -25,7 +25,7 @@
     <key>NSAppleEventsUsageDescription</key>
     <string>This application requires permission to send Apple Events to other applications for system audio recording.</string>
 	<key>CFBundleIconFile</key>
-	<string>Icon.icns</string>
+	<string>icon.icns</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>LSUIElement</key>

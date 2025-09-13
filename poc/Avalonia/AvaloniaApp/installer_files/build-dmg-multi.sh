@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-APP_NAME="AvaloniaApp"
+APP_NAME="SidePrompter"
 BUNDLE_ID="com.sideprompter.app"
 VERSION="0.0.1"
 DMG_NAME="${APP_NAME}-${VERSION}-multi.dmg"
@@ -16,7 +16,7 @@ STAGING_DIR="./bin/dmg-multi-staging"
 PUBLISH_DIR="bin/publish"
 BACKGROUND_IMAGE="installer_files/installer_background.jpg"
 APP_PROJECT="AvaloniaApp.csproj"
-ENTITLEMENTS="AvaloniaApp.entitlements"
+ENTITLEMENTS="SidePrompter.entitlements"
 
 X64_OUTPUT="./bin/Release/net9.0-macos/osx-x64"
 ARM_OUTPUT="./bin/Release/net9.0-macos/osx-arm64"

@@ -11,12 +11,17 @@ namespace AvaloniaApp;
 public partial class NotificationWindow : Window
 {
     private TimeSpan? _autoClose;
+
+    public NotificationWindow(): this("Empty notification")
+    {
+    }
+    
     public NotificationWindow(string message, TimeSpan? autoClose = null)
     {
         InitializeComponent();
         _autoClose = autoClose;
-    var tb = this.FindControl<TextBlock>("MessageText");
-    if (tb != null) tb.Text = message;
+        var tb = this.FindControl<TextBlock>("MessageText");
+        if (tb != null) tb.Text = message;
         Opened += NotificationWindow_Opened;
     }
 

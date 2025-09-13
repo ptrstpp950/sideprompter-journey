@@ -60,8 +60,8 @@
     <None Include="Info.plist">
       <Link>Info.plist</Link>
     </None>
-    <None Include="AvaloniaApp.entitlements">
-      <Link>AvaloniaApp.entitlements</Link>
+    <None Include="SidePrompter.entitlements">
+      <Link>SidePrompter.entitlements</Link>
     </None>
   </ItemGroup>
 
@@ -78,6 +78,10 @@
     <!-- Use BundleResource for macOS app bundle -->
     <BundleResource Include="libs/audioteejs/bin/audiotee">
       <LogicalName>libs/audioteejs/bin/audiotee</LogicalName>
+    </BundleResource>
+    <!-- App icon: ensure the .icns is bundled into the .app/Contents/Resources -->
+    <BundleResource Include="Assets/icon.icns">
+      <LogicalName>icon.icns</LogicalName>
     </BundleResource>
     <!-- Add ggml-metal.metal as a BundleResource to fix code signing issue -->
     <BundleResource Include="$(NuGetPackageRoot)whisper.net.runtime/$(WhisperNetRuntimeVersion)/build/ggml-metal.metal">

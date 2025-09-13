@@ -9,7 +9,7 @@
 set -euo pipefail
 
 # --- Configuration ---
-APP_NAME="AvaloniaApp"
+APP_NAME="SidePrompter"
 BUNDLE_ID="com.sideprompter.app"
 VERSION="0.0.1"
 DMG_NAME="${APP_NAME}-${VERSION}-compact.dmg"
@@ -18,7 +18,7 @@ PUBLISH_DIR="bin/publish"
 BACKGROUND_IMAGE="installer_files/installer_background.jpg"
 BACKGROUND_IMAGE_DS_STORE="installer_files/installer-DS_Store" # Example of ignoring a file
 APP_PROJECT="AvaloniaApp.csproj"
-ENTITLEMENTS="AvaloniaApp.entitlements"
+ENTITLEMENTS="SidePrompter.entitlements"
 
 # Paths to pre-built x64 and arm64 app bundles
 X64_OUTPUT="./bin/Release/net9.0-macos/osx-x64"
@@ -73,8 +73,8 @@ mkdir -p "${SHARED_DIR}"
 echo "Creating Info.plist and launcher script..."
 cp "${ARM_APP_PATH}/Contents/Info.plist" "${WRAPPER_APP_PATH}/Contents/Info.plist"
 plutil -replace CFBundleExecutable -string "launcher" "${WRAPPER_APP_PATH}/Contents/Info.plist"
-if [ -f "${ARM_APP_PATH}/Contents/Resources/AppIcon.icns" ]; then
-    cp "${ARM_APP_PATH}/Contents/Resources/AppIcon.icns" "${WRAPPER_APP_PATH}/Contents/Resources/AppIcon.icns"
+if [ -f "${ARM_APP_PATH}/Contents/Resources/icon.icns" ]; then
+    cp "${ARM_APP_PATH}/Contents/Resources/icon.icns" "${WRAPPER_APP_PATH}/Contents/Resources/icon.icns"
 fi
 
 # Prepare DMG background if provided
