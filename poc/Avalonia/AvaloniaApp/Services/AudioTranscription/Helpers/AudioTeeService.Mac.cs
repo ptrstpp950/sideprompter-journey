@@ -202,21 +202,21 @@ public class AudioTeeService : IDisposable
         if (OperatingSystem.IsMacOS())
         {
             var resourcesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
-                "..", "Resources", "libs", "audioteejs", "bin", "audiotee");
+                "..", "Resources", "libs", "audiotee", "bin", "audiotee");
             if (File.Exists(resourcesPath))
                 return resourcesPath;
         }
 
         // For regular builds, try the libs directory
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var libsPath = Path.Combine(baseDir, "libs", "audioteejs", "bin", "audiotee");
+        var libsPath = Path.Combine(baseDir, "libs", "audiotee", "bin", "audiotee");
         
         if (File.Exists(libsPath))
             return libsPath;
 
         // Fallback to looking in the current directory structure
         var currentDir = Directory.GetCurrentDirectory();
-        var projectPath = Path.Combine(currentDir, "libs", "audioteejs", "bin", "audiotee");
+        var projectPath = Path.Combine(currentDir, "libs", "audiotee", "bin", "audiotee");
         
         if (File.Exists(projectPath))
             return projectPath;

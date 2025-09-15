@@ -76,8 +76,8 @@
   <!-- For macOS app bundles, copy resources to Resources folder -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <!-- Use BundleResource for macOS app bundle -->
-    <BundleResource Include="libs/audioteejs/bin/audiotee">
-      <LogicalName>libs/audioteejs/bin/audiotee</LogicalName>
+    <BundleResource Include="libs/audiotee/bin/audiotee">
+      <LogicalName>libs/audiotee/bin/audiotee</LogicalName>
     </BundleResource>
     <!-- App icon: ensure the .icns is bundled into the .app/Contents/Resources -->
     <BundleResource Include="Assets/icon.icns">
@@ -102,7 +102,7 @@
 
   <!-- For non-bundle output, copy files to output directory -->
   <ItemGroup>
-    <!--None Include="libs/audioteejs/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audioteejs/bin/audiotee" Visible="false" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" /-->
+    <!--None Include="libs/audiotee/bin/audiotee" CopyToOutputDirectory="PreserveNewest" TargetPath="libs/audiotee/bin/audiotee" Visible="false" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" /-->
     <None Include=".env" CopyToOutputDirectory="Always" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
   </ItemGroup>
 
@@ -116,9 +116,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <TargetPath>libs/hotkeyListener/hotkeyListener</TargetPath>
     </Content>
-    <Content Include="libs/audioteejs/bin/audiotee">
+    <Content Include="libs/audiotee/bin/audiotee">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>libs/audioteejs/bin/audiotee</TargetPath>
+      <TargetPath>libs/audiotee/bin/audiotee</TargetPath>
     </Content>
   </ItemGroup>
 
@@ -138,7 +138,7 @@
   <Target Name="SetBinariesExecutable" AfterTargets="_CompileToNative" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
   <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/activeWindowTextGetter/activeWindowTextGetter&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/activeWindowTextGetter/activeWindowTextGetter')" />
   <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/hotkeyListener/hotkeyListener&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/hotkeyListener/hotkeyListener')" />
-  <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/audioteejs/bin/audiotee&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/audioteejs/bin/audiotee')" />
+  <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/audiotee/bin/audiotee&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/audiotee/bin/audiotee')" />
   </Target>
 
   <!-- Copy Whisper.NET native runtime files into the app bundle MonoBundle so the runtime finds them -->

@@ -137,7 +137,7 @@ if [ "${SIGN_LIBS}" != "0" ]; then
     done
 
     # Sign audiotee script/binary if present
-    AUDIO_TEE_BIN="libs/audioteejs/bin/audiotee"
+    AUDIO_TEE_BIN="libs/audiotee/bin/audiotee"
     sign_local_file "${AUDIO_TEE_BIN}"
 fi
 
