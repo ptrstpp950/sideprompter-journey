@@ -66,12 +66,12 @@
   </ItemGroup>
 
   <!-- Copy Whisper.NET native libraries to the correct location for macOS -->
-  <!--ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <Content Include="$(NuGetPackageRoot)whisper.net.runtime/$(WhisperNetRuntimeVersion)/runtimes/$(RuntimeIdentifier)/native/*.*">
       <Link>%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-  </ItemGroup-->
+  </ItemGroup>
 
   <!-- For macOS app bundles, copy resources to Resources folder -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
@@ -139,6 +139,18 @@
   <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/activeWindowTextGetter/activeWindowTextGetter&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/activeWindowTextGetter/activeWindowTextGetter')" />
   <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/hotkeyListener/hotkeyListener&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/hotkeyListener/hotkeyListener')" />
   <Exec Command="chmod +x &quot;$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/audioteejs/bin/audiotee&quot;" Condition="Exists('$(OutputPath)$(AssemblyName).app/Contents/Resources/libs/audioteejs/bin/audiotee')" />
+  </Target>
+
+  <!-- Copy Whisper.NET native runtime files into the app bundle MonoBundle so the runtime finds them -->
+  <Target Name="CopyWhisperNativeToMonoBundle" Condition="$([MSBuild]::IsOSPlatform('OSX'))" AfterTargets="_CompileToNative">
+    <!-- Collect native files from the NuGet package for all runtime directories (macos-arm64, macos-x64, etc.) -->
+    <ItemGroup>
+      <WhisperNativeFiles Include="$(NuGetPackageRoot)whisper.net.runtime/$(WhisperNetRuntimeVersion)/runtimes/**/native/*.*" />
+    </ItemGroup>
+    <!-- Copy each native file into Contents/MonoBundle/runtimes/<rid>/ so the layout matches what the runtime expects -->
+    <Copy SourceFiles="@(WhisperNativeFiles)"
+          DestinationFiles="@(WhisperNativeFiles->'$(OutputPath)$(AssemblyName).app/Contents/MonoBundle/runtimes/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
   </Target>
 
   <!-- Ensure Swift helper binaries inside the .app bundle are executable -->

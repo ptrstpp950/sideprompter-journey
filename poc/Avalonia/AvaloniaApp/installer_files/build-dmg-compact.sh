@@ -4,7 +4,12 @@
 # sharing common .dll files between the x64 and arm64 bundles using symlinks.
 #
 # Usage:
-#  SIGN_ID="Developer ID Application: Your Name (TEAMID)" ./build-dmg-compact.sh
+#  SIGN_ID="Developer ID Application: Your Name (TEAMID)" ./build-dmg-compact.sh [--no-publish|--skip-publish] [--publish] [-h|--help]
+#
+# Options:
+#  --no-publish, --skip-publish   Skip running `dotnet publish` (use existing builds)
+#  --publish                      Force running `dotnet publish` (default behavior)
+#  -h, --help                     Show this help and exit
 
 set -euo pipefail
 
@@ -19,6 +24,53 @@ BACKGROUND_IMAGE="installer_files/installer_background.jpg"
 BACKGROUND_IMAGE_DS_STORE="installer_files/installer-DS_Store" # Example of ignoring a file
 APP_PROJECT="AvaloniaApp.csproj"
 ENTITLEMENTS="SidePrompter.entitlements"
+
+# Control whether this script runs `dotnet publish` (default: run).
+# Set RUN_PUBLISH=0 or RUN_PUBLISH=false to skip publishing when you already
+# have prebuilt app bundles in the expected output folders.
+RUN_PUBLISH="${RUN_PUBLISH:-1}"
+
+# Parse command-line arguments to allow overriding RUN_PUBLISH.
+print_help() {
+    sed -n '1,120p' "$0" | sed -n '1,40p' >/dev/stderr || true
+    cat <<'HELP'
+
+Examples:
+  # Run and publish (default)
+  SIGN_ID="..." ./build-dmg-compact.sh
+
+  # Skip publishing and use prebuilt app bundles
+  SIGN_ID="..." ./build-dmg-compact.sh --no-publish
+
+HELP
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --no-publish|--skip-publish)
+            RUN_PUBLISH=0
+            ;;
+        --publish)
+            RUN_PUBLISH=1
+            ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
+        *)
+            # Unknown args are ignored so existing usage still works
+            ;;
+    esac
+done
+
+# Credentials for create-dmg notarization. THIS IS REQUIRED — the script
+# will exit if this variable is not set. create-dmg will be called with
+# --notarize "${NOTARIZE_CREDENTIALS}" which submits the resulting DMG to
+# Apple's notarization service, waits for completion, and staples the result.
+# Example values:
+#  - "you@apple.com:APP_SPECIFIC_PASSWORD"
+#  - "@keychain:AC_PASSWORD" (if you store the password in keychain)
+NOTARIZE_CREDENTIALS="${NOTARIZE_CREDENTIALS:-}"
 
 # Paths to pre-built x64 and arm64 app bundles
 X64_OUTPUT="./bin/Release/net9.0-macos/osx-x64"
@@ -53,9 +105,71 @@ rm -rf "${PUBLISH_DIR}"
 mkdir -p "${STAGING_DIR}"
 mkdir -p "${PUBLISH_DIR}"
 
-# The script assumes the apps have been published.
-dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
-dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
+# Optionally build and sign helper/native libraries located in `libs/`.
+# Set SIGN_LIBS=0 to skip this step (default: 1).
+SIGN_LIBS="${SIGN_LIBS:-1}"
+
+if [ "${SIGN_LIBS}" != "0" ]; then
+    echo "Building and signing helper binaries in libs/ (activeWindowTextGetter, hotkeyListener, audiotee)..."
+
+    sign_local_file() {
+        fpath="$1"
+        if [ -f "${fpath}" ]; then
+            echo "Signing local file: ${fpath}"
+            chmod +x "${fpath}" || true
+            codesign --sign "${SIGN_ID}" --options runtime --timestamp --force "${fpath}" || echo "Warning: failed to sign ${fpath}"
+        else
+            echo "Info: file not found, skipping: ${fpath}"
+        fi
+    }
+
+    # Build and sign Swift executable targets (if Swift is available)
+    for pkg in activeWindowTextGetter hotkeyListener; do
+        pkgdir="libs/${pkg}"
+        if [ -d "${pkgdir}" ]; then
+            echo "Building Swift package: ${pkgdir}"
+            (cd "${pkgdir}" && swift build -c release) || echo "Warning: swift build failed for ${pkgdir}"
+            binpath="${pkgdir}/.build/release/${pkg}"
+            sign_local_file "${binpath}"
+        else
+            echo "Info: package directory not found, skipping: ${pkgdir}"
+        fi
+    done
+
+    # Sign audiotee script/binary if present
+    AUDIO_TEE_BIN="libs/audioteejs/bin/audiotee"
+    sign_local_file "${AUDIO_TEE_BIN}"
+fi
+
+# Notarization credentials are required for distribution. Fail early if missing.
+if [ -z "${NOTARIZE_CREDENTIALS}" ]; then
+        echo "Error: NOTARIZE_CREDENTIALS is not set. This script requires create-dmg notarization credentials to be set in NOTARIZE_CREDENTIALS."
+        echo "Example: export NOTARIZE_CREDENTIALS=\"you@apple.com:APP_SPECIFIC_PASSWORD\""
+        echo "If you want to store credentials with Apple's notarytool, you can run the following one-time command to store them in your keychain:"
+        cat <<'CMD'
+xcrun notarytool store-credentials \
+    --apple-id "TODO_YOUR_APPLE_ID" \
+    --password "TODO_ONE_TIME_PASSWORD_FROM_APPLE" \
+    --team-id "TODO_YOUR_TEAM_ID" \
+    appleid-notarytool
+
+# After storing, set NOTARIZE_CREDENTIALS to reference the keychain entry:
+# export NOTARIZE_CREDENTIALS="@keychain:appleid-notarytool"
+CMD
+        exit 1
+fi
+
+# The script assumes the apps have been published. By default this script will
+# call `dotnet publish` for x64 and arm64. To skip publishing (e.g. when you
+# already have builds in ${PUBLISH_DIR}), set RUN_PUBLISH=0 or RUN_PUBLISH=false
+# in the environment before running the script.
+if [ "${RUN_PUBLISH}" = "0" ] || [ "${RUN_PUBLISH}" = "false" ]; then
+    echo "Skipping dotnet publish because RUN_PUBLISH=${RUN_PUBLISH}"
+else
+    echo "Publishing x64 and arm64 builds to ${X64_OUTPUT} and ${ARM_OUTPUT}..."
+    dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-x64 -o "${X64_OUTPUT}"
+    dotnet publish "${APP_PROJECT}" -c Release --self-contained -r osx-arm64 -o "${ARM_OUTPUT}"
+fi
 
 
 if [ ! -d "${X64_APP_PATH}" ] || [ ! -d "${ARM_APP_PATH}" ]; then
@@ -149,27 +263,60 @@ done
 sign_file() {
     fpath="$1"
     echo "Signing: ${fpath}"
+    # Ensure executable bit when signing executables/scripts
+    if [ -f "${fpath}" ]; then
+        chmod +x "${fpath}" || true
+    fi
     codesign --sign "${SIGN_ID}" --options runtime --timestamp --force "${fpath}" || echo "Warning: failed to sign ${fpath}"
-}
-sign_bundle() {
-    bundle_path="$1"
-    echo "Signing nested items in ${bundle_path}..."
-    # This function is simplified as we assume a standard .NET bundle structure
-    # It signs all found native libraries and the main executable
-    find "${bundle_path}" -type f '(' -name '*.dylib' -o -name '*.so' -o -name '*.jnilib' ')' -print0 | while IFS= read -r -d '' f; do
-        sign_file "$f"
-    done
-    find "${bundle_path}/Contents/MacOS" -type f -print0 | while IFS= read -r -d '' exe; do
-        if [ -f "$exe" ]; then sign_file "$exe"; fi
-    done
-    if [ -f "${ENTITLEMENTS}" ]; then
-        codesign --sign "${SIGN_ID}" --options runtime --entitlements "${ENTITLEMENTS}" --timestamp --force "${bundle_path}"
-    else
-        codesign --sign "${SIGN_ID}" --options runtime --timestamp --force "${bundle_path}"
+    # Verify signature (non-fatal)
+    if [ -f "${fpath}" ]; then
+        codesign --verify --verbose=4 "${fpath}" 2>/dev/null || echo "Warning: verification failed for ${fpath}"
     fi
 }
 
-echo "Signing inner bundles (with symlinks)"...
+sign_bundle() {
+    bundle_path="$1"
+    echo "Signing nested items in ${bundle_path}..."
+
+    # Sign common native libraries
+    find "${bundle_path}" -type f \( -name '*.dylib' -o -name '*.so' -o -name '*.jnilib' \) -print0 | while IFS= read -r -d '' f; do
+        sign_file "$f"
+    done
+
+    # Sign executables in Contents/MacOS
+    if [ -d "${bundle_path}/Contents/MacOS" ]; then
+        find "${bundle_path}/Contents/MacOS" -type f -print0 | while IFS= read -r -d '' exe; do
+            [ -f "$exe" ] && sign_file "$exe"
+        done
+    fi
+
+    # Sign any executable files anywhere under Resources (helps catch helper binaries)
+    if [ -d "${bundle_path}/Contents/Resources" ]; then
+        find "${bundle_path}/Contents/Resources" -type f -perm -111 -print0 | while IFS= read -r -d '' execf; do
+            echo "Found executable in Resources: ${execf}"
+            sign_file "${execf}"
+        done
+
+        # Additionally sign known helper binary names even if execute bit isn't set yet
+        find "${bundle_path}/Contents/Resources" -type f \( -name 'activeWindowTextGetter' -o -name 'hotkeyListener' -o -name 'audiotee' \) -print0 | while IFS= read -r -d '' helper; do
+            echo "Found helper binary: ${helper}"
+            chmod +x "${helper}" || true
+            sign_file "${helper}"
+        done
+    fi
+
+    # Finally sign the bundle itself (with entitlements if provided)
+    if [ -f "${ENTITLEMENTS}" ]; then
+        codesign --sign "${SIGN_ID}" --options runtime --entitlements "${ENTITLEMENTS}" --timestamp --force "${bundle_path}" || echo "Warning: failed to sign bundle ${bundle_path}"
+    else
+        codesign --sign "${SIGN_ID}" --options runtime --timestamp --force "${bundle_path}" || echo "Warning: failed to sign bundle ${bundle_path}"
+    fi
+
+    # Verify bundle signature (non-fatal)
+    codesign --verify --deep --verbose=4 "${bundle_path}" 2>/dev/null || echo "Warning: bundle verification failed for ${bundle_path}"
+}
+
+echo "Signing inner bundles (with symlinks)"
 sign_bundle "${ARM_RESOURCES_APP_PATH}"
 sign_bundle "${X64_RESOURCES_APP_PATH}"
 
@@ -188,6 +335,13 @@ spctl -a -vv "${WRAPPER_APP_PATH}" || true
 
 # --- Create DMG ---
 echo "Creating final DMG..."
+# Build create-dmg arguments and optionally include notarization credentials
+NOTARIZE_ARG=()
+if [ -n "${NOTARIZE_CREDENTIALS}" ]; then
+    echo "Will request notarization via create-dmg using provided credentials"
+    NOTARIZE_ARG=(--notarize "${NOTARIZE_CREDENTIALS}")
+fi
+
 if [ -f "${STAGING_DIR}/.background/background.jpg" ]; then
     create-dmg \
         --volname "${APP_NAME}" \
@@ -199,6 +353,8 @@ if [ -f "${STAGING_DIR}/.background/background.jpg" ]; then
         --background "${STAGING_DIR}/.background/background.jpg" \
         "${PUBLISH_DIR}/${DMG_NAME}" \
         "${STAGING_DIR}"
+        #"${NOTARIZE_ARG[@]}" \
+        
 else
     create-dmg \
         --volname "${APP_NAME}" \
@@ -207,6 +363,7 @@ else
         --icon-size 128 \
         --app-drop-link 425 150 \
         --icon "${APP_NAME}.app" 175 150 \
+        "${NOTARIZE_ARG[@]}" \
         "${PUBLISH_DIR}/${DMG_NAME}" \
         "${STAGING_DIR}"
 fi
