@@ -510,3 +510,6 @@ models/
 
 # Environment variables
 .env
+
+# Audiotee binaries
+!/libs/audiotee/bin/*
