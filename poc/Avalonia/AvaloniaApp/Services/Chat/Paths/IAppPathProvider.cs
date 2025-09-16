@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 
 namespace AvaloniaApp.Services.Chat;
@@ -12,19 +13,10 @@ public class AppPathProvider : IAppPathProvider
 {
     public string GetAppDataDirectory()
     {
-        string baseDir;
-#if WINDOWS
-        baseDir = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
-        var path = Path.Combine(baseDir, "SidePrompter");
-#elif MACOS || OSX || MACCATALYST
-        baseDir = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData);
-        var path = Path.Combine(baseDir, "Application Support", "SidePrompter");
-#else
-        baseDir = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData);
-        var path = Path.Combine(baseDir, "SidePrompter");
-#endif
-        Directory.CreateDirectory(path);
-        return path;
+        var appSupport = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var dir = Path.Combine(appSupport, "SidePrompter");
+        Directory.CreateDirectory(dir);
+        return dir;
     }
 
     public string GetChatsDirectory()
