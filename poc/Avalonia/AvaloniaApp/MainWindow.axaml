@@ -53,9 +53,6 @@
                 <Button x:Name="SettingsButton" Classes="IconButton" Width="40" Height="36" Click="SettingsButton_OnClick" ToolTip.Tip="Settings">
                     <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#9ca3af" Kind="Solid" />
                 </Button>
-                <Button x:Name="AccessibilityButton" Classes="IconButton" Width="40" Height="36" Click="AccessibilityButton_OnClick" ToolTip.Tip="Request Accessibility Permission">
-                    <heroIcons:HeroIcon Type="Key" Foreground="#fbbf24" Kind="Solid" />
-                </Button>
                 <Button x:Name="HistoryButton" Classes="IconButton" Width="40" Height="36" Click="HistoryButton_OnClick" ToolTip.Tip="History">
                     <heroIcons:HeroIcon Type="ChatBubbleLeftRight" Foreground="#60a5fa" Kind="Solid" />
                 </Button>
@@ -69,12 +66,6 @@
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="PlusCircle" Foreground="#10b981" Width="16" Height="16" Kind="Solid" />
                         <TextBlock Text="Add Ctx (Alt+?)" Foreground="#cbd5e1" FontSize="11"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="NotifyTestButton" Classes="HeaderChip" Height="36" ToolTip.Tip="Show Test Notification" Click="NotifyTestButton_OnClick">
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <heroIcons:HeroIcon Type="Bell" Foreground="#38bdf8" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock Text="Notify" Foreground="#cbd5e1" FontSize="11"/>
                     </StackPanel>
                 </Button>
             </StackPanel>

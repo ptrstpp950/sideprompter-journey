@@ -17,6 +17,7 @@ using AvaloniaApp.Services.EnableWindowPrivacy;
 using AvaloniaApp.ViewModel;
 using AvaloniaApp.Settings;
 using Serilog;
+using AvaloniaApp.Services.Chat;
 
 namespace AvaloniaApp;
 
@@ -44,6 +45,7 @@ public partial class MainWindow : Window
     private readonly AppSettings _settings;
     private readonly ILogger logger;
     private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
+    private readonly ChatSessionService _chatSessionService;
 
     public MainWindow() : this(null, null) {}
 
@@ -53,6 +55,10 @@ public partial class MainWindow : Window
         _settings = settings ?? SettingsService.Load();
         this.logger = logger ?? Serilog.Log.Logger;
         DataContext = _chatViewModel;
+    // Initialize chat persistence services
+    var pathProvider = new AppPathProvider();
+    var storage = new FileChatStorage(pathProvider);
+    _chatSessionService = new ChatSessionService(storage, _settings);
         // Position window top-center with margin from top (e.g., 20px)
         var screen = Screens.Primary;
         if (screen != null)
@@ -97,8 +103,23 @@ public partial class MainWindow : Window
 
         // No scrolling area in compact mode; keep handler for potential future UI.
         _chatViewModel.Messages.CollectionChanged += (_, _) => { };
+        _chatViewModel.MessageAdded += ChatViewModelOnMessageAdded;
 
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
+    }
+
+    private async void ChatViewModelOnMessageAdded(object? sender, ChatMessage e)
+    {
+        try
+        {
+            var lang = LanguageComboBox?.SelectedItem as string ?? _settings.Languages?.FirstOrDefault() ?? "en";
+            await _chatSessionService.EnsureHeaderAsync(_chatViewModel, lang);
+            await _chatSessionService.AppendMessageAsync(e);
+        }
+        catch (Exception ex)
+        {
+            _chatViewModel.AddLogMessage($"[Persist] Failed to save message: {ex.Message}");
+        }
     }
 
     private void MainWindow_Opened(object? sender, EventArgs e)
@@ -358,7 +379,8 @@ public partial class MainWindow : Window
             _isTranscribing = true;
             //_chatViewModel.ClearMessages();
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
-
+            // Start a new session when transcription starts
+            _chatSessionService.NewSession();
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
             _startedAt = DateTime.UtcNow;
             _elapsedTimer.Start();
@@ -384,6 +406,11 @@ public partial class MainWindow : Window
             _elapsedTimer.Stop();
             _startedAt = null;
             UpdateElapsedTime();
+
+            // Ensure header exists and append a placeholder summary/title
+            var lang = LanguageComboBox?.SelectedItem as string ?? _settings.Languages?.FirstOrDefault() ?? "en";
+            await _chatSessionService.EnsureHeaderAsync(_chatViewModel, lang);
+            await _chatSessionService.FinalizeAsync("TODO", "TODO");
         }
         catch (Exception)
         {
@@ -587,73 +614,8 @@ public partial class MainWindow : Window
     {
         _hotKeyService?.Dispose();
         _audioTranscriptionService?.Dispose();
+        _chatViewModel.MessageAdded -= ChatViewModelOnMessageAdded;
         base.OnClosed(e);
-    }
-
-    private async void TestChatButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        var list = new List<string>
-        {
-            "[o] As Michael you said, the PE objective was migrate Hattori V2 on Unicorn to prepare for prod release.",
-            "[o] And just first, you know disclaimer something worth to know because we are using different names.",
-            "[o] So here, let's say internally we use the name hatori for the service that is officially and when it comes to.",
-            "[o] The the official documents for documentation.",
-            "[o] It's called Esoftware update service.",
-            "[o] So just to ensure that we are on the actually same page.",
-            "[o] Yeah. Please keep it in mind. But of course I will use for for this demo the name of the reads shorter.",
-            "[o] And but what was the the objective about? It was somehow, you know, it was all around the feature number 2265.You can click on the link if you want to see and the the feature was about.Yeah.",
-            "[o] My greeting Qatari service clinical platform to remove technical debt and simplify future development. That was the title of the feature and basically the the objective was about moving the service.",
-            "[o] V2 because the.",
-            "[o] Consists of V1 or V2 or you can treat as a. You know Part 1 or Part 2.",
-            "[o] Something like that. But to get the the.",
-            "[o] It to part move it to the Unicorn platform, somehow modernize and by modernization. It means not, you know, fixing all technical depth, rather adapting to.",
-            "[o] The to the Unicorn platform, adapting to the ways how we operate with the services here in the WS.",
-            "[o] And the whole process we can call it is the, let's say.",
-            "[o] And taking a look on what's was.",
-            "[o] What we wanted to to achieve or what was the desired state.",
-            "[o] Here the service is is.",
-            "[o] The service is deployed.",
-            "[o] It's too long environments and documents"
-        };
-
-        if (_chatCompletionService == null)
-        {
-            _chatViewModel.AddLogMessage("[AI TEST] Chat completion not configured.");
-            return;
-        }
-
-        var result = await _chatCompletionService.GetCompletionAsync(list);
-        _chatViewModel.AddLogMessage("[AI TEST] " + result);
-    }
-
-    private async void AccessibilityButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-#if MACOS || OSX || MACCATALYST
-        if (_macOsPermissionsService == null)
-        {
-            _chatViewModel.AddLogMessage("[Permissions] Service not available.");
-            return;
-        }
-
-        _chatViewModel.AddLogMessage("[Permissions] Requesting Accessibility access...");
-        await _macOsPermissionsService.RequestAccessibilityPermission();
-
-        // There's a delay between the call and the system showing the prompt.
-        // We check the status after a short delay.
-        await Task.Delay(200);
-
-        if (_macOsPermissionsService.HasAccessibilityPermission())
-        {
-            _chatViewModel.AddLogMessage("[Permissions] Accessibility permission granted.");
-        }
-        else
-        {
-            _chatViewModel.AddLogMessage("[Permissions] Accessibility permission NOT granted. Please grant it in System Settings > Privacy & Security > Accessibility.");
-        }
-#else
-        _chatViewModel.AddLogMessage("[Permissions] This feature is only available on macOS.");
-        await Task.CompletedTask;
-#endif
     }
 
     private void AskAiButton_OnClick(object? sender, RoutedEventArgs e)
@@ -664,17 +626,5 @@ public partial class MainWindow : Window
     private void AddContextButton_OnClick(object? sender, RoutedEventArgs e)
     {
         OnAiContextHelpPressed();
-    }
-
-    private void NotifyTestButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            App.Notifications.Show($"Notification at {DateTime.Now:HH:mm:ss} Lorem Ipsum jest tekstem stosowanym jako przykładowy wypełniacz w przemyśle poligraficznym. Został po raz pierwszy użyty w XV w. przez nieznanego drukarza do wypełnienia tekstem próbnej książki. Pięć wieków później zaczął być używany przemyśle elektronicznym, pozostając praktycznie niezmienionym. Spopularyzował się w latach 60. XX w. wraz z publikacją arkuszy Letrasetu, zawierających fragmenty Lorem Ipsum, a ostatnio z zawierającym różne wersje Lorem Ipsum oprogramowaniem przeznaczonym do realizacji druków na komputerach osobistych, jak Aldus PageMaker", TimeSpan.FromSeconds(50));
-        }
-        catch (Exception ex)
-        {
-            _chatViewModel.AddLogMessage($"[Notify] {ex.Message}");
-        }
     }
 }

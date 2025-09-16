@@ -54,6 +54,9 @@ public class ChatViewModel : INotifyPropertyChanged
         AddMessage("And AI response could be", MessageAuthor.AiAssistant);*/
     }
 
+    // Raised when a real chat message (Messages collection) is added or extended.
+    public event EventHandler<ChatMessage>? MessageAdded;
+
     public void AddMessage(string text, MessageAuthor author)
     {
         text = text.Trim();
@@ -80,10 +83,13 @@ public class ChatViewModel : INotifyPropertyChanged
                 // This is a bit of a hack to force the UI to update
                 var index = Messages.IndexOf(lastMessage);
                 Messages[index] = lastMessage;
+                MessageAdded?.Invoke(this, lastMessage);
             }
             else
             {
-                Messages.Add(new ChatMessage { Text = text, Author = author, Timestamp = DateTime.Now });
+                var msg = new ChatMessage { Text = text, Author = author, Timestamp = DateTime.Now };
+                Messages.Add(msg);
+                MessageAdded?.Invoke(this, msg);
             }
         });
     }
