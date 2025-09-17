@@ -171,7 +171,8 @@ public partial class MainWindow : Window
                 _audioTranscriptionService.Dispose();
             }
 
-            var transcriptionCore = new WhisperTranscriptionService(desiredModel);
+            //var transcriptionCore = new WhisperTranscriptionService(desiredModel);
+            var transcriptionCore = new DeepgramTranscriptionService();
             transcriptionCore.StatusChanged += (status) => Dispatcher.UIThread.Post(() => TranscriptionServiceOnLogReceived(new LogMessage(){MessageType = MessageType.Info, Message = status, Timestamp = DateTime.UtcNow}));
 #if MACOS || OSX || MACCATALYST
             _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionCore);

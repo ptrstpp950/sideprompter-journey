@@ -54,6 +54,7 @@
     <PackageReference Include="Whisper.net.Runtime" Version="1.8.1" />
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Deepgram" Version="6.6.0" />
   </ItemGroup>
   
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
