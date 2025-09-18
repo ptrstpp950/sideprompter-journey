@@ -10,11 +10,6 @@ namespace AvaloniaApp.Services.AudioTranscription;
 public interface IAudioTranscriptionService : IDisposable
 {
     /// <summary>
-    /// Event fired when a transcription is received
-    /// </summary>
-    event Action<TranscriptionMessage>? TranscriptionReceived;
-    
-    /// <summary>
     /// Event fired when a log message is received
     /// </summary>
     event Action<LogMessage>? LogReceived;

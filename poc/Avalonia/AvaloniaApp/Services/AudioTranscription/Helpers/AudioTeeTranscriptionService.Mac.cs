@@ -17,7 +17,6 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
     private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
 
-    public event Action<TranscriptionMessage>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
     public event Action<string>? StatusChanged;
 
@@ -177,23 +176,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
             StatusChanged?.Invoke($"Transcribing {audioData.Length} bytes of audio...");
             
             // Process with the transcription service
-            var results = await _transcriptionService.TranscribeAudioAsync(audioData);
-            var hasTranscription = false;
-            
-            foreach (var result in results)
-            {
-                if (IsEmptyOrSound(result.Text))
-                    continue;
-
-                hasTranscription = true;
-                TranscriptionReceived?.Invoke(
-                    new TranscriptionMessage { MessageType = TranscriptionMessageType.Speaker, Message = result.Text });
-            }
-            
-            if (hasTranscription)
-            {
-                StatusChanged?.Invoke("Transcription completed");
-            }
+            await _transcriptionService.TranscribeAudioAsync(audioData);
         }
         catch (Exception ex)
         {

@@ -13,7 +13,8 @@ namespace AvaloniaApp.Services.AudioTranscription;
 
 public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 {
-    private readonly ITranscriptionService _transcriptionService;
+    private readonly ITranscriptionService _transcriptionServiceMic;
+    private readonly ITranscriptionService _transcriptionServiceSpeaker;
     private AudioCapture? _micCapture;
     private AudioCapture? _speakerCapture;
     private CancellationTokenSource? _cancellationTokenSource;
@@ -26,11 +27,12 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 
     public bool IsRunning { get; private set; }
 
-    public AudioTranscriptionServiceWin(ITranscriptionService transcriptionService, 
+    public AudioTranscriptionServiceWin(ITranscriptionService transcriptionServiceMic, ITranscriptionService transcriptionServiceSpeaker,
                                 bool enableMicrophoneCapture = true, 
                                 bool enableSpeakerCapture = true)
     {
-        _transcriptionService = transcriptionService;
+        _transcriptionServiceMic = transcriptionServiceMic;
+        _transcriptionServiceSpeaker = transcriptionServiceSpeaker;
         _enableMicrophoneCapture = enableMicrophoneCapture;
         _enableSpeakerCapture = enableSpeakerCapture;
         
@@ -57,7 +59,8 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var token = _cancellationTokenSource.Token;
 
-        var initTask = _transcriptionService.InitializeAsync(language, token);
+        var initTaskMic = _transcriptionServiceMic.InitializeAsync(language, token);
+        var initTaskSpeaker = _transcriptionServiceSpeaker.InitializeAsync(language, token);
 
         // Start microphone capture if enabled
         if (_enableMicrophoneCapture)
@@ -65,9 +68,8 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
             try
             {
                 var waveIn = new WasapiCapture();
-                _micCapture = new AudioCapture(waveIn, TranscriptionMessageType.Mic, _transcriptionService, token);
+                _micCapture = new AudioCapture(waveIn, TranscriptionMessageType.Mic, _transcriptionServiceMic, token);
                 _micCapture.LogReceived += OnLogReceived;
-                _micCapture.TranscriptionReceived += OnTranscriptionReceivedWithDelay;
                 _micCapture.Start();
                 Log(MessageType.Info, "Microphone capture started.");
             }
@@ -87,9 +89,8 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
             try
             {
                 var waveOut = new WasapiLoopbackCapture();
-                _speakerCapture = new AudioCapture(waveOut, TranscriptionMessageType.Speaker, _transcriptionService, token);
+                _speakerCapture = new AudioCapture(waveOut, TranscriptionMessageType.Speaker, _transcriptionServiceSpeaker, token);
                 _speakerCapture.LogReceived += OnLogReceived;
-                _speakerCapture.TranscriptionReceived += OnTranscriptionReceived;
                 _speakerCapture.Start();
                 Log(MessageType.Info, "Speaker loopback capture started.");
             }
@@ -104,7 +105,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
         }
         
         StatusChanged?.Invoke("Audio processing started.");
-        return initTask;
+        return Task.WhenAll(initTaskSpeaker, initTaskMic);
     }
 
 
@@ -215,7 +216,6 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
         private readonly ConcurrentQueue<byte[]> _audioChunks = new();
         private Task? _processingTask;
 
-        public event Action<TranscriptionMessage>? TranscriptionReceived;
         public event Action<LogMessage>? LogReceived;
 
         public AudioCapture(IWaveIn waveIn, TranscriptionMessageType messageType, ITranscriptionService transcriptionService, CancellationToken cancellationToken)
@@ -326,17 +326,9 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
                     return;
                 }
 
-                var results = await _transcriptionService.TranscribeAudioAsync(resampledAudio, _resampleFormat.SampleRate, _resampleFormat.BitsPerSample, _resampleFormat.Channels, _cancellationToken);
-
-                foreach (var result in results)
-                {
-                    var message = new TranscriptionMessage
-                    {
-                        MessageType = _messageType,
-                        Message = result.Text
-                    };
-                    TranscriptionReceived?.Invoke(message);
-                }
+                await _transcriptionService.TranscribeAudioAsync(
+                    resampledAudio, _resampleFormat.SampleRate,
+                    _resampleFormat.BitsPerSample, _resampleFormat.Channels, _cancellationToken);
             }
             catch (Exception ex)
             {

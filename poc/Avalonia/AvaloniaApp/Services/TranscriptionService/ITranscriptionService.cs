@@ -26,7 +26,7 @@ public interface ITranscriptionService : IDisposable
     /// <param name="channels">Number of channels (typically 1 for mono)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>A collection of transcription results</returns>
-    Task<TranscriptionResult[]> TranscribeAudioAsync(byte[] audioData, 
+    Task TranscribeAudioAsync(byte[] audioData, 
         int sampleRate = 16000, 
         int bitsPerSample = 16, 
         int channels = 1, 
@@ -36,6 +36,12 @@ public interface ITranscriptionService : IDisposable
     /// Event fired when the status of the transcription service changes
     /// </summary>
     event Action<string>? StatusChanged;
+
+    /// <summary>
+    /// Event fired when a transcription result is produced by the service.
+    /// Handlers receive the produced <see cref="TranscriptionResult"/>.
+    /// </summary>
+    event Action<TranscriptionResult>? TranscriptionReceived;
 }
 
 /// <summary>

@@ -11,15 +11,13 @@ namespace AvaloniaApp.Services.AudioTranscription
         private readonly IAudioTranscriptionService _micAudioTranscriptionService;
         private readonly IAudioTranscriptionService _speakerAudioTranscriptionService;
 
-        public AudioTranscriptionServiceMac(ITranscriptionService transcriptionService)
+        public AudioTranscriptionServiceMac(ITranscriptionService transcriptionServiceMic, ITranscriptionService transcriptionServiceSpeaker)
         {
-            _micAudioTranscriptionService = new MicrophoneTranscriptionService(transcriptionService);
-            _micAudioTranscriptionService.TranscriptionReceived += MicAudioTranscriptionServiceOnTranscriptionReceived;
+            _micAudioTranscriptionService = new MicrophoneTranscriptionService(transcriptionServiceMic);
             _micAudioTranscriptionService.LogReceived += (log) => LogReceived?.Invoke(log);
             _micAudioTranscriptionService.StatusChanged += (status) => StatusChanged?.Invoke(status);
 
-            _speakerAudioTranscriptionService = new AudioTeeTranscriptionService(transcriptionService);
-            _speakerAudioTranscriptionService.TranscriptionReceived += (msg) => TranscriptionReceived?.Invoke(msg);
+            _speakerAudioTranscriptionService = new AudioTeeTranscriptionService(transcriptionServiceSpeaker);
             _speakerAudioTranscriptionService.LogReceived += (log) => LogReceived?.Invoke(log);
             _speakerAudioTranscriptionService.StatusChanged += (status) => StatusChanged?.Invoke(status);
 

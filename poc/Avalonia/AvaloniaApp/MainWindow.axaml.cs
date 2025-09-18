@@ -165,21 +165,34 @@ public partial class MainWindow : Window
             }
             if (_audioTranscriptionService != null)
             {
-                _audioTranscriptionService.TranscriptionReceived -= OnMessageGenerated;
                 _audioTranscriptionService.LogReceived -= TranscriptionServiceOnLogReceived;
                 _audioTranscriptionService.StatusChanged -= TranscriptionServiceOnStatusChanged;
                 _audioTranscriptionService.Dispose();
             }
 
-            //var transcriptionCore = new WhisperTranscriptionService(desiredModel);
-            var transcriptionCore = new DeepgramTranscriptionService();
-            transcriptionCore.StatusChanged += (status) => Dispatcher.UIThread.Post(() => TranscriptionServiceOnLogReceived(new LogMessage(){MessageType = MessageType.Info, Message = status, Timestamp = DateTime.UtcNow}));
+            var transcriptionCoreMic = new WhisperTranscriptionService(desiredModel);
+            var transcriptionCoreSpeaker = new WhisperTranscriptionService(desiredModel);
+
+            //var transcriptionCore = new DeepgramTranscriptionService();
+            transcriptionCoreMic.StatusChanged += (status) => Dispatcher.UIThread.Post(() => TranscriptionServiceOnLogReceived(new LogMessage(){MessageType = MessageType.Info, Message = status, Timestamp = DateTime.UtcNow}));
+            transcriptionCoreSpeaker.StatusChanged += (status) => Dispatcher.UIThread.Post(() => TranscriptionServiceOnLogReceived(new LogMessage() { MessageType = MessageType.Info, Message = status, Timestamp = DateTime.UtcNow }));
+            
+            transcriptionCoreMic.TranscriptionReceived += (msg) => Dispatcher.UIThread.Post(() => OnMessageGenerated(new TranscriptionMessage()
+            {
+                Message = msg.Text,
+                MessageType = TranscriptionMessageType.Mic
+            }));
+            transcriptionCoreSpeaker.TranscriptionReceived += (msg) => Dispatcher.UIThread.Post(() => OnMessageGenerated(new TranscriptionMessage()
+            {
+                Message = msg.Text,
+                MessageType = TranscriptionMessageType.Speaker
+            }));
+
 #if MACOS || OSX || MACCATALYST
             _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionCore);
 #elif WINDOWS
-            _audioTranscriptionService = new AudioTranscriptionServiceWin(transcriptionCore);
+            _audioTranscriptionService = new AudioTranscriptionServiceWin(transcriptionCoreMic, transcriptionCoreSpeaker);
 #endif
-            _audioTranscriptionService!.TranscriptionReceived += OnMessageGenerated;
             _audioTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
             _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
             _currentWhisperModelType = desiredModel;

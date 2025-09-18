@@ -1,11 +1,8 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using AvaloniaApp.Services.TranscriptionService;
 using Deepgram;
 using Deepgram.Models.Listen.v2.WebSocket;
 using Deepgram.Clients.Interfaces.v2;
@@ -31,11 +28,11 @@ public sealed class DeepgramTranscriptionService : ITranscriptionService
     private readonly string _model;
     private readonly TimeSpan _resultFlushDelay;
     private IListenWebSocketClient? _client;
-    private readonly ConcurrentQueue<TranscriptionResult> _results = new();
     private volatile bool _connected;
     private string _language = "en";
 
     public event Action<string>? StatusChanged;
+    public event Action<TranscriptionResult>? TranscriptionReceived;
 
     /// <summary>
     /// Creates a Deepgram-based transcription service.
@@ -80,7 +77,7 @@ public sealed class DeepgramTranscriptionService : ITranscriptionService
                 var text = alt?.Transcript;
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    _results.Enqueue(new TranscriptionResult(
+                    TranscriptionReceived?.Invoke(new TranscriptionResult(
                         text: text!,
                         source: "mic",
                         timestamp: DateTime.UtcNow,
@@ -129,7 +126,7 @@ public sealed class DeepgramTranscriptionService : ITranscriptionService
         }
     }
 
-    public async Task<TranscriptionResult[]> TranscribeAudioAsync(
+    public Task TranscribeAudioAsync(
         byte[] audioData,
         int sampleRate = 16000,
         int bitsPerSample = 16,
@@ -143,32 +140,19 @@ public sealed class DeepgramTranscriptionService : ITranscriptionService
             throw new ArgumentException("Deepgram streaming expects 16-bit PCM (linear16).", nameof(bitsPerSample));
 
         // Send audio bytes. Deepgram expects raw PCM for encoding=linear16
-        _client.Send(audioData);
 
-        // Give the service some time to produce interim/final results for this chunk
-        var delay = _resultFlushDelay;
-        if (sampleRate != 16000 || channels != 1)
+        return Task.Run(() =>
         {
-            // If format differs, still send but wait a bit longer for processing
-            delay += TimeSpan.FromMilliseconds(200);
-        }
+            try
+            {
+                _client.Send(audioData);
+            }
+            catch (Exception ex)
+            {
+                StatusChanged?.Invoke($"Deepgram send error: {ex.Message}");
+            }
+        }, cancellationToken);
 
-        try
-        {
-            await Task.Delay(delay, cancellationToken);
-        }
-        catch (TaskCanceledException)
-        {
-            // return whatever is queued so far
-        }
-
-        // Drain queue to array
-        var list = new List<TranscriptionResult>();
-        while (_results.TryDequeue(out var item))
-        {
-            list.Add(item);
-        }
-        return list.ToArray();
     }
 
     public void Dispose()

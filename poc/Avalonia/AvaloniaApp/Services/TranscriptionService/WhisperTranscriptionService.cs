@@ -24,6 +24,7 @@ public class WhisperTranscriptionService : ITranscriptionService
     private readonly string _modelDirectory;
 
     public event Action<string>? StatusChanged;
+    public event Action<TranscriptionResult>? TranscriptionReceived;
 
     /// <summary>
     /// Create a new instance of WhisperTranscriptionService
@@ -186,7 +187,7 @@ public class WhisperTranscriptionService : ITranscriptionService
     /// <summary>
     /// Transcribe raw audio data
     /// </summary>
-    public async Task<TranscriptionResult[]> TranscribeAudioAsync(
+    public async Task TranscribeAudioAsync(
         byte[] audioData, 
         int sampleRate = 16000, 
         int bitsPerSample = 16, 
@@ -199,7 +200,6 @@ public class WhisperTranscriptionService : ITranscriptionService
         if (audioData.Length == 0 || IsAllZeros(audioData))
         {
             StatusChanged?.Invoke($"No valid audio data provided - length: {audioData.Length} or IsAllZeros - skipping transcription.");
-            return Array.Empty<TranscriptionResult>();
         }
         // Convert raw PCM data to WAV format
         using var stream = new MemoryStream();
@@ -211,9 +211,6 @@ public class WhisperTranscriptionService : ITranscriptionService
         
         // Reset stream position for reading
         stream.Position = 0;
-
-        var results = new List<TranscriptionResult>();
-        
         // Process with Whisper
         await foreach (var whisperResult in _whisperProcessor.ProcessAsync(stream, cancellationToken))
         {
@@ -221,19 +218,13 @@ public class WhisperTranscriptionService : ITranscriptionService
             {
                 StatusChanged?.Invoke($"Skipping empty or sound effect transcription: '{whisperResult.Text}'");
                 continue;
-            }   
-            results.Add(new TranscriptionResult(
+            }
+            TranscriptionReceived?.Invoke(new TranscriptionResult(
                 whisperResult.Text,
                 "audio",
                 DateTime.UtcNow
             ));
         }
-        if (results.Count == 0)
-        {
-            StatusChanged?.Invoke($"No valid transcriptions found.");
-            return Array.Empty<TranscriptionResult>();
-        }
-        return results.ToArray();
     }
     
     /// <summary>

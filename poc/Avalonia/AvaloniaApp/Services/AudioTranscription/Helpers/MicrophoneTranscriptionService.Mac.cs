@@ -14,7 +14,6 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
     private readonly List<byte> _audioBuffer = new();
     private readonly Lock _bufferLock = new();
 
-    public event Action<TranscriptionMessage>? TranscriptionReceived;
     public event Action<LogMessage>? LogReceived;
     public event Action<string>? StatusChanged;
 
@@ -160,26 +159,11 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
             var channels = 1;
             var bitsPerSample = 16;
 
-            var results = await _transcriptionService.TranscribeAudioAsync(
+            await _transcriptionService.TranscribeAudioAsync(
                 audioData,
                 sampleRate,
                 bitsPerSample,
                 channels);
-
-            if (results.Length > 0)
-            {
-                foreach (var result in results)
-                {
-                    TranscriptionReceived?.Invoke(
-                        new TranscriptionMessage { MessageType = TranscriptionMessageType.Mic, Message = result.Text });
-                }
-
-                StatusChanged?.Invoke("Transcription completed");
-            }
-            else
-            {
-                StatusChanged?.Invoke("No transcription results");
-            }
         }
         catch (Exception ex)
         {
