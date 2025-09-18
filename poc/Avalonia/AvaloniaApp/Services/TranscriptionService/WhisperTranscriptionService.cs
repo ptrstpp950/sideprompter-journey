@@ -23,6 +23,14 @@ public class WhisperTranscriptionService : ITranscriptionService
     private readonly GgmlType _modelType;
     private readonly string _modelDirectory;
 
+    // Chunking and VAD configuration (tunable)
+    public double ChunkDurationSeconds { get; set; } = 20.0; // 10-15s recommended, default 12s
+    public double ChunkOverlapSeconds { get; set; } = 3;    // 2-3s overlap, default 2.5s
+    public bool EnableVad { get; set; } = true;               // Energy-based VAD for intelligent cuts
+    public double VadFrameDurationMs { get; set; } = 30.0;    // Typical 20-30ms frame
+    public double VadMinSilenceMs { get; set; } = 200.0;      // Require >=200ms silence for a cut
+    public double VadSearchWindowMs { get; set; } = 750.0;    // Search window around target boundary
+
     public event Action<string>? StatusChanged;
     public event Action<TranscriptionResult>? TranscriptionReceived;
 
@@ -200,30 +208,119 @@ public class WhisperTranscriptionService : ITranscriptionService
         if (audioData.Length == 0 || IsAllZeros(audioData))
         {
             StatusChanged?.Invoke($"No valid audio data provided - length: {audioData.Length} or IsAllZeros - skipping transcription.");
+            return;
         }
-        // Convert raw PCM data to WAV format
-        using var stream = new MemoryStream();
-        await using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
-        
-        // Write the raw PCM data directly
-        writer.Write(audioData, 0, audioData.Length);
-        writer.Flush();
-        
-        // Reset stream position for reading
-        stream.Position = 0;
-        // Process with Whisper
-        await foreach (var whisperResult in _whisperProcessor.ProcessAsync(stream, cancellationToken))
+
+        // Validate and compute sizes
+        if (sampleRate <= 0 || channels <= 0 || bitsPerSample <= 0)
+            throw new ArgumentException("Invalid audio format parameters.");
+
+        int bytesPerSample = bitsPerSample / 8;
+        int frameSizeBytes = bytesPerSample * channels; // one multi-channel frame
+        if (frameSizeBytes <= 0 || audioData.Length < frameSizeBytes)
         {
-            if (IsEmptyOrSound(whisperResult.Text))
+            StatusChanged?.Invoke("Audio data too short for processing.");
+            return;
+        }
+
+        int totalFrames = audioData.Length / frameSizeBytes;
+        int targetChunkFrames = (int)Math.Max(1, Math.Round(ChunkDurationSeconds * sampleRate));
+        int overlapFrames = (int)Math.Max(0, Math.Round(ChunkOverlapSeconds * sampleRate));
+        // Ensure overlap is less than chunk size
+        overlapFrames = Math.Min(overlapFrames, Math.Max(0, targetChunkFrames - 1));
+
+        // Prepare VAD if possible (only implemented for 16-bit PCM)
+        short[]? monoPcm = null;
+        bool vadAvailable = EnableVad && bitsPerSample == 16;
+        bool[]? speechMask = null;
+        List<(int start, int end)>? silenceSegments = null; // in frame indices
+        int vadFrameSize = 0; // in frames
+        int minSilenceFrames = 0;
+        int searchWindowFrames = 0;
+
+        if (vadAvailable)
+        {
+            try
             {
-                StatusChanged?.Invoke($"Skipping empty or sound effect transcription: '{whisperResult.Text}'");
-                continue;
+                monoPcm = ToMonoInt16(audioData, channels);
+                vadFrameSize = Math.Max(1, (int)Math.Round(sampleRate * (VadFrameDurationMs / 1000.0)));
+                minSilenceFrames = Math.Max(1, (int)Math.Round((VadMinSilenceMs / 1000.0) * sampleRate / vadFrameSize));
+                searchWindowFrames = Math.Max(1, (int)Math.Round((VadSearchWindowMs / 1000.0) * sampleRate / vadFrameSize));
+
+                var rms = ComputeRmsPerFrame(monoPcm, vadFrameSize);
+                var thrOn = ComputeDynamicThreshold(rms);
+                var thrOff = Math.Max(thrOn * 0.6, 0.01); // hysteresis
+                speechMask = BuildSpeechMask(rms, thrOn, thrOff);
+                silenceSegments = BuildSilenceSegments(speechMask, minSilenceFrames);
             }
-            TranscriptionReceived?.Invoke(new TranscriptionResult(
-                whisperResult.Text,
-                "audio",
-                DateTime.UtcNow
-            ));
+            catch (Exception ex)
+            {
+                vadAvailable = false;
+                StatusChanged?.Invoke($"VAD disabled due to error: {ex.Message}");
+            }
+        }
+
+        // Iterate chunks with overlap and optional VAD cut adjustment
+        int startFrame = 0;
+        int chunkIndex = 0;
+        while (startFrame < totalFrames)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            int desiredEnd = startFrame + targetChunkFrames;
+            int endFrame;
+            if (desiredEnd >= totalFrames)
+            {
+                endFrame = totalFrames;
+            }
+            else if (vadAvailable && silenceSegments != null && speechMask != null)
+            {
+                // Find a silence-centered cut near desired end
+                endFrame = FindSilenceCutNear(desiredEnd, silenceSegments, vadFrameSize, searchWindowFrames, totalFrames);
+                // Ensure progress: never go backward or too close to start
+                if (endFrame <= startFrame + 1)
+                    endFrame = Math.Min(totalFrames, startFrame + targetChunkFrames);
+            }
+            else
+            {
+                endFrame = desiredEnd;
+            }
+
+            int startByte = startFrame * frameSizeBytes;
+            int endByteExclusive = Math.Min(audioData.Length, endFrame * frameSizeBytes);
+            int byteCount = Math.Max(0, endByteExclusive - startByte);
+            if (byteCount <= 0)
+                break;
+
+            StatusChanged?.Invoke($"Processing chunk {++chunkIndex}: frames {startFrame}..{endFrame} ({(double)(endFrame - startFrame)/sampleRate:0.00}s)");
+
+            using (var stream = new MemoryStream())
+            {
+                await using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
+                writer.Write(audioData, startByte, byteCount);
+                writer.Flush();
+                stream.Position = 0;
+
+                await foreach (var whisperResult in _whisperProcessor.ProcessAsync(stream, cancellationToken))
+                {
+                    if (IsEmptyOrSound(whisperResult.Text))
+                    {
+                        StatusChanged?.Invoke($"Skipping empty or sound effect transcription: '{whisperResult.Text}'");
+                        continue;
+                    }
+                    TranscriptionReceived?.Invoke(new TranscriptionResult(
+                        whisperResult.Text,
+                        "audio",
+                        DateTime.UtcNow
+                    ));
+                }
+            }
+
+            if (endFrame >= totalFrames)
+                break;
+
+            // Move start forward with overlap
+            startFrame = Math.Max(endFrame - overlapFrames, startFrame + 1);
         }
     }
     
@@ -272,5 +369,153 @@ public class WhisperTranscriptionService : ITranscriptionService
             
         _disposed = true;
         DisposeResources();
+    }
+
+    // ---- VAD and chunk helpers ----
+
+    private static short[] ToMonoInt16(byte[] pcm, int channels)
+    {
+        if (channels <= 0) throw new ArgumentOutOfRangeException(nameof(channels));
+        if (pcm.Length % (2 * channels) != 0) throw new ArgumentException("PCM buffer length is not aligned to 16-bit frames.");
+
+        int totalFrames = pcm.Length / (2 * channels);
+        var mono = new short[totalFrames];
+        // Little-endian 16-bit signed
+        for (int f = 0; f < totalFrames; f++)
+        {
+            int baseIdx = f * 2 * channels;
+            int acc = 0;
+            for (int c = 0; c < channels; c++)
+            {
+                int lo = pcm[baseIdx + (c * 2) + 0];
+                int hi = pcm[baseIdx + (c * 2) + 1];
+                short sample = (short)(lo | (hi << 8));
+                acc += sample;
+            }
+            mono[f] = (short)(acc / channels);
+        }
+        return mono;
+    }
+
+    private static double[] ComputeRmsPerFrame(short[] mono, int frameSizeSamples)
+    {
+        int totalFrames = (int)Math.Ceiling(mono.Length / (double)frameSizeSamples);
+        var rms = new double[totalFrames];
+        int idx = 0;
+        for (int i = 0; i < totalFrames; i++)
+        {
+            long sumSq = 0;
+            int count = 0;
+            for (int j = 0; j < frameSizeSamples && idx < mono.Length; j++, idx++)
+            {
+                int s = mono[idx];
+                sumSq += (long)s * s;
+                count++;
+            }
+            double meanSq = count > 0 ? (double)sumSq / count : 0.0;
+            // Normalize to 0..1 range for 16-bit PCM
+            rms[i] = Math.Sqrt(meanSq) / 32768.0;
+        }
+        return rms;
+    }
+
+    private static double ComputeDynamicThreshold(double[] rms)
+    {
+        if (rms.Length == 0) return 0.02; // fallback
+        // Use 20th percentile as noise floor and scale
+        var copy = new double[rms.Length];
+        Array.Copy(rms, copy, rms.Length);
+        Array.Sort(copy);
+        int idx = (int)Math.Floor(0.20 * (copy.Length - 1));
+        double noise = Math.Max(1e-6, copy[Math.Clamp(idx, 0, copy.Length - 1)]);
+        return Math.Max(0.02, noise * 3.0);
+    }
+
+    private static bool[] BuildSpeechMask(double[] rms, double thrOn, double thrOff)
+    {
+        var speech = new bool[rms.Length];
+        bool inSpeech = false;
+        for (int i = 0; i < rms.Length; i++)
+        {
+            double v = rms[i];
+            if (!inSpeech)
+            {
+                if (v >= thrOn) inSpeech = true;
+            }
+            else
+            {
+                if (v <= thrOff) inSpeech = false;
+            }
+            speech[i] = inSpeech;
+        }
+        return speech;
+    }
+
+    private static List<(int start, int end)> BuildSilenceSegments(bool[] speechMask, int minSilenceFrames)
+    {
+        var segments = new List<(int start, int end)>();
+        int start = -1;
+        for (int i = 0; i < speechMask.Length; i++)
+        {
+            if (!speechMask[i])
+            {
+                if (start == -1) start = i;
+            }
+            else
+            {
+                if (start != -1)
+                {
+                    int end = i; // exclusive
+                    if (end - start >= minSilenceFrames)
+                        segments.Add((start, end));
+                    start = -1;
+                }
+            }
+        }
+        if (start != -1)
+        {
+            int end = speechMask.Length;
+            if (end - start >= minSilenceFrames)
+                segments.Add((start, end));
+        }
+        return segments;
+    }
+
+    private static int FindSilenceCutNear(int desiredFrame /* in mono frames */,
+                                          List<(int start, int end)> silenceSegments,
+                                          int vadFrameSize /* samples per VAD frame == frames of mono samples */,
+                                          int searchWindowFrames /* in VAD frames */,
+                                          int totalFrames /* total mono frames */)
+    {
+        // Map desired frame to VAD frame index
+        int desiredVadFrame = Math.Clamp(desiredFrame / vadFrameSize, 0, int.MaxValue);
+        int winStart = Math.Max(0, desiredVadFrame - searchWindowFrames);
+        int winEnd = desiredVadFrame + searchWindowFrames;
+
+        int bestCutVadFrame = -1;
+        int bestDist = int.MaxValue;
+        foreach (var (s, e) in silenceSegments)
+        {
+            // If segment intersects the search window
+            if (e < winStart || s > winEnd) continue;
+            int center = s + (e - s) / 2;
+            int dist = Math.Abs(center - desiredVadFrame);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestCutVadFrame = center;
+            }
+        }
+
+        int cutFrame;
+        if (bestCutVadFrame >= 0)
+        {
+            cutFrame = bestCutVadFrame * vadFrameSize;
+        }
+        else
+        {
+            cutFrame = desiredFrame; // fallback to desired
+        }
+        return Math.Clamp(cutFrame, 0, totalFrames);
     }
 }
