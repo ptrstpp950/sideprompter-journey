@@ -1,8 +1,11 @@
 ﻿using Avalonia;
-using System;
-using System.IO;
 using DotNetEnv;
 using Serilog;
+using System;
+using System.IO;
+using Velopack;
+
+// using Velopack; // TODO: uncomment when updater finalized
 
 namespace AvaloniaApp;
 
@@ -30,8 +33,15 @@ class Program
  
         try
         {
+            // It's important to Run() the VelopackApp as early as possible in app startup.
+            VelopackApp.Build()
+                .OnFirstRun((v) => { /* Your first run code here */ })
+                .SetLogger(new VelopackLogger(Log.Logger))
+                .Run();
+
             Log.Information("Starting application");
             Env.Load();
+
             BuildAvaloniaApp()
                 .StartWithClassicDesktopLifetime(args);
         }

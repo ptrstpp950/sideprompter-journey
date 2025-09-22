@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Logging;
 using NAudio.Wave;
+using Serilog;
 using Whisper.net;
 using Whisper.net.Ggml;
 using Whisper.net.Logger;
@@ -16,6 +17,7 @@ namespace AvaloniaApp.Services.TranscriptionService;
 /// </summary>
 public class WhisperTranscriptionService : ITranscriptionService
 {
+    private readonly ILogger _logger;
     private WhisperFactory? _whisperFactory;
     private WhisperProcessor? _whisperProcessor;
     private bool _disposed;
@@ -38,15 +40,24 @@ public class WhisperTranscriptionService : ITranscriptionService
     /// Create a new instance of WhisperTranscriptionService
     /// </summary>
     /// <param name="modelType">Type of Whisper model to use</param>
-    public WhisperTranscriptionService(GgmlType modelType = GgmlType.Base)
+    // Preserve existing convenience constructor used in the codebase
+    public WhisperTranscriptionService(GgmlType modelType = GgmlType.Base) : this(Serilog.Log.Logger, modelType)
     {
+    }
+
+    public WhisperTranscriptionService(ILogger logger, GgmlType modelType = GgmlType.Base)
+    {
+        _logger = logger ?? Serilog.Log.Logger;
         _modelType = modelType;
         var appSupport = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData); // Points to ~/Library/Application Support on Mac
         _modelDirectory = Path.Combine(appSupport, "SidePrompter");
+        _logger.Debug("WhisperTranscriptionService ctor: modelType={ModelType}, modelDirectory={ModelDirectory}", _modelType, _modelDirectory);
         if (!Directory.Exists(Path.GetDirectoryName(_modelDirectory)))
         {
-            StatusChanged?.Invoke($"Creating directory for Whisper model: {Path.GetDirectoryName(_modelDirectory)}");
-            Directory.CreateDirectory(Path.GetDirectoryName(_modelDirectory)!);
+            var dir = Path.GetDirectoryName(_modelDirectory);
+            StatusChanged?.Invoke($"Creating directory for Whisper model: {dir}");
+            _logger.Information("Creating directory for Whisper model: {Directory}", dir);
+            Directory.CreateDirectory(dir!);
         }
     }
 
@@ -159,7 +170,8 @@ public class WhisperTranscriptionService : ITranscriptionService
         // Clean up any existing resources
         DisposeResources();
         
-        _currentLanguage = language;
+    _currentLanguage = language;
+    _logger.Information("Initializing Whisper model for language {Language}", language);
         
         var modelName = $"ggml-{_modelType}.bin";
         var modelPath = Path.GetFullPath(Path.Combine(_modelDirectory, modelName));
@@ -174,7 +186,16 @@ public class WhisperTranscriptionService : ITranscriptionService
         // Download the model if it doesn't exist
         if (!File.Exists(modelPath))
         {
-            await EnsureModelDownloadedAsync(_modelType, StatusChanged, cancellationToken);
+            _logger.Information("Model not found at {ModelPath}, starting download", modelPath);
+            try
+            {
+                await EnsureModelDownloadedAsync(_modelType, (s) => { StatusChanged?.Invoke(s); _logger.Debug(s); }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to download Whisper model {ModelPath}", modelPath);
+                throw;
+            }
         }
 
         /*LogProvider.AddConsoleLogging(minLevel: WhisperLogLevel.Debug);
@@ -183,13 +204,22 @@ public class WhisperTranscriptionService : ITranscriptionService
             StatusChanged?.Invoke($"[Whisper Log][{level}]: {message}");
         });*/
         // Initialize the Whisper model
-        _whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
+        try
+        {
+            _whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to create WhisperFactory from path {ModelPath}", modelPath);
+            throw;
+        }
         _whisperProcessor = _whisperFactory.CreateBuilder()
             .WithLanguage(language)
             .WithThreads(Environment.ProcessorCount)
             .Build();
         
         StatusChanged?.Invoke($"Whisper model initialized with language: {language}");
+        _logger.Information("Whisper model initialized for language {Language} using model {ModelPath}", language, modelPath);
     }
 
     /// <summary>
@@ -203,11 +233,15 @@ public class WhisperTranscriptionService : ITranscriptionService
         CancellationToken cancellationToken = default)
     {
         if (_whisperProcessor == null)
+        {
+            _logger.Error("TranscribeAudioAsync called before InitializeAsync");
             throw new InvalidOperationException("Whisper transcription service not initialized. Call InitializeAsync first.");
+        }
 
         if (audioData.Length == 0 || IsAllZeros(audioData))
         {
             StatusChanged?.Invoke($"No valid audio data provided - length: {audioData.Length} or IsAllZeros - skipping transcription.");
+            _logger.Debug("Skipping transcription due to empty or all-zero audio (length={Length})", audioData.Length);
             return;
         }
 
@@ -252,11 +286,13 @@ public class WhisperTranscriptionService : ITranscriptionService
                 var thrOff = Math.Max(thrOn * 0.6, 0.01); // hysteresis
                 speechMask = BuildSpeechMask(rms, thrOn, thrOff);
                 silenceSegments = BuildSilenceSegments(speechMask, minSilenceFrames);
+                _logger.Debug("VAD enabled: vadFrameSize={VadFrameSize}, minSilenceFrames={MinSilence}, searchWindowFrames={SearchWindow}", vadFrameSize, minSilenceFrames, searchWindowFrames);
             }
             catch (Exception ex)
             {
                 vadAvailable = false;
                 StatusChanged?.Invoke($"VAD disabled due to error: {ex.Message}");
+                _logger.Warning(ex, "VAD disabled due to error");
             }
         }
 
@@ -293,6 +329,7 @@ public class WhisperTranscriptionService : ITranscriptionService
                 break;
 
             StatusChanged?.Invoke($"Processing chunk {++chunkIndex}: frames {startFrame}..{endFrame} ({(double)(endFrame - startFrame)/sampleRate:0.00}s)");
+            _logger.Debug("Processing chunk {ChunkIndex}: frames {Start}..{End} duration={Seconds}s", chunkIndex, startFrame, endFrame, (double)(endFrame - startFrame) / sampleRate);
 
             using (var stream = new MemoryStream())
             {
@@ -306,8 +343,10 @@ public class WhisperTranscriptionService : ITranscriptionService
                     if (IsEmptyOrSound(whisperResult.Text))
                     {
                         StatusChanged?.Invoke($"Skipping empty or sound effect transcription: '{whisperResult.Text}'");
+                        _logger.Debug("Skipped transcription result: {Text}", whisperResult.Text);
                         continue;
                     }
+                    _logger.Information("Transcription chunk result: {Text}", whisperResult.Text);
                     TranscriptionReceived?.Invoke(new TranscriptionResult(
                         whisperResult.Text,
                         "audio",
@@ -356,9 +395,24 @@ public class WhisperTranscriptionService : ITranscriptionService
     
     private void DisposeResources()
     {
-        _whisperProcessor?.DisposeAsync().AsTask().Wait();
+        try
+        {
+            _logger.Debug("Disposing Whisper resources");
+            _whisperProcessor?.DisposeAsync().AsTask().Wait();
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error while disposing WhisperProcessor");
+        }
         _whisperProcessor = null;
-        _whisperFactory?.Dispose();
+        try
+        {
+            _whisperFactory?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error while disposing WhisperFactory");
+        }
         _whisperFactory = null;
     }
     
@@ -366,7 +420,7 @@ public class WhisperTranscriptionService : ITranscriptionService
     {
         if (_disposed)
             return;
-            
+
         _disposed = true;
         DisposeResources();
     }

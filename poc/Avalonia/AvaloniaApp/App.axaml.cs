@@ -6,6 +6,8 @@ using AvaloniaApp.Settings;
 using AvaloniaApp.Services.Notification;
 using Serilog;
 using System;
+using System.Threading.Tasks;
+using AvaloniaApp.Services.Update;
 
 namespace AvaloniaApp;
 
@@ -42,6 +44,8 @@ public partial class App : Application
             {
                 desktop.MainWindow = new MainWindow(settings, Log.Logger);
             }
+
+            // TODO: Re-enable background update check once Velopack API usage is confirmed.
         }
 
         base.OnFrameworkInitializationCompleted();

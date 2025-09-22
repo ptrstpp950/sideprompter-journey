@@ -1,14 +1,17 @@
+using AvaloniaApp.Services.TranscriptionService;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using AvaloniaApp.Services.TranscriptionService;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AvaloniaApp.Services.AudioTranscription.Helpers;
 
 public class MicrophoneTranscriptionService : IAudioTranscriptionService
 {
     private readonly MicrophoneService _microphoneService;
+    private readonly ILogger _logger;
     private readonly ITranscriptionService _transcriptionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly List<byte> _audioBuffer = new();
@@ -19,8 +22,12 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
 
     public bool IsRunning => _cancellationTokenSource != null;
 
-    public MicrophoneTranscriptionService(ITranscriptionService transcriptionService, MicrophoneOptions? microphoneOptions = null)
+    public MicrophoneTranscriptionService(
+        ILogger logger,
+        ITranscriptionService transcriptionService,
+        MicrophoneOptions? microphoneOptions = null)
     {
+        _logger = logger;
         _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
         _microphoneService = new MicrophoneService(microphoneOptions);
         
@@ -47,11 +54,17 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
     private void OnMicrophoneError(object? sender, Exception error)
     {
         LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = error.Message});
+        _logger.Error(error, "Mic error");
+        
     }
 
     private void OnMicrophoneLog(object? sender, LogMessage log)
     {
         LogReceived?.Invoke(log);
+        if(log.MessageType == MessageType.Error)
+            _logger.Error(log.Message);
+        if(log.MessageType == MessageType.Info)
+            _logger.Information(log.Message);
     }
 
     public async Task StartProcessing(string language = "en", CancellationToken cancellationToken = default)

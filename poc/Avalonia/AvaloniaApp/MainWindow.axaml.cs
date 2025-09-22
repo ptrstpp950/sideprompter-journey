@@ -43,7 +43,7 @@ public partial class MainWindow : Window
     private ChatHistoryWindow? _chatHistoryWindow;
 
     private readonly AppSettings _settings;
-    private readonly ILogger logger;
+    private readonly ILogger _logger;
     private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
     private readonly ChatSessionService _chatSessionService;
 
@@ -53,7 +53,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _settings = settings ?? SettingsService.Load();
-        this.logger = logger ?? Serilog.Log.Logger;
+        this._logger = logger ?? Serilog.Log.Logger;
         DataContext = _chatViewModel;
     // Initialize chat persistence services
     var pathProvider = new AppPathProvider();
@@ -191,7 +191,7 @@ public partial class MainWindow : Window
 #if MACOS || OSX || MACCATALYST
             _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionCore);
 #elif WINDOWS
-            _audioTranscriptionService = new AudioTranscriptionServiceWin(transcriptionCoreMic, transcriptionCoreSpeaker);
+            _audioTranscriptionService = new AudioTranscriptionServiceWin(_logger ,transcriptionCoreMic, transcriptionCoreSpeaker);
 #endif
             _audioTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
             _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;

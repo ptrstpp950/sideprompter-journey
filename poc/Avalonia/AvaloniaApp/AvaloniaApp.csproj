@@ -13,6 +13,14 @@
     <WhisperNetRuntimeVersion>1.8.1</WhisperNetRuntimeVersion>
     <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
     <AssemblyName>SidePrompter</AssemblyName>
+    <!-- Velopack metadata -->
+    <VeloPackId>sideprompter</VeloPackId>
+    <VeloPackTitle>SidePrompter</VeloPackTitle>
+    <VeloPackAuthors>YourNameOrOrg</VeloPackAuthors>
+    <VeloPackPublisherName>Your Publisher Name</VeloPackPublisherName>
+    <VeloPackIcon>Assets/icon.ico</VeloPackIcon>
+    <!-- Example: set a channel / feed later via env or props -->
+    <VeloPackChannel Condition=" '$(VeloPackChannel)' == '' ">stable</VeloPackChannel>
   </PropertyGroup>
 
   
@@ -55,6 +63,8 @@
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Deepgram" Version="6.6.0" />
+  <!-- Velopack package (using latest available prerelease; adjust as needed) -->
+  <PackageReference Include="Velopack" Version="0.0.1362-gfa48e3c" />
   </ItemGroup>
   
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
@@ -149,9 +159,7 @@
       <WhisperNativeFiles Include="$(NuGetPackageRoot)whisper.net.runtime/$(WhisperNetRuntimeVersion)/runtimes/**/native/*.*" />
     </ItemGroup>
     <!-- Copy each native file into Contents/MonoBundle/runtimes/<rid>/ so the layout matches what the runtime expects -->
-    <Copy SourceFiles="@(WhisperNativeFiles)"
-          DestinationFiles="@(WhisperNativeFiles->'$(OutputPath)$(AssemblyName).app/Contents/MonoBundle/runtimes/%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(WhisperNativeFiles)" DestinationFiles="@(WhisperNativeFiles->'$(OutputPath)$(AssemblyName).app/Contents/MonoBundle/runtimes/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
   <!-- Ensure Swift helper binaries inside the .app bundle are executable -->

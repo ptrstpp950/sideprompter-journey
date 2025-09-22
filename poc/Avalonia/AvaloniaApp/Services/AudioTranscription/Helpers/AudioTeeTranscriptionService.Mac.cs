@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AvaloniaApp.Services.TranscriptionService;
+using Serilog;
 
 namespace AvaloniaApp.Services.AudioTranscription.Helpers;
 
@@ -12,6 +13,7 @@ namespace AvaloniaApp.Services.AudioTranscription.Helpers;
 public class AudioTeeTranscriptionService : IAudioTranscriptionService
 {
     private readonly AudioTeeService _audioTeeService;
+    private readonly ILogger _logger;
     private readonly ITranscriptionService _transcriptionService;
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly List<byte> _audioBuffer = new();
@@ -22,8 +24,12 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
 
     public bool IsRunning => _cancellationTokenSource != null && _audioTeeService.IsRunning;
 
-    public AudioTeeTranscriptionService(ITranscriptionService transcriptionService, AudioTeeOptions? audioOptions = null)
+    public AudioTeeTranscriptionService(
+        ILogger logger,
+        ITranscriptionService transcriptionService,
+        AudioTeeOptions? audioOptions = null)
     {
+        _logger = logger;
         _transcriptionService = transcriptionService;
         _audioTeeService = new AudioTeeService(audioOptions); 
         SetupAudioTeeEvents();
@@ -52,12 +58,17 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
 
     private void OnAudioTeeError(object? sender, Exception error)
     {
+        _logger.Error(error, "AudioTee error");
         LogReceived?.Invoke(new LogMessage{MessageType = MessageType.Error, Message = error.Message});
     }
 
     private void OnAudioTeeLog(object? sender, LogMessage log)
     {
         LogReceived?.Invoke(log);
+        if(log.MessageType == MessageType.Error)
+            _logger.Error("AudioTee: {Message}", log.Message);
+        if(log.MessageType == MessageType.Info)
+            _logger.Information("AudioTee: {Message}", log.Message);
     }
 
     /// <summary>

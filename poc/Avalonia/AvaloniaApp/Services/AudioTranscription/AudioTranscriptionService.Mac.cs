@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AvaloniaApp.Services.AudioTranscription.Helpers;
 using AvaloniaApp.Services.TranscriptionService;
+using Serilog;
 
 namespace AvaloniaApp.Services.AudioTranscription
 {
@@ -11,13 +12,16 @@ namespace AvaloniaApp.Services.AudioTranscription
         private readonly IAudioTranscriptionService _micAudioTranscriptionService;
         private readonly IAudioTranscriptionService _speakerAudioTranscriptionService;
 
-        public AudioTranscriptionServiceMac(ITranscriptionService transcriptionServiceMic, ITranscriptionService transcriptionServiceSpeaker)
+        public AudioTranscriptionServiceMac(
+            ILogger logger,
+            ITranscriptionService transcriptionServiceMic,
+            ITranscriptionService transcriptionServiceSpeaker)
         {
-            _micAudioTranscriptionService = new MicrophoneTranscriptionService(transcriptionServiceMic);
+            _micAudioTranscriptionService = new MicrophoneTranscriptionService(logger, transcriptionServiceMic);
             _micAudioTranscriptionService.LogReceived += (log) => LogReceived?.Invoke(log);
             _micAudioTranscriptionService.StatusChanged += (status) => StatusChanged?.Invoke(status);
 
-            _speakerAudioTranscriptionService = new AudioTeeTranscriptionService(transcriptionServiceSpeaker);
+            _speakerAudioTranscriptionService = new AudioTeeTranscriptionService(logger, transcriptionServiceSpeaker);
             _speakerAudioTranscriptionService.LogReceived += (log) => LogReceived?.Invoke(log);
             _speakerAudioTranscriptionService.StatusChanged += (status) => StatusChanged?.Invoke(status);
 

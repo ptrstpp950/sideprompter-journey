@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Serilog;
 using Tmds.DBus.Protocol;
 
 namespace AvaloniaApp.Services.AudioTranscription;
@@ -27,17 +28,21 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 
     public bool IsRunning { get; private set; }
 
-    public AudioTranscriptionServiceWin(ITranscriptionService transcriptionServiceMic, ITranscriptionService transcriptionServiceSpeaker,
-                                bool enableMicrophoneCapture = true, 
-                                bool enableSpeakerCapture = true)
+    public AudioTranscriptionServiceWin(
+        ILogger logger,
+        ITranscriptionService transcriptionServiceMic,
+        ITranscriptionService transcriptionServiceSpeaker,
+        bool enableMicrophoneCapture = true,
+        bool enableSpeakerCapture = true)
     {
         _transcriptionServiceMic = transcriptionServiceMic;
         _transcriptionServiceSpeaker = transcriptionServiceSpeaker;
         _enableMicrophoneCapture = enableMicrophoneCapture;
         _enableSpeakerCapture = enableSpeakerCapture;
-        
+
         // Log the configuration
-        Log(MessageType.Info, $"Audio capture configuration: Microphone={_enableMicrophoneCapture}, Speaker={_enableSpeakerCapture}");
+        Log(MessageType.Info,
+            $"Audio capture configuration: Microphone={_enableMicrophoneCapture}, Speaker={_enableSpeakerCapture}");
     }
 
     public Task StartProcessing(string language = "en", CancellationToken cancellationToken = default)
@@ -348,6 +353,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 
         private void Log(MessageType type, string message, object? context = null)
         {
+
             LogReceived?.Invoke(new LogMessage { MessageType = type, Message = message, Timestamp = DateTime.Now, Context = context });
         }
 
