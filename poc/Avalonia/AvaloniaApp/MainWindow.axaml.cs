@@ -375,10 +375,10 @@ public partial class MainWindow : Window
     private void SwitchStartStopIcon(bool startIconVisible = false)
     {
         StartIcon.IsVisible = startIconVisible;
-        BeforeStartRow.IsVisible = startIconVisible;
+        //BeforeStartRow.IsVisible = startIconVisible;
 
         StopIcon.IsVisible = !startIconVisible;
-        AiAssistantResponseTextBox.IsVisible = !startIconVisible;
+        //AiAssistantResponseTextBox.IsVisible = !startIconVisible;
 
         SettingsButton.IsVisible = startIconVisible;
         
@@ -479,6 +479,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            _chatViewModel.IsAsking = true;
             Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = "Loading conversation help..."; });
             // Create a snapshot of the Messages collection to avoid modification during enumeration
             var messagesSnapshot = _chatViewModel.Messages.ToList();
@@ -512,6 +513,10 @@ public partial class MainWindow : Window
         {
             _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
             Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = $"[AI Context] Error: {e.Message}"; });
+        }
+        finally
+        {
+            _chatViewModel.IsAsking = false;
         }
     }
 

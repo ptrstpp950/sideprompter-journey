@@ -54,6 +54,20 @@ public class ChatViewModel : INotifyPropertyChanged
         AddMessage("And AI response could be", MessageAuthor.AiAssistant);*/
     }
 
+    private bool _isAsking;
+    public bool IsAsking
+    {
+        get => _isAsking;
+        set
+        {
+            if (_isAsking != value)
+            {
+                _isAsking = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     // Raised when a real chat message (Messages collection) is added or extended.
     public event EventHandler<ChatMessage>? MessageAdded;
 

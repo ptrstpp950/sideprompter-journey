@@ -7,7 +7,7 @@
     x:Class="AvaloniaApp.MainWindow"
     x:DataType="viewModel:ChatViewModel"
     x:CompileBindings="True"
-    Width="640" Height="180"
+    Width="640" Height="90"
     CanResize="True"
     Topmost="True"
     WindowStartupLocation="Manual"
@@ -16,13 +16,15 @@
     Padding="0"
     mc:Ignorable="d"
     Title="SidePrompter">
-
     <!--
     TransparencyLevelHint="AcrylicBlur,Blur,Transparent"
     Background="Transparent"
     Opacity="0.7"
     -->
 
+    <Window.Resources>
+        <viewModel:BooleanToTextConverter x:Key="BoolToText" />
+    </Window.Resources>
     <Grid RowDefinitions="Auto,Auto,Auto" Margin="0,6,0,6">
         <!-- Controls row -->
         <DockPanel Grid.Row="0" Margin="12,4,12,0" LastChildFill="False">
@@ -35,12 +37,6 @@
                         <heroIcons:HeroIcon x:Name="StopIcon" IsVisible="False" Type="StopCircle" Foreground="#c52230" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
-                <Button x:Name="AskAiButton" Classes="HeaderChip" Height="36" ToolTip.Tip="Ask AI (Win+?)" Click="AskAiButton_OnClick">
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <heroIcons:HeroIcon Type="QuestionMarkCircle" Foreground="#a855f7" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock Text="Ask AI (Win+?)" Foreground="#cbd5e1" FontSize="11"/>
-                    </StackPanel>
-                </Button>
                 <Button x:Name="ResetButton" Classes="IconButton" Width="40" Height="36" Click="ResetButton_OnClick" ToolTip.Tip="Reset Chat">
                     <heroIcons:HeroIcon Type="ArrowPath" Foreground="#f59e0b" Kind="Solid" />
                 </Button>
@@ -73,10 +69,17 @@
         <!-- Prompt selection row -->
         <DockPanel Grid.Row="1" x:Name="BeforeStartRow"  Margin="12,4,12,0" LastChildFill="False" IsVisible="True">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <TextBlock Text="Language:" VerticalAlignment="Center"/>
-                <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
+                <Button x:Name="AskAiButton" Classes="HeaderChip" Height="36" ToolTip.Tip="Ask AI (Win+?)" Click="AskAiButton_OnClick">
+                    <StackPanel Orientation="Horizontal" Spacing="4" MaxWidth="50" VerticalAlignment="Center">
+                        <heroIcons:HeroIcon Type="QuestionMarkCircle" Foreground="#a855f7" Width="16" Height="16" Kind="Solid" IsVisible="{Binding !IsAsking}" />
+                        <ProgressBar IsVisible="{Binding IsAsking}" MaxWidth="16" Height="6" IsIndeterminate="True" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding IsAsking, Converter={StaticResource BoolToText}, ConverterParameter='Asking...|Ask AI'}" Foreground="#cbd5e1" FontSize="11" />
+                    </StackPanel>
+                </Button>
                 <TextBlock Text="Prompt:" VerticalAlignment="Center"/>
                 <ComboBox x:Name="PromptComboBox" MinHeight="32" ItemsSource="{Binding Settings.Prompts}" DisplayMemberBinding="{Binding Title}" SelectedItem="{Binding SelectedPrompt}"/>
+                <TextBlock Text="Language:" VerticalAlignment="Center"/>
+                <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
             </StackPanel>
         </DockPanel>
         <TextBox Grid.Row="2" x:Name="AiAssistantResponseTextBox" Text="Press WIN+? to get your first tip"

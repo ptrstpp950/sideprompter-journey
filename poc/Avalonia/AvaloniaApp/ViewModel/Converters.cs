@@ -122,3 +122,18 @@ public class AuthorToForegroundBrushConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotImplementedException();
 }
+
+public class BooleanToTextConverter : IValueConverter
+{
+    // parameter format: "TrueValue|FalseValue"
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var parts = (parameter as string)?.Split('|');
+        if (parts == null || parts.Length != 2)
+            return value is true ? "Working..." : string.Empty;
+        return value is true ? parts[0] : parts[1];
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
