@@ -1,0 +1,221 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Styling;
+using Avalonia.Threading;
+using HeroIconsAvalonia.Controls;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using AvaloniaApp.ViewModel;
+using AvaloniaApp.Settings;
+using AvaloniaApp.Services.Chat;
+using Serilog;
+
+namespace AvaloniaApp.Services;
+
+public class AiActionsManager : IDisposable
+{
+
+    private readonly Window _owner;
+    private readonly ChatViewModel _chatViewModel;
+    private readonly AppSettings _settings;
+    private readonly ILogger _logger;
+    private readonly Func<ChatCompletionService?> _chatCompletionServiceAccessor;
+
+    public AiActionsManager(Window owner, ChatViewModel chatViewModel, AppSettings settings, Func<ChatCompletionService?> chatCompletionServiceAccessor, ILogger logger)
+    {
+        _owner = owner;
+        _chatViewModel = chatViewModel;
+        _settings = settings;
+        _chatCompletionServiceAccessor = chatCompletionServiceAccessor;
+        _logger = logger;
+    }
+
+
+    private static object? FindInThemeDictionaries(string key)
+    {
+        var app = Application.Current;
+        if (app == null) return null;
+
+        var theme = app.ActualThemeVariant; // ThemeVariant.Light or ThemeVariant.Dark
+
+        // Iterate resource dictionaries that may contain theme dictionaries.
+        foreach (var style in app.Styles.OfType<ResourceDictionary>())
+        {
+            if (style.ThemeDictionaries != null
+                && style.ThemeDictionaries.TryGetValue(theme, out var themeDict)
+                && themeDict is ResourceDictionary resourceDictionary
+                && resourceDictionary.ContainsKey(key))
+            {
+                return resourceDictionary[key];
+            }
+
+            // Some ResourceDictionaries may also have the key directly (not in ThemeDictionaries)
+            if (style.ContainsKey(key))
+                return style[key];
+        }
+
+        // fallback to TryFindResource if you want broader lookup
+        app.TryFindResource(key, out var res);
+        return res;
+    }
+
+    private static IBrush? TryGetBrush(string key)
+    {
+        var theme = Application.Current?.ActualThemeVariant;
+        if (Application.Current?.TryFindResource(key, theme, out var res) == true)
+        {
+            var result = res switch
+            {
+                IBrush b => b,
+                Color c => new SolidColorBrush(c),
+                _ => null
+            };
+            return result;
+        }
+        return new SolidColorBrush(Colors.Pink);
+    }
+
+    public void InitializeButtons(Avalonia.Controls.Primitives.UniformGrid panel)
+    {
+        if (panel == null) return;
+        panel.Children.Clear();
+
+        // Constrain the panel to the owner window width so buttons don't exceed window bounds.
+        try
+        {
+            if (_owner != null)
+            {
+                panel.MaxWidth = _owner.Bounds.Width;
+
+                var desiredButtonWidth = 150.0;
+
+                // Update MaxWidth when window size changes
+                _owner.SizeChanged += (s, e) =>
+                {
+                    try
+                    {
+                        panel.MaxWidth = _owner.Bounds.Width;
+                        // If the host is a UniformGrid, recompute Columns on resize
+                        var cols = Math.Max(1, (int)(_owner.Bounds.Width / desiredButtonWidth));
+                        panel.Columns = cols;
+                    }
+                    catch { }
+                };
+
+                // If the host is a UniformGrid, set Columns dynamically based on window width
+                try
+                {
+                    // desired approximate button width (including spacing)
+                    var cols = Math.Max(1, (int)(_owner.Bounds.Width / desiredButtonWidth));
+                    panel.Columns = cols;
+                }
+                catch { }
+            }
+        }
+        catch { }
+
+        var buttonDefs = _settings.Prompts.Select(p => (Tag: p.Title, Text: p.Title, Tooltip: p.Title)).ToArray();
+
+        var theme = Application.Current?.ActualThemeVariant ?? ThemeVariant.Light;
+        var contentForeground = theme == ThemeVariant.Light ? TryGetBrush("SystemBaseHighColor") : TryGetBrush("SystemBaseHighColor");
+
+        foreach (var def in buttonDefs)
+        {
+            var btn = new Button { Classes = { "HeaderChip" }, Height = 36, Tag = def.Tag, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+            ToolTip.SetTip(btn, def.Tooltip);
+            btn.Click += async (_, _) => await AskAiWithKindAsync(def.Tag);
+
+            var sp = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+
+            //TODO: Replace with appropriate icons from HeroIcons.Avalonia
+            var icon = new HeroIcon { Width = 16, Height = 16, Kind = HeroIconsAvalonia.Enums.IconKind.Solid };
+            switch (def.Tag)
+            {
+                case "quick_summary": icon.Type = HeroIconsAvalonia.Enums.IconType.ArrowPath; break;
+                case "suggest_question": icon.Type = HeroIconsAvalonia.Enums.IconType.Cog6Tooth; break;
+                case "response_coach": icon.Type = HeroIconsAvalonia.Enums.IconType.ChatBubbleLeftRight; break;
+                case "action_items": icon.Type = HeroIconsAvalonia.Enums.IconType.PlusCircle; break;
+                default: icon.Type = HeroIconsAvalonia.Enums.IconType.QuestionMarkCircle; break;
+            }
+
+            try { icon.Foreground = contentForeground; } catch { }
+
+            sp.Children.Add(icon);
+            sp.Children.Add(new TextBlock { Text = def.Text, Foreground = contentForeground, FontSize = 11 });
+
+            // Ensure content can expand; set minimum width so chips are usable but can wrap/stack
+            btn.MinWidth = 80;
+            // Add spacing between buttons and internal padding for nicer chip appearance
+            btn.Margin = new Thickness(4, 2); // left/right = 4, top/bottom = 2
+            btn.Padding = new Thickness(8, 4); // internal padding
+
+            btn.Content = sp;
+            panel.Children.Add(btn);
+        }
+    }
+
+    public async Task AskAiWithKindAsync(string kind)
+    {
+        try
+        {
+            _chatViewModel.IsAsking = true;
+            Dispatcher.UIThread.Post(() => { /* optionally set a UI placeholder */ });
+
+            var messagesSnapshot = _chatViewModel.Messages.ToList();
+            var messages = messagesSnapshot.Select(m => $"[{(m.Author == MessageAuthor.Me ? "m" : m.Author == MessageAuthor.AiAssistant ? "ai" : "o")}] {m.Text}").ToList();
+
+            var service = _chatCompletionServiceAccessor();
+            if (service == null)
+            {
+                _chatViewModel.AddLogMessage("[Config] Chat completion not configured (missing base/model). Skipping AI response.");
+                return;
+            }
+
+            var selectedLanguage = "en";
+            try
+            {
+                selectedLanguage = (_owner.FindControl<ComboBox>("LanguageComboBox")?.SelectedItem as string) ?? _settings.Languages?.FirstOrDefault() ?? "en";
+            }
+            catch { }
+            service.Language = selectedLanguage;
+
+            string promptText = kind switch
+            {
+                "quick_summary" => "You are a concise meeting summarizer. Provide a short summary (1-3 sentences) of the ongoing conversation, focusing on main points.",
+                "suggest_question" => "You are an Intelligent Prompter. Analyze the conversation and suggest 2 concise, open-ended questions to advance the discussion.",
+                "response_coach" => "You are a Response Coach. Provide a short suggested reply the user can say now (1-3 sentences) and one quick tip about tone or phrasing.",
+                "action_items" => _settings?.Prompts?.FirstOrDefault(p => p.Title != null && p.Title.IndexOf("Action", StringComparison.OrdinalIgnoreCase) >= 0)?.PromptText
+                                   ?? "You are an Action Item Generator. Listen for decisions, tasks, and next steps and organize them into a clear summary with Decisions, Action Items (with owners if mentioned), and Open Questions. If none, state \"None.\"",
+                _ => string.Empty
+            };
+
+            var promptCombo = _owner.FindControl<ComboBox>("PromptComboBox")?.SelectedItem as AvaloniaApp.Settings.Prompt;
+            if (promptCombo != null && !string.IsNullOrWhiteSpace(promptCombo.PromptText))
+                promptText = promptCombo.PromptText;
+
+            service.Prompt = promptText;
+
+            var chatResult = await service.GetCompletionAsync(messages);
+            if (!string.IsNullOrWhiteSpace(chatResult))
+            {
+                _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
+                App.Notifications.Show(chatResult);
+            }
+        }
+        catch (Exception ex)
+        {
+            _chatViewModel.AddLogMessage($"[Log][Exception] {ex.Message} {ex.StackTrace}");
+        }
+        finally
+        {
+            _chatViewModel.IsAsking = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        // noop for now
+    }
+}

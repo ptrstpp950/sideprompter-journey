@@ -50,7 +50,7 @@
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="HeroIcons.Avalonia" Version="1.0.2" />
+    <PackageReference Include="HeroIcons.Avalonia" Version="1.0.4" />
     <PackageReference Include="DotNetEnv" Version="3.1.1" />
     <PackageReference Include="FlaUI.Core" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
