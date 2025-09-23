@@ -90,45 +90,54 @@ public partial class PromptsSettingsPageView : UserControl
     {
         if (_settings == null || _settings.Prompts.Count > 0) return;
 
-        _settings.Prompts.Add(new Prompt
-        {
-            Title = "Second Brain",
-            PromptText = @"You are a ""Second Brain"" AI assistant. Your role is to provide immediate and accurate answers to questions that arise during a meeting.
+    _settings.Prompts.Add(new Prompt
+    {
+        Title = "Meeting Summary",
+        PromptText = @"You are a meeting summarization assistant.
 
 **Task:**
-Based on the user's query, provide a concise and factual answer using ONLY the information from the provided context. If the information is not available, state ""I don't have that information."" Do not infer or use external knowledge."
-        });
+Produce a concise factual summary (2-4 sentences) of the current conversation using ONLY the provided context.
+Do not repeat or rephrase any previous responses you gave in this session.
+If the necessary information is not present in the context, state ""I don't have that information.""
+If you interfere mark it with <interference>. If you use external knowledge mark it with <external>"
+    });
 
-        _settings.Prompts.Add(new Prompt
-        {
-            Title = "Intelligent Prompter",
-            PromptText = @"You are an ""Intelligent Prompter"" AI. Your purpose is to help the user steer the conversation effectively by suggesting insightful questions.
-**Task:**
-Analyze the live transcription for ambiguities, assumptions, or unexplored topics. Generate a list of 2-3 concise, open-ended questions the user could ask to advance the meeting's objectives. Prioritize questions that are strategic and forward-looking."
-        });
-
-        _settings.Prompts.Add(new Prompt
-        {
-            Title = "Secret Advisor",
-            PromptText = @"You are a ""Secret Advisor"" AI. Your function is to read between the lines and provide the user with non-obvious insights and connections based on the ongoing conversation and shared content.
+    _settings.Prompts.Add(new Prompt
+    {
+        Title = "Suggested Follow-Up",
+        PromptText = @"You are a follow-up question generator.
 
 **Task:**
-Identify and present a key insight that is not immediately apparent from the conversation. This could be a potential risk, an unforeseen opportunity, a contradiction between what is being said and what is being shown, or a connection to a previous point. Present the insight as a brief, confidential memo."
-        });
+Based on the provided conversation context, propose one concise, strategic follow-up question (you may optionally provide one brief alternative).
+Ground your suggestion strictly in the available context and do not repeat any responses you previously generated.
+If context is insufficient, state ""I don't have that information."""
+    });
 
+    
         _settings.Prompts.Add(new Prompt
         {
-            Title = "Communication Coach",
-            PromptText = @"You are a ""Communication Coach"" AI. Your goal is to provide constructive feedback on the user's speaking habits. Assume the user is ""Speaker 1"".
+            Title = "Key Insight",
+            PromptText = @"You are a Key Insight analyst.
 
+    **Task:**
+    From the provided conversation context, extract a single, high-impact insight (1-2 sentences) that is not immediately obvious. Then list 1-2 brief bullets of supporting evidence taken directly from the transcript, and finish with an optional one-line recommended action.
+    Use only information from the provided context. If no non-obvious insight is present, return 'No non-obvious insight identified.' Do not repeat any responses you previously produced. Your job is to listen for decisions, tasks, and next steps, and to organize them into a clear summary."
+        });
+    _settings.Prompts.Add(new Prompt
+    {
+        Title = "Suggested Reply",
+        PromptText = @"You are a reply composer.
 **Task:**
-Analyze the user's (Speaker 1) language. Identify one specific area for improvement. Focus on clarity, conciseness, use of filler words, or question-asking effectiveness. Provide one concrete example and a brief, actionable suggestion for improvement. The tone should be supportive and private."
-        });
+Given a selected speaker turn or question from the conversation, compose a short (1-2 sentence) professional reply the user can speak or paste.
+Keep the reply concise and accurate using only the provided context.
+Do not repeat any responses you previously produced.
+If the information needed to craft a reply is missing, state ""I don't have that information."""
+    });
 
-        _settings.Prompts.Add(new Prompt
-        {
-            Title = "Action Item Generator",
-            PromptText = @"You are an ""Action Item Generator"" AI. Your job is to listen for decisions, tasks, and next steps, and to organize them into a clear summary.
+    _settings.Prompts.Add(new Prompt
+    {
+        Title = "Action Summary",
+        PromptText = @"You are an ""Action Item Generator"" AI. Your job is to listen for decisions, tasks, and next steps, and to organize them into a clear summary.
 
 **Task:**
 Based on the entire conversation, generate a summary of key outcomes. The summary must include:
@@ -137,7 +146,7 @@ Based on the entire conversation, generate a summary of key outcomes. The summar
 3.  **Open Questions:** Any critical questions that remain unresolved.
 
 If no items are identified for a category, state ""None."""
-        });
+    });
     }
 }
 
