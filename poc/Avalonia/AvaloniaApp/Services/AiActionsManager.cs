@@ -220,7 +220,13 @@ public class AiActionsManager : IDisposable
             Dispatcher.UIThread.Post(() => { /* optionally set a UI placeholder */ });
 
             var messagesSnapshot = _chatViewModel.Messages.ToList();
-            var messages = messagesSnapshot.Select(m => $"[{(m.Author == MessageAuthor.Me ? "m" : m.Author == MessageAuthor.AiAssistant ? "ai" : "o")}] {m.Text}").ToList();
+
+            if(messagesSnapshot.Count == 0)
+            {
+                _logger.Warning("[AI Action] No messages in chat to provide context for AI. Please add some messages first.");
+                App.Notifications.Show("No messages in chat to provide context for AI. Please add some messages first.");
+                return;
+            }
 
             var service = _chatCompletionServiceAccessor();
             if (service == null)
@@ -239,15 +245,20 @@ public class AiActionsManager : IDisposable
             catch { }
             service.Language = selectedLanguage;
 
-            service.Prompt = _settings.Prompts?.FirstOrDefault(x => x.Title == kind)?.PromptText ?? kind;
+            var promptSetting = _settings.Prompts?.FirstOrDefault(x => x.Title == kind);
+            var prompt = promptSetting?.PromptText ?? kind;
+            var promptId = promptSetting?.GetHash() ?? kind;
 
-            
-            //service.Prompt = promptText;
+            var messages = messagesSnapshot
+                .Where(m => m.Author != MessageAuthor.AiAssistant || (m.Author== MessageAuthor.AiAssistant && m.PromptId == promptId))
+                .Select(m => $"[{(m.Author == MessageAuthor.Me ? "m" : m.Author == MessageAuthor.AiAssistant ? "ai" : "o")}] {m.Text}")
+                .ToList();
 
-            var chatResult = await service.GetCompletionAsync(messages);
+            var chatResult = await service.GetCompletionAsync(prompt, messages);
+
             if (!string.IsNullOrWhiteSpace(chatResult))
             {
-                _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
+                _chatViewModel.AddAiMessage(chatResult, prompt);
                 App.Notifications.Show(chatResult);
             }
         }

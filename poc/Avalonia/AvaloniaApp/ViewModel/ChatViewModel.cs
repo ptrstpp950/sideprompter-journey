@@ -71,10 +71,17 @@ public class ChatViewModel : INotifyPropertyChanged
     // Raised when a real chat message (Messages collection) is added or extended.
     public event EventHandler<ChatMessage>? MessageAdded;
 
+    public void AddAiMessage(string text, string promptId)
+    {
+        var msg = new ChatMessage { Text = text, Author = MessageAuthor.AiAssistant, PromptId = promptId, Timestamp = DateTime.Now };
+        Messages.Add(msg);
+        MessageAdded?.Invoke(this, msg);
+    }
+
     public void AddMessage(string text, MessageAuthor author)
     {
         text = text.Trim();
-        if(author == MessageAuthor.Me && Messages.Count>0 && Messages.Last().Text != null && Messages.Last().Text!.Contains(text))
+        if (author == MessageAuthor.Me && Messages.Count > 0 && Messages.Last().Text != null && Messages.Last().Text!.Contains(text))
             return;
         if (author == MessageAuthor.Other && Messages.Count > 0 && Messages.Last().Text != null)
         {

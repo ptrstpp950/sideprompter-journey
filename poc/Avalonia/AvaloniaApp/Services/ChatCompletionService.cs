@@ -33,8 +33,6 @@ namespace AvaloniaApp.Services
     public class ChatCompletionService
     {
         private readonly IChatClient _chatClient;
-
-        public string Prompt { get; set; } = "It is a test. Always respond with 'test'";
         public string Language { get; set; } = "pl";
 
         public ChatCompletionService(string endpoint, string apiKey, string model)
@@ -52,7 +50,7 @@ namespace AvaloniaApp.Services
             //_chatClient = new OllamaApiClient(httpClient, model);
         }
 
-        private List<ChatMessage> Initialize()
+        private List<ChatMessage> Initialize(string prompt)
         {
             return
             [
@@ -111,7 +109,7 @@ namespace AvaloniaApp.Services
                                                  "*   **Pozytywne i Wspieraj�ce:** Twoim celem jest pom�c mi odnie�� sukces, wi�c b�d� konstruktywny i motywuj�cy.\n" +
                                                  "## Struktura rozmowy\n" +
                                                  "Wypowiedzi zaczynaj�ce si� od `[m]` to moje wypowiedzi, `[o]` to odpowiedzi kandydata, a od `[ai]` to Twoje poprzednie sugestie i komentarze.")*/
-                new ChatMessage(ChatRole.System, Prompt),
+                new ChatMessage(ChatRole.System, prompt),
                 new ChatMessage(ChatRole.System, "In responses use language: " + Language),
                 new ChatMessage(ChatRole.System,
                     "Transcription structure. Messages starting with [m] is my text, starting with [o] is others text, starting with [ai] is your previous suggestions"),
@@ -171,11 +169,11 @@ namespace AvaloniaApp.Services
             }
         }
 
-        public async Task<string> GetCompletionAsync(IList<string> messages, CancellationToken cancellationToken = default)
+        public async Task<string> GetCompletionAsync(string prompt, IList<string> messages, CancellationToken cancellationToken = default)
         {
             try
             {
-                var chatMessages = Initialize();
+                var chatMessages = Initialize(prompt);
                 chatMessages.AddRange(messages.Select(message => new ChatMessage(ChatRole.User, message)));
 
                 // Get the response from the chat client
