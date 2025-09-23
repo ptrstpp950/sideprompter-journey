@@ -101,7 +101,10 @@ public class AiActionsManager : IDisposable
                         var cols = Math.Max(1, (int)(_owner.Bounds.Width / desiredButtonWidth));
                         panel.Columns = cols;
                     }
-                    catch { }
+                    catch
+                    {
+                        _logger.Warning("Failed to set AiActionsManager button panel columns based on window width in SizeChanged event.");
+                    }
                 };
 
                 // If the host is a UniformGrid, set Columns dynamically based on window width
@@ -111,10 +114,16 @@ public class AiActionsManager : IDisposable
                     var cols = Math.Max(1, (int)(_owner.Bounds.Width / desiredButtonWidth));
                     panel.Columns = cols;
                 }
-                catch { }
+                catch
+                {
+                    _logger.Warning("Failed to set AiActionsManager button panel columns based on window width initialization.");
+                }
             }
         }
-        catch { }
+        catch
+        {
+            _logger.Warning("Failed to set AiActionsManager button panel max width based on window width unexpectedly.");
+        }
 
         var buttonDefs = _settings.Prompts.Select(p => (Tag: p.Title, Text: p.Title, Tooltip: p.Title)).ToArray();
 
@@ -169,7 +178,9 @@ public class AiActionsManager : IDisposable
             var service = _chatCompletionServiceAccessor();
             if (service == null)
             {
-                _chatViewModel.AddLogMessage("[Config] Chat completion not configured (missing base/model). Skipping AI response.");
+                _logger.Warning("[Config] Chat completion not configured (missing base/model). Skipping AI response.");
+                App.Notifications.Show(
+                    "Chat completion not configured! Please edit settings to set a valid base URL and model.");
                 return;
             }
 
@@ -181,21 +192,10 @@ public class AiActionsManager : IDisposable
             catch { }
             service.Language = selectedLanguage;
 
-            string promptText = kind switch
-            {
-                "quick_summary" => "You are a concise meeting summarizer. Provide a short summary (1-3 sentences) of the ongoing conversation, focusing on main points.",
-                "suggest_question" => "You are an Intelligent Prompter. Analyze the conversation and suggest 2 concise, open-ended questions to advance the discussion.",
-                "response_coach" => "You are a Response Coach. Provide a short suggested reply the user can say now (1-3 sentences) and one quick tip about tone or phrasing.",
-                "action_items" => _settings?.Prompts?.FirstOrDefault(p => p.Title != null && p.Title.IndexOf("Action", StringComparison.OrdinalIgnoreCase) >= 0)?.PromptText
-                                   ?? "You are an Action Item Generator. Listen for decisions, tasks, and next steps and organize them into a clear summary with Decisions, Action Items (with owners if mentioned), and Open Questions. If none, state \"None.\"",
-                _ => string.Empty
-            };
+            service.Prompt = _settings.Prompts?.FirstOrDefault(x => x.Title == kind)?.PromptText ?? kind;
 
-            var promptCombo = _owner.FindControl<ComboBox>("PromptComboBox")?.SelectedItem as AvaloniaApp.Settings.Prompt;
-            if (promptCombo != null && !string.IsNullOrWhiteSpace(promptCombo.PromptText))
-                promptText = promptCombo.PromptText;
-
-            service.Prompt = promptText;
+            
+            //service.Prompt = promptText;
 
             var chatResult = await service.GetCompletionAsync(messages);
             if (!string.IsNullOrWhiteSpace(chatResult))
