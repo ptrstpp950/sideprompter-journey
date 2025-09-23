@@ -21,6 +21,8 @@ public class Prompt
 
 public class AppSettings
 {
+    public static readonly string CurrentVersion = "0.0.1";
+    public string? AppSettingsVersion { get; set; } // increment when breaking changes are made
     public List<string> Languages { get; set; } = new() { };
     public string WhisperModel { get; set; } = GgmlType.Base.ToString();
     public bool SetupCompleted { get; set; }

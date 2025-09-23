@@ -27,6 +27,12 @@ public partial class App : Application
         {
             Notifications = new NotificationService();
             var settings = SettingsService.Load();
+            if (settings.AppSettingsVersion != AppSettings.CurrentVersion)
+            {
+                settings.Prompts.Clear(); // clear out old prompts on breaking change
+                settings.SetupCompleted = false; // force re-setup on breaking change
+                settings.AppSettingsVersion = AppSettings.CurrentVersion;
+            }
             if (!settings.SetupCompleted)
             {
                 var wizard = new SetupWizard(settings, false);
