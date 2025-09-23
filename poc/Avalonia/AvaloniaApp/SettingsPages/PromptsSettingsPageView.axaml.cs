@@ -2,7 +2,11 @@ using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using AvaloniaApp.Settings;
 using Avalonia.Interactivity;
+using Avalonia.Input;
+using System;
 using System.ComponentModel;
+using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace AvaloniaApp;
 
@@ -32,7 +36,7 @@ public partial class PromptsSettingsPageView : UserControl
 
     private void AddButton_Click(object? sender, RoutedEventArgs e)
     {
-        var newPrompt = new Prompt { Title = "New Prompt", PromptText = "" };
+        var newPrompt = new Prompt { Title = "New Prompt", PromptText = "", Icon = HeroIconsAvalonia.Enums.IconType.DocumentText };
         ViewModel.Settings.Prompts.Add(newPrompt);
         ViewModel.SelectedPrompt = newPrompt;
     }
@@ -154,10 +158,15 @@ If no items are identified for a category, state ""None."""
     });
     }
 }
-
 public class PromptsSettingsViewModel : INotifyPropertyChanged
 {
     public AppSettings Settings { get; }
+
+    // All possible icons
+    public ObservableCollection<HeroIconsAvalonia.Enums.IconType> IconOptions { get; }
+
+    // Filtered list used for autocomplete
+    public ObservableCollection<HeroIconsAvalonia.Enums.IconType> FilteredIconOptions { get; }
 
     private Prompt? _selectedPrompt;
     public Prompt? SelectedPrompt
@@ -175,5 +184,66 @@ public class PromptsSettingsViewModel : INotifyPropertyChanged
     public PromptsSettingsViewModel(AppSettings settings)
     {
         Settings = settings;
+        var values = Enum.GetValues(typeof(HeroIconsAvalonia.Enums.IconType)).Cast<HeroIconsAvalonia.Enums.IconType>().ToList();
+        IconOptions = new ObservableCollection<HeroIconsAvalonia.Enums.IconType>(values);
+        FilteredIconOptions = new ObservableCollection<HeroIconsAvalonia.Enums.IconType>(values);
     }
+
+    public void FilterIcons(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            if (FilteredIconOptions.Count != IconOptions.Count)
+            {
+                FilteredIconOptions.Clear();
+                foreach (var v in IconOptions) FilteredIconOptions.Add(v);
+            }
+            return;
+        }
+
+        var lower = text.ToLowerInvariant();
+        var matches = IconOptions.Where(i => i.ToString().ToLowerInvariant().Contains(lower)).ToList();
+        FilteredIconOptions.Clear();
+        foreach (var m in matches) FilteredIconOptions.Add(m);
+    }
+}
+
+// ComboBox KeyUp handler to support autocomplete filtering
+partial class PromptsSettingsPageView
+{
+    private void IconComboBox_KeyUp(object? sender, KeyEventArgs e)
+    {
+        if (sender is ComboBox cb && DataContext is PromptsSettingsViewModel vm)
+        {
+            // Use the editable text to filter. Editable ComboBox contains a TextBox named PART_EditableTextBox
+            string? text = null;
+            try
+            {
+                if (cb.FindControl<TextBox>("PART_EditableTextBox") is TextBox tb)
+                {
+                    text = tb.Text;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+            if (text == null && cb.SelectedItem != null)
+            {
+                text = cb.SelectedItem.ToString();
+            }
+            vm.FilterIcons(text);
+            // open dropdown to show suggestions
+            cb.IsDropDownOpen = true;
+        }
+    }
+
+    private void IconFilterTextBox_KeyUp(object? sender, KeyEventArgs e)
+    {
+        if (sender is TextBox tb && DataContext is PromptsSettingsViewModel vm)
+        {
+            vm.FilterIcons(tb.Text);
+        }
+    }
+
 }

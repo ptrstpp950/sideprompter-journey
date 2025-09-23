@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:AvaloniaApp"
              xmlns:settings="clr-namespace:AvaloniaApp.Settings"
+             xmlns:heroIcons="clr-namespace:HeroIconsAvalonia.Controls;assembly=HeroIconsAvalonia"
              x:Class="AvaloniaApp.PromptsSettingsPageView"
              x:CompileBindings="True"
              x:DataType="local:PromptsSettingsViewModel">
@@ -34,6 +35,24 @@
           <TextBox Text="{Binding SelectedPrompt.Title}" />
           <TextBlock Text="Prompt Text:"/>
           <TextBox Text="{Binding SelectedPrompt.PromptText}" AcceptsReturn="True" Height="200" TextWrapping="Wrap"/>
+
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="Icon:" VerticalAlignment="Center"/>
+            <StackPanel>
+              <TextBox x:Name="IconFilterTextBox" Width="260" KeyUp="IconFilterTextBox_KeyUp" Watermark="Search icons..."/>
+              <ListBox x:Name="IconListBox" ItemsSource="{Binding FilteredIconOptions}" Width="260" MaxHeight="200" SelectedItem="{Binding SelectedPrompt.Icon, Mode=TwoWay}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <heroIcons:HeroIcon Foreground="{DynamicResource SystemBaseHighColor}" Type="{Binding}" Kind="Solid" Width="18" Height="18" />
+                      <TextBlock Text="{Binding, Converter={x:Static settings:EnumHumanizeConverter.Instance}}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </StackPanel>
+            <heroIcons:HeroIcon Type="{Binding SelectedPrompt.Icon}" Kind="Solid" Width="24" Height="24" Margin="6,0,0,0" />
+          </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
             <Button Content="Save" Click="SaveButton_Click"/>
             <Button Content="Cancel" Click="CancelButton_Click"/>

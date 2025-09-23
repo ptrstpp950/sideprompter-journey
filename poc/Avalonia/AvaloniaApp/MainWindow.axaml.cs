@@ -562,7 +562,20 @@ public partial class MainWindow : Window
             {
                 WindowStartupLocation = WindowStartupLocation.CenterOwner
             };
-            _settingsWindow.Closed += (_, _) => { _settingsWindow = null; ApplySettings(); }; // re-apply after close
+            _settingsWindow.Closed += (_, _) =>
+            {
+                _settingsWindow = null;
+                ApplySettings();
+                // Recreate/reinitialize AI action buttons after settings change
+                try
+                {
+                    _aiActionsManager?.InitializeButtons(AiButtonsPanel);
+                }
+                catch (Exception ex)
+                {
+                    _chatViewModel.AddLogMessage($"[AI Buttons] Failed to initialize AI buttons after settings closed: {ex.Message}");
+                }
+            }; // re-apply after close
             _settingsWindow.Show(this);
         }
         else
