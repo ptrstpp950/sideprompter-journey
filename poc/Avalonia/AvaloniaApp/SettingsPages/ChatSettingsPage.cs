@@ -56,8 +56,8 @@ public class ChatSettingsPage : SettingsPageViewModel
         }
         _provider.SelectionChanged += (_, _) => { SuggestEndpoint(); LoadProviderApiKey(); };
 
-    _endpoint = new TextBox { Watermark = "API Base URL", Text = settings.ActiveChatProviderConfig?.ApiBase ?? string.Empty };
-    _apiKey = new TextBox { Watermark = "API Key", Text = settings.ActiveChatProviderConfig?.ApiKey ?? string.Empty, PasswordChar = '•' };
+        _endpoint = new TextBox { Watermark = "API Base URL", Text = settings.ActiveChatProviderConfig?.ApiBase ?? string.Empty };
+        _apiKey = new TextBox { Watermark = "API Key", Text = settings.ActiveChatProviderConfig?.ApiKey ?? string.Empty, PasswordChar = '•' };
         _modelList = new ListBox { SelectionMode = SelectionMode.Single, Height = 120, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         _modelSearch = new TextBox { Watermark = "Search models", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         _modelList.SelectionChanged += (_, _) => { /* selection is the model; no separate textbox required */ };
@@ -224,7 +224,7 @@ public class ChatSettingsPage : SettingsPageViewModel
         catch (Exception ex)
         {
             _status.Text = ex.Message;
-        } 
+        }
     }
 
     private void FilterModels(string? filter)
@@ -242,7 +242,7 @@ public class ChatSettingsPage : SettingsPageViewModel
         }
         catch { }
     }
-    
+
     private async System.Threading.Tasks.Task VerifyChat()
     {
         if (!ValidateAndSave(out var err)) { _status.Text = err; return; }
