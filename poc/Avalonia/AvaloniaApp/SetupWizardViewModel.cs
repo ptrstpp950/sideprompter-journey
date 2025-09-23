@@ -41,6 +41,8 @@ public class SetupWizardViewModel : INotifyPropertyChanged
     public ICommand BackCommand { get; }
     public ICommand ResetCommand { get; }
     public ICommand CancelDownloadCommand { get; }
+    public ICommand ContinueFromSplashCommand { get; private set; }
+    public ICommand SkipIntroCommand { get; private set; }
 
     public bool IsLastPage => SelectedPage != null && Pages.Count > 0 && Pages[^1] == SelectedPage;
 
@@ -70,6 +72,8 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         SelectedPage = Pages.Count > 0 ? Pages[0] : null;
 
         PrimaryCommand = new DelegateCommand(async _ => await PrimaryActionAsync(), _ => !IsBusy);
+        ContinueFromSplashCommand = new DelegateCommand(_ => AdvanceFromSplash(), _ => !IsBusy);
+        SkipIntroCommand = new DelegateCommand(_ => AdvanceFromSplash(), _ => !IsBusy);
         var backCmd = new DelegateCommand(_ => BackAction(), _ => !IsBusy && CanGoBack());
         BackCommand = backCmd;
         ResetCommand = new DelegateCommand(_ => { foreach (var p in Pages) p.Reset(); });
@@ -78,10 +82,30 @@ public class SetupWizardViewModel : INotifyPropertyChanged
 
     private void BuildPages()
     {
+        // If not in settings mode, insert an intro/splash page first.
+        if (!IsSettingsMode)
+        {
+            var splash = new SplashScreen();
+            // Let the splash control bind to this view model for its buttons.
+            splash.DataContext = this;
+            Pages.Add(new IntroSettingsPage(splash));
+        }
+
         Pages.Add(new LanguagesSettingsPage(_settings));
         Pages.Add(new ModelSettingsPage(_settings));
         Pages.Add(new ChatSettingsPage(_settings));
         Pages.Add(new PromptsSettingsPage(_settings));
+    }
+
+    private void AdvanceFromSplash()
+    {
+        if (SelectedPage == null) return;
+        var idx = Pages.IndexOf(SelectedPage);
+        if (idx >= 0 && idx < Pages.Count - 1)
+        {
+            SelectedPage = Pages[idx + 1];
+            StatusMessage = string.Empty;
+        }
     }
 
     private async Task PrimaryActionAsync()
@@ -195,6 +219,13 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         if (BackCommand is DelegateCommand bc) bc.RaiseCanExecuteChanged();
         if (CancelDownloadCommand is DelegateCommand cc) cc.RaiseCanExecuteChanged();
     }
+}
+
+// Small concrete page wrapper for the intro splash control.
+internal sealed class IntroSettingsPage : SettingsPageViewModel
+{
+    public IntroSettingsPage(Control view) : base("Welcome", "✨", view) { }
+    public override bool ValidateAndSave(out string errorMessage) { errorMessage = string.Empty; return true; }
 }
 
 public abstract class SettingsPageViewModel

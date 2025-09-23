@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:AvaloniaApp"
+             x:Class="AvaloniaApp.SplashScreen"
+             mc:Ignorable="d"
+             x:DataType="vm:SetupWizardViewModel"
+             d:DataContext="{d:DesignInstance Type=vm:SetupWizardViewModel}"
+             x:CompileBindings="True">
+  <Border Padding="24" Background="{DynamicResource ThemeBackgroundBrush}">
+    <StackPanel Spacing="12" HorizontalAlignment="Stretch">
+      <TextBlock Text="Welcome to SidePrompter" FontSize="20" FontWeight="Bold" />
+      <TextBlock Text="We'll walk you through configuring the app for the best experience." TextWrapping="Wrap" />
+      <TextBlock Text="What we'll configure:" FontWeight="SemiBold" Margin="0,8,0,0" />
+      <StackPanel Spacing="6">
+        <TextBlock Text="• Chat behavior and prompts" />
+        <TextBlock Text="• Language and transcription settings" />
+        <TextBlock Text="• Model download and local setup" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>
