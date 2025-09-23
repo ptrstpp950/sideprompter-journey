@@ -1,17 +1,13 @@
 using System;
 using System.Linq;
 using System.Net.Http;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
-using System.Text;
 using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AvaloniaApp.Settings;
 using OpenAI;
-using System.IO;
 using AvaloniaApp.Services;
 
 namespace AvaloniaApp;
@@ -60,8 +56,8 @@ public class ChatSettingsPage : SettingsPageViewModel
         }
         _provider.SelectionChanged += (_, _) => { SuggestEndpoint(); LoadProviderApiKey(); };
 
-        _endpoint = new TextBox { Watermark = "API Base URL", Text = settings.ChatApiBase };
-        _apiKey = new TextBox { Watermark = "API Key", Text = settings.ChatApiKey, PasswordChar = '•' };
+    _endpoint = new TextBox { Watermark = "API Base URL", Text = settings.ActiveChatProviderConfig?.ApiBase ?? string.Empty };
+    _apiKey = new TextBox { Watermark = "API Key", Text = settings.ActiveChatProviderConfig?.ApiKey ?? string.Empty, PasswordChar = '•' };
         _modelList = new ListBox { SelectionMode = SelectionMode.Single, Height = 120, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         _modelSearch = new TextBox { Watermark = "Search models", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         _modelList.SelectionChanged += (_, _) => { /* selection is the model; no separate textbox required */ };
@@ -119,17 +115,49 @@ public class ChatSettingsPage : SettingsPageViewModel
         try
         {
             // normalize provider key to lower-case for storage and lookup
-            var providerKey = provider.ToLowerInvariant();
-            if (_settings.ChatApiKeys != null && _settings.ChatApiKeys.TryGetValue(providerKey, out var key))
+            var providerKey = provider;
+            if (_settings.ChatProviders != null && _settings.ChatProviders.TryGetValue(providerKey, out var cfg))
             {
-                _apiKey.Text = key;
+                _apiKey.Text = cfg.ApiKey ?? string.Empty;
+                _endpoint.Text = cfg.ApiBase ?? _endpoint.Text;
+                // Try to preselect model from provider config if available.
+                // Ensure the model is visible in the list even if models haven't been fetched yet.
+                if (!string.IsNullOrWhiteSpace(cfg.Model))
+                {
+                    try
+                    {
+                        // If we have some available models, ensure the saved model is present in the list
+                        if (_availableModels != null && _availableModels.Count > 0)
+                        {
+                            if (!_availableModels.Contains(cfg.Model))
+                            {
+                                // show the saved model at the top so it's visible to the user
+                                var items = new List<string> { cfg.Model };
+                                items.AddRange(_availableModels);
+                                _modelList.ItemsSource = items;
+                            }
+                            else
+                            {
+                                _modelList.ItemsSource = _availableModels;
+                            }
+                        }
+                        else
+                        {
+                            // no fetched models yet — show the saved model so user sees it
+                            _modelList.ItemsSource = new List<string> { cfg.Model };
+                        }
+
+                        _modelList.SelectedItem = cfg.Model;
+                    }
+                    catch { /* fail gracefully */ }
+                }
                 return;
             }
-            // If there are any provider-specific keys stored, do not fall back to the legacy ChatApiKey
-            if (_settings.ChatApiKeys != null && _settings.ChatApiKeys.Count > 0)
+            else
             {
                 _apiKey.Text = string.Empty;
-                return;
+                _modelList.ItemsSource = null;
+                _modelList.SelectedItem = null;
             }
         }
         catch
@@ -159,9 +187,9 @@ public class ChatSettingsPage : SettingsPageViewModel
             default:
                 // "Other" or unknown provider: allow user to configure the full base URL
                 _endpoint.IsEnabled = true;
-                if (!string.IsNullOrWhiteSpace(_settings.ChatApiBase))
+                if (!string.IsNullOrWhiteSpace(_settings.ActiveChatProviderConfig?.ApiBase))
                 {
-                    _endpoint.Text = _settings.ChatApiBase;
+                    _endpoint.Text = _settings.ActiveChatProviderConfig.ApiBase;
                 }
                 break;
         }
@@ -169,14 +197,16 @@ public class ChatSettingsPage : SettingsPageViewModel
 
     private async System.Threading.Tasks.Task FetchModels()
     {
-        var apiKey = _apiKey.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(apiKey))
+        try
         {
-            apiKey = "-";
-        }
-        var endpoint = _endpoint.Text?.Trim() ?? string.Empty;
+            var apiKey = _apiKey.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                apiKey = "-";
+            }
+            var endpoint = _endpoint.Text?.Trim() ?? string.Empty;
 
-        var modelResponse = await new OpenAIClient(
+            var modelResponse = await new OpenAIClient(
                 new System.ClientModel.ApiKeyCredential(apiKey),
                 new OpenAIClientOptions
                 {
@@ -185,12 +215,16 @@ public class ChatSettingsPage : SettingsPageViewModel
                 })
                 .GetOpenAIModelClient()
                 .GetModelsAsync();
-        var models = modelResponse.Value.ToList();
-        
-        _availableModels = models.Select(m => m.Id).ToList();
-        FilterModels(null);
-        _status.Text = _availableModels.Count == 0 ? "No models" : $"{_availableModels.Count} models";
+            var models = modelResponse.Value.ToList();
 
+            _availableModels = models.Select(m => m.Id).ToList();
+            FilterModels(null);
+            _status.Text = _availableModels.Count == 0 ? "No models" : $"{_availableModels.Count} models";
+        }
+        catch (Exception ex)
+        {
+            _status.Text = ex.Message;
+        } 
     }
 
     private void FilterModels(string? filter)
@@ -224,7 +258,8 @@ public class ChatSettingsPage : SettingsPageViewModel
                 apiKey = "-";
             }
 
-            var service = new ChatCompletionService(endpoint, apiKey, _settings.ChatModel);
+            var selectedModel = (_modelList.SelectedItem as string) ?? _settings.ActiveChatProviderConfig?.Model ?? string.Empty;
+            var service = new ChatCompletionService(endpoint, apiKey, selectedModel);
 
             var result = await service.TestAsync("Ping");
 
@@ -245,25 +280,19 @@ public class ChatSettingsPage : SettingsPageViewModel
         var needsKey = provider.Equals("openai", StringComparison.OrdinalIgnoreCase) || provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase);
         if (needsKey && string.IsNullOrWhiteSpace(_apiKey.Text)) { errorMessage = "API key required"; return false; }
 
-        _settings.ChatApiBase = endpoint;
-        _settings.ChatModel = model;
-        _settings.ChatProvider = provider;
-        // Save provider-specific key into the dictionary and also update legacy ChatApiKey for compatibility
+        // Save provider-specific config
         try
         {
-            _settings.ChatApiKeys ??= new Dictionary<string, string>();
-            var providerKey = provider.ToLowerInvariant();
-            if (!string.IsNullOrWhiteSpace(_apiKey.Text))
+            var cfg = new AvaloniaApp.Settings.ChatProviderConfig
             {
-                _settings.ChatApiKeys[providerKey] = _apiKey.Text.Trim();
-                _settings.ChatApiKey = _apiKey.Text.Trim();
-            }
-            else
-            {
-                // If empty, remove stored key for provider
-                if (_settings.ChatApiKeys.ContainsKey(providerKey))
-                    _settings.ChatApiKeys.Remove(providerKey);
-            }
+                ProviderName = provider,
+                ApiBase = endpoint,
+                ApiKey = string.IsNullOrWhiteSpace(_apiKey.Text) ? string.Empty : _apiKey.Text.Trim(),
+                Model = model
+            };
+            _settings.ChatProviders ??= new Dictionary<string, AvaloniaApp.Settings.ChatProviderConfig>();
+            _settings.ChatProviders[provider] = cfg;
+            _settings.ChatProvider = provider;
         }
         catch { }
         SettingsService.Save(_settings);

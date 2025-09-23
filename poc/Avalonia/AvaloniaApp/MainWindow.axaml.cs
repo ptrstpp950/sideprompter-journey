@@ -205,19 +205,17 @@ public partial class MainWindow : Window
             _chatViewModel.AddLogMessage($"[Config] Whisper model set to: {_currentWhisperModelType}");
         }
 
-        // Chat completion service
-        var chatApiBase = _settings.ChatApiBase;
-        var chatApiKey = _settings.ChatApiKey ?? string.Empty;
-        var chatModel = _settings.ChatModel;
-        if (string.IsNullOrWhiteSpace(chatApiBase) || string.IsNullOrWhiteSpace(chatModel))
+        // Chat completion service (per-provider)
+        var activeProvider = _settings.ActiveChatProviderConfig;
+        if (activeProvider == null || string.IsNullOrWhiteSpace(activeProvider.ApiBase) || string.IsNullOrWhiteSpace(activeProvider.Model))
         {
             _chatCompletionService = null;
-            _chatViewModel.AddLogMessage("[Config] Chat API base or model missing. Configure ChatApiBase and ChatModel in settings.");
+            _chatViewModel.AddLogMessage("[Config] Chat provider not configured. Configure a provider in settings.");
         }
         else
         {
-            _chatCompletionService = new ChatCompletionService(chatApiBase, chatApiKey, chatModel);
-            _chatViewModel.AddLogMessage($"[Config] Chat model set to: {chatModel}");
+            _chatCompletionService = new ChatCompletionService(activeProvider.ApiBase, activeProvider.ApiKey ?? string.Empty, activeProvider.Model);
+            _chatViewModel.AddLogMessage($"[Config] Chat provider set to: {activeProvider.ProviderName}, model: {activeProvider.Model}");
         }
 
         // Languages combo

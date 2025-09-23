@@ -31,7 +31,7 @@ public class ChatSessionService
             PromptId = vm.SelectedPrompt?.Title,
             PromptText = vm.SelectedPrompt?.PromptText,
             WhisperModel = _settings.WhisperModelType.ToString(),
-            ChatModel = _settings.ChatModel
+            ChatModel = _settings.ActiveChatProviderConfig?.Model
         };
         await _storage.AppendSessionHeaderAsync(header);
         _headerWritten = true;
