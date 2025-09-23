@@ -41,13 +41,16 @@ namespace AvaloniaApp.Services
             {
                 apiKey = "-"; // Default to empty string if API key is not provided
             }
-            _chatClient = new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions
+
+            _chatClient = new OpenAIClient(
+                new ApiKeyCredential(apiKey),
+                new OpenAIClientOptions
                 {
                     Endpoint = new Uri(endpoint),
+
                 })
                 .GetChatClient(model)
                 .AsIChatClient();
-            //_chatClient = new OllamaApiClient(httpClient, model);
         }
 
         private List<ChatMessage> Initialize(string prompt)
@@ -167,6 +170,12 @@ namespace AvaloniaApp.Services
                 Trace.WriteLine($"Exception in ChatCompletionService: {ex}");
                 return $"Error in ChatCompletionService: {ex.Message}";
             }
+        }
+
+        public async Task<string> TestAsync(string prompt, CancellationToken cancellationToken = default)
+        {
+            var response = await _chatClient.GetResponseAsync(prompt, cancellationToken: cancellationToken);
+            return response.Text;
         }
 
         public async Task<string> GetCompletionAsync(string prompt, IList<string> messages, CancellationToken cancellationToken = default)

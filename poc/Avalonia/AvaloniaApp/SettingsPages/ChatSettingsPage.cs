@@ -10,6 +10,9 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AvaloniaApp.Settings;
+using OpenAI;
+using System.IO;
+using AvaloniaApp.Services;
 
 namespace AvaloniaApp;
 
@@ -37,9 +40,10 @@ public class ChatSettingsPage : SettingsPageViewModel
     private readonly ComboBox _provider;
     private readonly TextBox _endpoint;
     private readonly TextBox _apiKey;
-    private readonly ComboBox _modelList;
-    private readonly TextBox _modelInput;
+    private readonly ListBox _modelList;
+    private readonly TextBox _modelSearch;
     private readonly TextBlock _status;
+    private List<string> _availableModels = new();
     private static readonly HttpClient _http = new();
 
     public ChatSettingsPage(AppSettings settings) : base("Chat", "💬", new StackPanel { Spacing = 8 })
@@ -54,131 +58,157 @@ public class ChatSettingsPage : SettingsPageViewModel
             var idx = (_provider.ItemsSource as IEnumerable<string>)!.ToList().FindIndex(p => p.Equals(settings.ChatProvider, StringComparison.OrdinalIgnoreCase));
             if (idx >= 0) _provider.SelectedIndex = idx;
         }
-        _provider.SelectionChanged += (_, _) => SuggestEndpoint();
+        _provider.SelectionChanged += (_, _) => { SuggestEndpoint(); LoadProviderApiKey(); };
 
         _endpoint = new TextBox { Watermark = "API Base URL", Text = settings.ChatApiBase };
         _apiKey = new TextBox { Watermark = "API Key", Text = settings.ChatApiKey, PasswordChar = '•' };
-        _modelList = new ComboBox { Width = 260 };
-        _modelInput = new TextBox { Watermark = "Model", Text = settings.ChatModel };
-        _modelList.SelectionChanged += (_, _) => { if (_modelList.SelectedItem is string m) _modelInput.Text = m; };
+        _modelList = new ListBox { SelectionMode = SelectionMode.Single, Height = 120, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        _modelSearch = new TextBox { Watermark = "Search models", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        _modelList.SelectionChanged += (_, _) => { /* selection is the model; no separate textbox required */ };
+        _modelSearch.KeyUp += (_, _) => FilterModels(_modelSearch.Text);
 
         var grid = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("Auto,*"),
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto")
+            // Added an extra row for the Fetch Models button between API Key and Model
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto")
         };
         void Row(int r, string label, Control c)
         {
-            var lbl = new TextBlock { Text = label, Margin = new Avalonia.Thickness(0,4,8,0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            // increase vertical spacing between rows by adding top margin to controls and labels
+            var lbl = new TextBlock { Text = label, Margin = new Avalonia.Thickness(0, 8, 8, 0), VerticalAlignment = (r == 4) ? Avalonia.Layout.VerticalAlignment.Top : Avalonia.Layout.VerticalAlignment.Center };
             grid.Children.Add(lbl); Grid.SetRow(lbl, r); Grid.SetColumn(lbl, 0);
+            // ensure control has a small top margin so rows have visible gaps
+            c.Margin = new Avalonia.Thickness(0, 6, 0, 0);
             grid.Children.Add(c); Grid.SetRow(c, r); Grid.SetColumn(c, 1);
         }
         Row(0, "Provider:", _provider);
         Row(1, "Endpoint:", _endpoint);
         Row(2, "API Key:", _apiKey);
-        var modelStack = new StackPanel { Spacing = 4 };
+        // Model list area: search box above the selectable list; selection is the chosen model
+        var modelStack = new StackPanel { Spacing = 6, Orientation = Orientation.Vertical };
+        // add a small search box above the list like in Prompts settings
+        modelStack.Children.Add(_modelSearch);
         modelStack.Children.Add(_modelList);
-        modelStack.Children.Add(_modelInput);
-        Row(3, "Model:", modelStack);
+        // Place the model stack in the last row (row 4)
+        Row(4, "Model:", modelStack);
         root.Children.Add(grid);
+        // Create the Fetch Models button and place it between API Key and Model in the grid (row 3)
+        var fetchBtn = new Button { Content = "Fetch Models", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, Margin = new Avalonia.Thickness(0, 8, 0, 0) };
+        fetchBtn.Click += async (_, _) => await FetchModels();
+        grid.Children.Add(fetchBtn); Grid.SetRow(fetchBtn, 3); Grid.SetColumn(fetchBtn, 1);
 
+        // Keep Verify button below the grid
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        var fetchBtn = new Button { Content = "Fetch Models" }; fetchBtn.Click += async (_, _) => await FetchModels();
         var testBtn = new Button { Content = "Verify" }; testBtn.Click += async (_, _) => await VerifyChat();
-        btnRow.Children.Add(fetchBtn); btnRow.Children.Add(testBtn);
+        btnRow.Children.Add(testBtn);
         root.Children.Add(btnRow);
 
         _status = new TextBlock { Foreground = Brushes.OrangeRed, FontSize = 12 };
         root.Children.Add(_status);
 
         SuggestEndpoint();
+        LoadProviderApiKey();
+    }
+
+    private void LoadProviderApiKey()
+    {
+        var provider = _provider.SelectedItem?.ToString() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(provider)) { _apiKey.Text = string.Empty; return; }
+        // Try to load provider-specific key from settings.ChatApiKeys if available
+        try
+        {
+            // normalize provider key to lower-case for storage and lookup
+            var providerKey = provider.ToLowerInvariant();
+            if (_settings.ChatApiKeys != null && _settings.ChatApiKeys.TryGetValue(providerKey, out var key))
+            {
+                _apiKey.Text = key;
+                return;
+            }
+            // If there are any provider-specific keys stored, do not fall back to the legacy ChatApiKey
+            if (_settings.ChatApiKeys != null && _settings.ChatApiKeys.Count > 0)
+            {
+                _apiKey.Text = string.Empty;
+                return;
+            }
+        }
+        catch
+        {
+            // ignore
+        }
     }
 
     private void SuggestEndpoint()
     {
-        if (!string.IsNullOrWhiteSpace(_settings.ChatApiBase)) return;
-        var provider = _provider.SelectedItem?.ToString()?.ToLowerInvariant();
-        _endpoint.Text = provider switch
+        var provider = _provider.SelectedItem?.ToString()?.ToLowerInvariant() ?? string.Empty;
+        switch (provider)
         {
-            "openai" => "https://api.openai.com/v1/chat/completions",
-            "openrouter" => "https://openrouter.ai/api/v1/chat/completions",
-            "ollama" => "http://localhost:11434/api/chat",
-            _ => _endpoint.Text
-        };
+            case "openai":
+                // Use base API URL; endpoints are appended elsewhere in the code
+                _endpoint.Text = "https://api.openai.com/v1";
+                _endpoint.IsEnabled = false;
+                break;
+            case "openrouter":
+                _endpoint.Text = "https://openrouter.ai/api/v1";
+                _endpoint.IsEnabled = false;
+                break;
+            case "ollama":
+                _endpoint.Text = "http://localhost:11434/v1";
+                _endpoint.IsEnabled = false;
+                break;
+            default:
+                // "Other" or unknown provider: allow user to configure the full base URL
+                _endpoint.IsEnabled = true;
+                if (!string.IsNullOrWhiteSpace(_settings.ChatApiBase))
+                {
+                    _endpoint.Text = _settings.ChatApiBase;
+                }
+                break;
+        }
     }
 
     private async System.Threading.Tasks.Task FetchModels()
     {
-        var provider = _provider.SelectedItem?.ToString() ?? string.Empty;
-        var baseUrl = _endpoint.Text?.Trim() ?? string.Empty;
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out _)) { _status.Text = "Invalid endpoint"; return; }
-        _status.Text = "Fetching models...";
-        try
+        var apiKey = _apiKey.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
-            using var req = BuildModelsRequest(provider, baseUrl);
-            if (!string.IsNullOrWhiteSpace(_apiKey.Text) && (provider.Equals("openai", StringComparison.OrdinalIgnoreCase) || provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase)))
-            {
-                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey.Text.Trim());
-                if (provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase)) req.Headers.Add("HTTP-Referer", "https://sideprompter.local");
-            }
-            var resp = await _http.SendAsync(req);
-            var json = await resp.Content.ReadAsStringAsync();
-            if (!resp.IsSuccessStatusCode) { _status.Text = $"Error: {resp.StatusCode}"; return; }
-            var list = ParseModels(provider, json);
-            _modelList.ItemsSource = list;
-            _status.Text = list.Count == 0 ? "No models" : $"{list.Count} models";
+            apiKey = "-";
         }
-        catch (Exception ex)
-        {
-            _status.Text = ex.Message;
-        }
+        var endpoint = _endpoint.Text?.Trim() ?? string.Empty;
+
+        var modelResponse = await new OpenAIClient(
+                new System.ClientModel.ApiKeyCredential(apiKey),
+                new OpenAIClientOptions
+                {
+                    Endpoint = new Uri(endpoint),
+
+                })
+                .GetOpenAIModelClient()
+                .GetModelsAsync();
+        var models = modelResponse.Value.ToList();
+        
+        _availableModels = models.Select(m => m.Id).ToList();
+        FilterModels(null);
+        _status.Text = _availableModels.Count == 0 ? "No models" : $"{_availableModels.Count} models";
+
     }
 
-    private static HttpRequestMessage BuildModelsRequest(string provider, string baseUrl)
+    private void FilterModels(string? filter)
     {
-        string path = provider.ToLowerInvariant() switch
-        {
-            "openai" or "openrouter" => Combine(baseUrl, "/models"),
-            "ollama" => Combine(baseUrl, "/api/tags"),
-            _ => Combine(baseUrl, "/models")
-        };
-        return new HttpRequestMessage(HttpMethod.Get, path);
-    }
-
-    private static string Combine(string a,string b){ if(a.EndsWith('/')) a=a.TrimEnd('/'); return a+b; }
-
-    private static List<string> ParseModels(string provider, string json)
-    {
-        var result = new List<string>();
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            var lower = provider.ToLowerInvariant();
-            if (lower is "openai" or "openrouter")
+            if (string.IsNullOrWhiteSpace(filter))
             {
-                if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var m in data.EnumerateArray())
-                    {
-                        if (m.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String) result.Add(id.GetString()!);
-                    }
-                }
+                _modelList.ItemsSource = _availableModels;
+                return;
             }
-            else if (lower == "ollama")
-            {
-                if (doc.RootElement.TryGetProperty("models", out var arr) && arr.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var m in arr.EnumerateArray())
-                    {
-                        if (m.TryGetProperty("name", out var id) && id.ValueKind == JsonValueKind.String) result.Add(id.GetString()!);
-                    }
-                }
-            }
+            var lower = filter.ToLowerInvariant();
+            var matches = _availableModels.Where(m => m.ToLowerInvariant().Contains(lower)).ToList();
+            _modelList.ItemsSource = matches;
         }
         catch { }
-        return result.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToList();
     }
-
+    
     private async System.Threading.Tasks.Task VerifyChat()
     {
         if (!ValidateAndSave(out var err)) { _status.Text = err; return; }
@@ -186,36 +216,19 @@ public class ChatSettingsPage : SettingsPageViewModel
         _status.Text = "Testing...";
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Post, Combine(_settings.ChatApiBase, provider.Equals("ollama", StringComparison.OrdinalIgnoreCase) ? "/api/chat" : "/chat/completions"));
-            var key = _settings.ChatApiKey?.Trim();
-            if (!string.IsNullOrWhiteSpace(key) && (provider.Equals("openai", StringComparison.OrdinalIgnoreCase) || provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase)))
+            var endpoint = _endpoint.Text?.Trim() ?? string.Empty;
+            var apiKey = _apiKey.Text?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(apiKey))
             {
-                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
-                if (provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase)) req.Headers.Add("HTTP-Referer", "https://sideprompter.local");
+                apiKey = "-";
             }
-            ChatRequestBody body;
-            if (provider.Equals("ollama", StringComparison.OrdinalIgnoreCase))
-            {
-                body = new ChatRequestBody
-                {
-                    model = _settings.ChatModel,
-                    messages = new[] { new ChatRequestMessage { role = "user", content = "ping" } }
-                };
-            }
-            else
-            {
-                body = new ChatRequestBody
-                {
-                    model = _settings.ChatModel,
-                    messages = new[] { new ChatRequestMessage { role = "user", content = "ping" } },
-                    max_tokens = 4
-                };
-            }
-            req.Content = new StringContent(JsonSerializer.Serialize(body, ChatJsonContext.Default.ChatRequestBody), Encoding.UTF8, "application/json");
-            var resp = await _http.SendAsync(req);
-            var json = await resp.Content.ReadAsStringAsync();
-            if (!resp.IsSuccessStatusCode) { _status.Text = $"Failed: {resp.StatusCode}"; return; }
-            _status.Text = "OK";
+
+            var service = new ChatCompletionService(endpoint, apiKey, _settings.ChatModel);
+
+            var result = await service.TestAsync("Ping");
+
+            _status.Text = result.StartsWith("Error:") ? result : "Success";
         }
         catch (Exception ex) { _status.Text = ex.Message; }
     }
@@ -223,13 +236,36 @@ public class ChatSettingsPage : SettingsPageViewModel
     public override bool ValidateAndSave(out string errorMessage)
     {
         var endpoint = _endpoint.Text?.Trim() ?? string.Empty;
-        var model = _modelInput.Text?.Trim() ?? string.Empty;
+        var model = (_modelList.SelectedItem as string)?.Trim() ?? string.Empty;
         var provider = _provider.SelectedItem?.ToString() ?? string.Empty;
+
         if (string.IsNullOrWhiteSpace(endpoint) || !Uri.TryCreate(endpoint, UriKind.Absolute, out _)) { errorMessage = "Enter valid endpoint"; return false; }
         if (string.IsNullOrWhiteSpace(model)) { errorMessage = "Enter model"; return false; }
+
         var needsKey = provider.Equals("openai", StringComparison.OrdinalIgnoreCase) || provider.Equals("openrouter", StringComparison.OrdinalIgnoreCase);
         if (needsKey && string.IsNullOrWhiteSpace(_apiKey.Text)) { errorMessage = "API key required"; return false; }
-        _settings.ChatApiBase = endpoint; _settings.ChatModel = model; _settings.ChatProvider = provider; if (!string.IsNullOrWhiteSpace(_apiKey.Text)) _settings.ChatApiKey = _apiKey.Text.Trim();
+
+        _settings.ChatApiBase = endpoint;
+        _settings.ChatModel = model;
+        _settings.ChatProvider = provider;
+        // Save provider-specific key into the dictionary and also update legacy ChatApiKey for compatibility
+        try
+        {
+            _settings.ChatApiKeys ??= new Dictionary<string, string>();
+            var providerKey = provider.ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(_apiKey.Text))
+            {
+                _settings.ChatApiKeys[providerKey] = _apiKey.Text.Trim();
+                _settings.ChatApiKey = _apiKey.Text.Trim();
+            }
+            else
+            {
+                // If empty, remove stored key for provider
+                if (_settings.ChatApiKeys.ContainsKey(providerKey))
+                    _settings.ChatApiKeys.Remove(providerKey);
+            }
+        }
+        catch { }
         SettingsService.Save(_settings);
         errorMessage = string.Empty;
         return true;

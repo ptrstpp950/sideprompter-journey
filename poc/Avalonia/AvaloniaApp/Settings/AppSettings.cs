@@ -28,7 +28,10 @@ public class AppSettings
     public bool SetupCompleted { get; set; }
     public DateTime? FirstConfiguredUtc { get; set; }
     public string ChatApiBase { get; set; } = string.Empty; // e.g. https://api.openai.com/v1 or local server
+    // Legacy single API key (kept for backward compatibility). New code should use ChatApiKeys.
     public string ChatApiKey { get; set; } = string.Empty;
+    // Store API keys per provider (key = provider name, value = api key)
+    public Dictionary<string, string> ChatApiKeys { get; set; } = new();
     public string ChatModel { get; set; } = string.Empty; // e.g. gpt-4o-mini, meta-llama, etc.
     public string ChatProvider { get; set; } = string.Empty; // optional friendly label (OpenAI, Ollama, Azure, Groq, etc.)
     public ObservableCollection<Prompt> Prompts { get; set; } = new();
