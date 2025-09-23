@@ -11,6 +11,8 @@ public class Prompt
     public string Title { get; set; } = string.Empty;
     public string PromptText { get; set; } = string.Empty;
 
+    public HeroIconsAvalonia.Enums.IconType? Icon { get; set; } = HeroIconsAvalonia.Enums.IconType.QuestionMarkCircle;
+
     public string GetHash()
     {
         return Convert.ToBase64String(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(Title + PromptText)));

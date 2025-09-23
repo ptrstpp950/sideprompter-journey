@@ -125,12 +125,12 @@ public class AiActionsManager : IDisposable
             _logger.Warning("Failed to set AiActionsManager button panel max width based on window width unexpectedly.");
         }
 
-        var buttonDefs = _settings.Prompts.Select(p => (Tag: p.Title, Text: p.Title, Tooltip: p.Title)).ToArray();
+        var buttonDefs = _settings.Prompts.Select(p => (Tag: p.Title, Text: p.Title, Tooltip: p.Title, Icon: p.Icon)).ToArray();
 
         var theme = Application.Current?.ActualThemeVariant ?? ThemeVariant.Light;
         var contentForeground = theme == ThemeVariant.Light ? TryGetBrush("SystemBaseHighColor") : TryGetBrush("SystemBaseHighColor");
 
-            foreach (var def in buttonDefs)
+        foreach (var def in buttonDefs)
         {
             var btn = new Button { Classes = { "HeaderChip" }, Height = 36, Tag = def.Tag, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
             ToolTip.SetTip(btn, def.Tooltip);
@@ -140,16 +140,14 @@ public class AiActionsManager : IDisposable
             var sp = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
 
             //TODO: Replace with appropriate icons from HeroIcons.Avalonia
-            var icon = new HeroIcon { Width = 16, Height = 16, Kind = HeroIconsAvalonia.Enums.IconKind.Solid };
-            switch (def.Tag)
+            var icon = new HeroIcon
             {
-                case "quick_summary": icon.Type = HeroIconsAvalonia.Enums.IconType.ArrowPath; break;
-                case "suggest_question": icon.Type = HeroIconsAvalonia.Enums.IconType.Cog6Tooth; break;
-                case "response_coach": icon.Type = HeroIconsAvalonia.Enums.IconType.ChatBubbleLeftRight; break;
-                case "action_items": icon.Type = HeroIconsAvalonia.Enums.IconType.PlusCircle; break;
-                default: icon.Type = HeroIconsAvalonia.Enums.IconType.QuestionMarkCircle; break;
-            }
-
+                Width = 16,
+                Height = 16,
+                Kind = HeroIconsAvalonia.Enums.IconKind.Solid,
+                Type = def.Icon ?? HeroIconsAvalonia.Enums.IconType.QuestionMarkCircle
+            };
+            
             try { icon.Foreground = contentForeground; } catch { }
 
             sp.Children.Add(icon);

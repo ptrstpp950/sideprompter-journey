@@ -93,6 +93,7 @@ public partial class PromptsSettingsPageView : UserControl
     _settings.Prompts.Add(new Prompt
     {
         Title = "Meeting Summary",
+        Icon = HeroIconsAvalonia.Enums.IconType.DocumentText,
         PromptText = @"You are a meeting summarization assistant.
 
 **Task:**
@@ -105,6 +106,7 @@ If you interfere mark it with <interference>. If you use external knowledge mark
     _settings.Prompts.Add(new Prompt
     {
         Title = "Suggested Follow-Up",
+        Icon = HeroIconsAvalonia.Enums.IconType.ArrowPath,
         PromptText = @"You are a follow-up question generator.
 
 **Task:**
@@ -117,6 +119,7 @@ If context is insufficient, state ""I don't have that information."""
         _settings.Prompts.Add(new Prompt
         {
             Title = "Key Insight",
+            Icon = HeroIconsAvalonia.Enums.IconType.LightBulb,
             PromptText = @"You are a Key Insight analyst.
 
     **Task:**
@@ -126,6 +129,7 @@ If context is insufficient, state ""I don't have that information."""
     _settings.Prompts.Add(new Prompt
     {
         Title = "Suggested Reply",
+        Icon = HeroIconsAvalonia.Enums.IconType.ChatBubbleLeftRight,
         PromptText = @"You are a reply composer.
 **Task:**
 Given a selected speaker turn or question from the conversation, compose a short (1-2 sentence) professional reply the user can speak or paste.
@@ -137,6 +141,7 @@ If the information needed to craft a reply is missing, state ""I don't have that
     _settings.Prompts.Add(new Prompt
     {
         Title = "Action Summary",
+        Icon = HeroIconsAvalonia.Enums.IconType.ListBullet,
         PromptText = @"You are an ""Action Item Generator"" AI. Your job is to listen for decisions, tasks, and next steps, and to organize them into a clear summary.
 
 **Task:**
