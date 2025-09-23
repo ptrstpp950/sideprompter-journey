@@ -130,11 +130,12 @@ public class AiActionsManager : IDisposable
         var theme = Application.Current?.ActualThemeVariant ?? ThemeVariant.Light;
         var contentForeground = theme == ThemeVariant.Light ? TryGetBrush("SystemBaseHighColor") : TryGetBrush("SystemBaseHighColor");
 
-        foreach (var def in buttonDefs)
+            foreach (var def in buttonDefs)
         {
             var btn = new Button { Classes = { "HeaderChip" }, Height = 36, Tag = def.Tag, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
             ToolTip.SetTip(btn, def.Tooltip);
-            btn.Click += async (_, _) => await AskAiWithKindAsync(def.Tag);
+            // Wrap click so we can show per-button loading state while the async action runs
+            btn.Click += async (_, _) => await HandleButtonClickAsync(def.Tag, btn);
 
             var sp = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
 
@@ -162,6 +163,52 @@ public class AiActionsManager : IDisposable
 
             btn.Content = sp;
             panel.Children.Add(btn);
+        }
+    }
+
+    // Shows an indeterminate progress indicator on the source button while asking AI.
+    private async Task HandleButtonClickAsync(string kind, Button btn)
+    {
+        if (btn == null) return;
+
+        var originalContent = btn.Content;
+        var originalIsEnabled = btn.IsEnabled;
+
+        // Create a small loading content (spinner replacement using an indeterminate ProgressBar)
+        var fg = TryGetBrush("SystemBaseHighColor");
+        var loadingSp = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 6, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        var pb = new ProgressBar { Width = 18, Height = 12, IsIndeterminate = true, Margin = new Thickness(0, 8, 0, 8) };
+        var txt = new TextBlock { Text = "Loading...", Foreground = fg, FontSize = 11, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        loadingSp.Children.Add(pb);
+        loadingSp.Children.Add(txt);
+
+        // Set UI state to loading
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                btn.IsEnabled = false;
+                btn.Content = loadingSp;
+            }
+            catch { }
+        });
+
+        try
+        {
+            await AskAiWithKindAsync(kind);
+        }
+        finally
+        {
+            // Restore UI state on UI thread
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    btn.Content = originalContent;
+                    btn.IsEnabled = originalIsEnabled;
+                }
+                catch { }
+            });
         }
     }
 

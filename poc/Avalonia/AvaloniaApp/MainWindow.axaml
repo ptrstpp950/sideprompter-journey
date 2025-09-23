@@ -40,6 +40,7 @@
                 <Button x:Name="ResetButton" Classes="IconButton" Width="40" Height="36" Click="ResetButton_OnClick" ToolTip.Tip="Reset Chat">
                     <heroIcons:HeroIcon Type="ArrowPath" Foreground="#f59e0b" Kind="Solid" />
                 </Button>
+                <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
                 <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />
@@ -58,22 +59,13 @@
                         <heroIcons:HeroIcon x:Name="UnprotectedIcon" IsVisible="False" Type="ShieldExclamation" Foreground="#c52230" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
-                <Button x:Name="AddContextButton" Classes="HeaderChip" Height="36" ToolTip.Tip="Add Context" Click="AddContextButton_OnClick">
+                <!-- TODO: In next version I will enable this-->
+                <Button x:Name="AddContextButton" Classes="HeaderChip" Height="36" ToolTip.Tip="Add Context" IsVisible="False" Click="AddContextButton_OnClick">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="PlusCircle" Foreground="#10b981" Width="16" Height="16" Kind="Solid" />
                         <TextBlock Text="Add Ctx (Alt+?)" Foreground="#cbd5e1" FontSize="11"/>
                     </StackPanel>
                 </Button>
-            </StackPanel>
-        </DockPanel>
-        <!-- Prompt selection row -->
-        <DockPanel Grid.Row="2" x:Name="BeforeStartRow"  Margin="12,4,12,0" LastChildFill="False" IsVisible="True">
-            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <!-- AI action buttons are created dynamically in code-behind. Placeholder panel: -->
-                <TextBlock Text="Prompt:" VerticalAlignment="Center"/>
-                <ComboBox x:Name="PromptComboBox" MinHeight="32" ItemsSource="{Binding Settings.Prompts}" DisplayMemberBinding="{Binding Title}" SelectedItem="{Binding SelectedPrompt}"/>
-                <TextBlock Text="Language:" VerticalAlignment="Center"/>
-                <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
             </StackPanel>
         </DockPanel>
         <UniformGrid Grid.Row="2" x:Name="AiButtonsPanel" Columns="1" VerticalAlignment="Center" IsVisible="True" ScrollViewer.VerticalScrollBarVisibility="Visible" />

@@ -490,44 +490,18 @@ public partial class MainWindow : Window
     {
         try
         {
-            _chatViewModel.IsAsking = true;
-            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = "Loading conversation help..."; });
-            // Create a snapshot of the Messages collection to avoid modification during enumeration
-            var messagesSnapshot = _chatViewModel.Messages.ToList();
-
-            var messages = messagesSnapshot
-                .Select(m => $"[{AuthorToLetter(m.Author)}] {m.Text}")
-                .ToList();
-
-            if (_chatCompletionService != null)
+            // TODO: fix shortcut!
+            if(_aiActionsManager == null || _settings.Prompts.Count == 0)
             {
-                var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
-
-                var selectedPrompt = (PromptComboBox.SelectedItem as Prompt)?.PromptText ??
-                                     "Answer always with 'wrong prompt - fix it'";
-
-                _chatCompletionService.Language = selectedLanguage;
-                _chatCompletionService.Prompt = selectedPrompt;
-
-                var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
-                //_chatViewModel.ClearMessages();
-                _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
-                //Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = chatResult; });
-                App.Notifications.Show(chatResult);
+                AddMessage("AI actions not configured. Please set up prompts in settings.");
+                return;
             }
-            else
-            {
-                _chatViewModel.AddLogMessage("[Config] Chat completion not configured (missing base/model). Skipping AI response.");
-            }
+            await _aiActionsManager.AskAiWithKindAsync(_settings.Prompts.FirstOrDefault()?.Title ?? "quick_summary");
         }
         catch (Exception e)
         {
             _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
-            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = $"[AI Context] Error: {e.Message}"; });
-        }
-        finally
-        {
-            _chatViewModel.IsAsking = false;
+            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = $"[AI] Error: {e.Message}"; });
         }
     }
 
@@ -651,70 +625,22 @@ public partial class MainWindow : Window
     // Shared handler for multiple AI action buttons. Buttons set Tag to identify which variant to run.
     private async void AskAiVariantButton_OnClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button btn) return;
+        if (sender is not Button btn)
+            return;
+        
         var kind = btn.Tag as string ?? "quick_summary";
         await AskAiWithKindAsync(kind);
     }
 
     // Core routine: builds a prompt based on 'kind' or user-selected prompt, then asks the ChatCompletionService.
-    private async Task AskAiWithKindAsync(string kind)
+    private Task AskAiWithKindAsync(string kind)
     {
-        try
+        if (_aiActionsManager == null)
         {
-            _chatViewModel.IsAsking = true;
-            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = "Loading conversation help..."; });
-
-            // Create a snapshot of the Messages collection to avoid modification during enumeration
-            var messagesSnapshot = _chatViewModel.Messages.ToList();
-            var messages = messagesSnapshot
-                .Select(m => $"[{AuthorToLetter(m.Author)}] {m.Text}")
-                .ToList();
-
-            if (_chatCompletionService == null)
-            {
-                _chatViewModel.AddLogMessage("[Config] Chat completion not configured (missing base/model). Skipping AI response.");
-                return;
-            }
-
-            var selectedLanguage = LanguageComboBox.SelectedItem as string ?? _settings.Languages?.FirstOrDefault() ?? "en";
-            _chatCompletionService.Language = selectedLanguage;
-
-            // Determine prompt text by kind; fall back to selected PromptComboBox item if present
-            string promptText = kind switch
-            {
-                "quick_summary" => "You are a concise meeting summarizer. Provide a short summary (1-3 sentences) of the ongoing conversation, focusing on main points.",
-                "suggest_question" => "You are an Intelligent Prompter. Analyze the conversation and suggest 2 concise, open-ended questions to advance the discussion.",
-                "response_coach" => "You are a Response Coach. Provide a short suggested reply the user can say now (1-3 sentences) and one quick tip about tone or phrasing.",
-                "action_items" => _settings?.Prompts?.FirstOrDefault(p => p.Title != null && p.Title.IndexOf("Action", StringComparison.OrdinalIgnoreCase) >= 0)?.PromptText
-                                   ?? "You are an Action Item Generator. Listen for decisions, tasks, and next steps and organize them into a clear summary with Decisions, Action Items (with owners if mentioned), and Open Questions. If none, state \"None.\"",
-                _ => string.Empty
-            };
-
-            if (PromptComboBox?.SelectedItem is Prompt selectedPrompt && !string.IsNullOrWhiteSpace(selectedPrompt.PromptText))
-            {
-                // Respect user-selected prompt as override
-                promptText = selectedPrompt.PromptText;
-            }
-
-            _chatCompletionService.Prompt = promptText;
-
-            var chatResult = await _chatCompletionService.GetCompletionAsync(messages);
-            if (!string.IsNullOrWhiteSpace(chatResult))
-            {
-                _chatViewModel.AddMessage(chatResult, MessageAuthor.AiAssistant);
-                App.Notifications.Show(chatResult);
-            }
+            AddMessage("AI actions manager not initialized.");
+            return Task.CompletedTask;
         }
-        catch (Exception ex)
-        {
-            _chatViewModel.AddLogMessage($"[Log][Exception] {ex.Message} {ex.StackTrace}");
-            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = $"[AI Context] Error: {ex.Message}"; });
-        }
-        finally
-        {
-            _chatViewModel.IsAsking = false;
-            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = string.Empty; });
-        }
+        return _aiActionsManager.AskAiWithKindAsync(kind);
     }
 
     private void AskAiButton_OnClick(object? sender, RoutedEventArgs e)
