@@ -18,6 +18,7 @@ public class NotificationService : INotificationService
     private const int StartOffsetY = 10;
     private AiChatWindow? _aiWindow;
     private readonly object _aiSync = new();
+    private readonly MainWindow _mainWindow;
 
     public void Show(string message, TimeSpan? autoClose = null)
     {
@@ -26,6 +27,11 @@ public class NotificationService : INotificationService
             EnsureAiWindowVisible();
 
         });
+    }
+
+    public NotificationService(MainWindow mainWindow)
+    {
+        _mainWindow = mainWindow;
     }
 
     public void EnsureAiWindowVisible()
@@ -56,6 +62,8 @@ public class NotificationService : INotificationService
                 var screen = main.Screens?.Primary ?? main.Screens?.All?.FirstOrDefault();
                 var area = screen?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
                 _aiWindow.Position = new PixelPoint(area.X + StartOffsetX, area.Y + StartOffsetY);
+
+                _mainWindow.AiChatWindow = _aiWindow;
 
                 _aiWindow.Opened += (_, _) => { /* nothing for now */ };
                 _aiWindow.Closed += (_, _) =>

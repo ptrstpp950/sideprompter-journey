@@ -49,7 +49,19 @@ public partial class MainWindow : Window
     private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
     private readonly ChatSessionService _chatSessionService;
 
-    public MainWindow() : this(null, null) {}
+    private AiChatWindow? _aiChatWindow;
+    public AiChatWindow? AiChatWindow
+    {
+        get => _aiChatWindow;
+        set
+        {
+            _aiChatWindow = value;
+            if (_aiChatWindow != null)
+                EnableWindowPrivacyService.SetProtected(_aiChatWindow, _isWindowProtected);
+        }
+    }
+
+    public MainWindow() : this(null, null) { }
 
     public MainWindow(AppSettings? settings, ILogger? logger)
     {
@@ -460,6 +472,8 @@ public partial class MainWindow : Window
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
         if (_chatHistoryWindow != null)
             EnableWindowPrivacyService.SetProtected(_chatHistoryWindow, _isWindowProtected);
+        if(_aiChatWindow != null)
+            EnableWindowPrivacyService.SetProtected(_aiChatWindow, _isWindowProtected);
         if (_settingsWindow != null)
             EnableWindowPrivacyService.SetProtected(_settingsWindow, _isWindowProtected);
         SwitchPrivacyIcon(status);
