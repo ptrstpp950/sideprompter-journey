@@ -63,17 +63,5 @@ public partial class AiChatWindow : Window
             catch { }
         }
     }
-
-    private void AskButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var question = QuestionBox.Text;
-        QuestionBox.Text = string.Empty;
-        // placeholder: you can send this question to the chat system here
-        OnAskQuestion(question);
-    }
-
-    private void OnAskQuestion(string? question)
-    {
-        // Empty function - placeholder for future integration
-    }
+    // Sending is handled by AiOnlyChatViewModel.AskCommand via binding.
 }

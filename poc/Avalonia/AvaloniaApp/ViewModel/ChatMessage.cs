@@ -15,4 +15,5 @@ public enum MessageAuthor
     Me,
     Other,
     AiAssistant,
+    Context
 }

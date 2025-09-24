@@ -57,15 +57,16 @@
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
   <TextBox x:Name="QuestionBox"
-       Watermark="Add info or ask a question..."
-       Grid.Column="0"
-       AcceptsReturn="True"
-       TextWrapping="Wrap"
-       MinHeight="40"
-       MaxHeight="120"
-       ScrollViewer.VerticalScrollBarVisibility="Auto"
-       ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-      <Button Content="Send" Margin="8,0,0,0" Width="50" Click="AskButton_Click" Grid.Column="1" />
+    Watermark="Add info or ask a question..."
+    Grid.Column="0"
+    AcceptsReturn="True"
+    TextWrapping="Wrap"
+    MinHeight="40"
+    MaxHeight="120"
+    ScrollViewer.VerticalScrollBarVisibility="Auto"
+    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+    Text="{Binding QuestionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+   <Button Content="Send" Margin="8,0,0,0" Width="50" Command="{Binding AskCommand}" Grid.Column="1" />
     </Grid>
   </Grid>
 </Window>
