@@ -57,7 +57,7 @@
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
   <TextBox x:Name="QuestionBox"
-    Watermark="Add info or ask a question..."
+    Watermark="Add context to the chat ..."
     Grid.Column="0"
     AcceptsReturn="True"
     TextWrapping="Wrap"
