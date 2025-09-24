@@ -14,6 +14,7 @@
     <viewModel:AuthorToBackgroundBrushConverter x:Key="BgConv" />
     <viewModel:AuthorToForegroundBrushConverter x:Key="FgConv" />
     <viewModel:AuthorToAlignmentConverter x:Key="AlignConv" />
+    <viewModel:BooleanToTextConverter x:Key="BooleanToTextConverter" />
   </Window.Resources>
   <Grid Margin="8">
     <Grid.RowDefinitions>
@@ -28,10 +29,20 @@
             <Border Margin="4,6" Padding="8" CornerRadius="8" Background="#1f2937">
               <StackPanel>
                 <DockPanel LastChildFill="True">
-                  <TextBlock FontWeight="Bold" Text="{Binding PromptTitle}" DockPanel.Dock="Left" />
+                  <!-- Collapse/expand toggle -->
+                  <ToggleButton DockPanel.Dock="Left"
+                                IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                Content="{Binding IsExpanded, Converter={StaticResource BooleanToTextConverter}, ConverterParameter='▾|▸'}"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0" />
+
+                  <TextBlock FontWeight="Bold" Text="{Binding PromptTitle}" />
+
                   <Button Content="Copy" HorizontalAlignment="Right" Click="CopyButton_Click" CommandParameter="{Binding Text}" />
                 </DockPanel>
-                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding Text}" />
+
+                <!-- Message body - visibility bound to IsExpanded -->
+                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding Text}" IsVisible="{Binding IsExpanded}" />
               </StackPanel>
             </Border>
           </DataTemplate>

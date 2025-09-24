@@ -492,7 +492,7 @@ public partial class MainWindow : Window
         try
         {
             // TODO: fix shortcut!
-            if(_aiActionsManager == null || _settings.Prompts.Count == 0)
+            if (_aiActionsManager == null || _settings.Prompts.Count == 0)
             {
                 AddMessage("AI actions not configured. Please set up prompts in settings.");
                 return;
@@ -502,7 +502,7 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
-            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = $"[AI] Error: {e.Message}"; });
+            _chatViewModel.AddMessage($"[AI Context] Error in connecting. Please try again later: {e.Message}", MessageAuthor.AiAssistant);
         }
     }
 
@@ -510,7 +510,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            if(_windowTextExtractionService == null)
+            if (_windowTextExtractionService == null)
             {
                 AddMessage("Window text extraction service not available on this platform.");
                 return;
@@ -533,7 +533,7 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             _chatViewModel.AddLogMessage($"[Log][Exception] {e.Message} {e.StackTrace}");
-            Dispatcher.UIThread.Post(() => { if (AiAssistantResponseTextBox != null) AiAssistantResponseTextBox.Text = $"[AI Context] Error: {e.Message}"; });
+            _chatViewModel.AddMessage($"[AI Context] Error in connecting. Please try again later: {e.Message}", MessageAuthor.AiAssistant);
         }
     }
 

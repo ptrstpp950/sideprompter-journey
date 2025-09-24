@@ -219,7 +219,7 @@ public class AiActionsManager : IDisposable
 
             var messagesSnapshot = _chatViewModel.Messages.ToList();
 
-            if(messagesSnapshot.Count == 0)
+            if (messagesSnapshot.Count == 0)
             {
                 _logger.Warning("[AI Action] No messages in chat to provide context for AI. Please add some messages first.");
                 App.Notifications.Show("No messages in chat to provide context for AI. Please add some messages first.");
@@ -248,7 +248,7 @@ public class AiActionsManager : IDisposable
             var promptId = promptSetting?.GetHash() ?? kind;
 
             var messages = messagesSnapshot
-                .Where(m => m.Author != MessageAuthor.AiAssistant || (m.Author== MessageAuthor.AiAssistant && m.PromptId == promptId))
+                .Where(m => m.Author != MessageAuthor.AiAssistant || (m.Author == MessageAuthor.AiAssistant && m.PromptId == promptId))
                 .Select(m => $"[{(m.Author == MessageAuthor.Me ? "m" : m.Author == MessageAuthor.AiAssistant ? "ai" : "o")}] {m.Text}")
                 .ToList();
 
@@ -263,6 +263,7 @@ public class AiActionsManager : IDisposable
         catch (Exception ex)
         {
             _chatViewModel.AddLogMessage($"[Log][Exception] {ex.Message} {ex.StackTrace}");
+            _chatViewModel.AddMessage($"[AI Context] Error in connecting. Please try again later: {ex.Message}", MessageAuthor.AiAssistant);
         }
         finally
         {

@@ -51,10 +51,25 @@ public class AiOnlyChatViewModel
         return prompt?.Title ?? promptId;
     }
 
-    public class AiChatItem
+    public class AiChatItem : System.ComponentModel.INotifyPropertyChanged
     {
+        private bool _isExpanded = true;
+
         public string PromptTitle { get; set; } = string.Empty;
         public string Text { get; set; } = string.Empty;
         public System.DateTime Timestamp { get; set; }
+
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set
+            {
+                if (_isExpanded == value) return;
+                _isExpanded = value;
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsExpanded)));
+            }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 }
