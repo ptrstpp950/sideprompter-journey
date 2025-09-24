@@ -115,7 +115,9 @@ namespace AvaloniaApp.Services
                 new ChatMessage(ChatRole.System, prompt),
                 new ChatMessage(ChatRole.System, "In responses use language: " + Language),
                 new ChatMessage(ChatRole.System,
-                    "Transcription structure. Messages starting with [m] is my text, starting with [o] is others text, starting with [ai] is your previous suggestions"),
+                    "Transcription structure. Messages starting with [m] is my text, starting with [o] is others text, starting with [ctx] is context added, starting with [ai] is your previous suggestions"),
+                new ChatMessage(ChatRole.System,
+                    "Do not add [ai] in your responses"),
                 new ChatMessage(ChatRole.System, "Make answers short and brief. Use plain text.")
             ];
         }

@@ -210,6 +210,18 @@ public class AiActionsManager : IDisposable
         }
     }
 
+    private string MessageAuthorToChatRole(MessageAuthor author)
+    {
+        return author switch
+        {
+            MessageAuthor.Me => "m",
+            MessageAuthor.AiAssistant => "ai",
+            MessageAuthor.Context => "ctx",
+            MessageAuthor.Other => "o",
+            _ => "i"
+        };
+    }
+
     public async Task AskAiWithKindAsync(string kind)
     {
         try
@@ -249,7 +261,7 @@ public class AiActionsManager : IDisposable
 
             var messages = messagesSnapshot
                 .Where(m => m.Author != MessageAuthor.AiAssistant || (m.Author == MessageAuthor.AiAssistant && m.PromptId == promptId))
-                .Select(m => $"[{(m.Author == MessageAuthor.Me ? "m" : m.Author == MessageAuthor.AiAssistant ? "ai" : "o")}] {m.Text}")
+                .Select(m => $"[{MessageAuthorToChatRole(m.Author)}] {m.Text}")
                 .ToList();
 
             var chatResult = await service.GetCompletionAsync(prompt, messages);
