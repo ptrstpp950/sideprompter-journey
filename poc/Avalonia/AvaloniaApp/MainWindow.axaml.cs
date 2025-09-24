@@ -408,6 +408,9 @@ public partial class MainWindow : Window
             _startedAt = DateTime.UtcNow;
             _elapsedTimer.Start();
             UpdateElapsedTime();
+
+            //TODO: remove placeholder message
+            _chatViewModel.AddMessage("Let's get started! That's just a long text that I want to add", MessageAuthor.Me);
         }
         catch (Exception)
         {
@@ -590,7 +593,7 @@ public partial class MainWindow : Window
 
     private void HistoryButton_OnClick(object? sender, RoutedEventArgs e)
     {
-        if (_chatHistoryWindow == null || !_chatHistoryWindow.IsVisible)
+        /*if (_chatHistoryWindow == null || !_chatHistoryWindow.IsVisible)
         {
             _chatHistoryWindow = new ChatHistoryWindow
             {
@@ -603,7 +606,8 @@ public partial class MainWindow : Window
         else
         {
             _chatHistoryWindow.Activate();
-        }
+        }*/
+        App.Notifications.EnsureAiWindowVisible();
         SetWindowsProtection(_isWindowProtected);
     }
 

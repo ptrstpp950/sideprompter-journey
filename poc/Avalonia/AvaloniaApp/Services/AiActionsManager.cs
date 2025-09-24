@@ -256,7 +256,7 @@ public class AiActionsManager : IDisposable
 
             if (!string.IsNullOrWhiteSpace(chatResult))
             {
-                _chatViewModel.AddAiMessage(chatResult, prompt);
+                _chatViewModel.AddAiMessage(chatResult, promptId);
                 App.Notifications.Show(chatResult);
             }
         }

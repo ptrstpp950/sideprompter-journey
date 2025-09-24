@@ -27,7 +27,7 @@ public partial class App : Application
         {
             Notifications = new NotificationService();
             var settings = SettingsService.Load();
-            settings.SetupCompleted = false; // TEMP: force re-setup for testing
+            // settings.SetupCompleted = false; // TEMP: force re-setup for testing
             if (settings.AppSettingsVersion != AppSettings.CurrentVersion)
             {
                 settings.Prompts.Clear(); // clear out old prompts on breaking change

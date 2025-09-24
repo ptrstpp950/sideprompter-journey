@@ -8,65 +8,64 @@ namespace AvaloniaApp.Services.Notification;
 
 public interface INotificationService
 {
-    NotificationWindow Show(string message, TimeSpan? autoClose = null);
+    void Show(string message, TimeSpan? autoClose = null);
+    public void EnsureAiWindowVisible();
 }
 
 public class NotificationService : INotificationService
 {
-    private readonly List<NotificationWindow> _windows = new();
-    private readonly object _sync = new();
     private const int StartOffsetX = 10;
     private const int StartOffsetY = 10;
-    private const int Gap = 8;
+    private AiChatWindow? _aiWindow;
+    private readonly object _aiSync = new();
 
-    public NotificationWindow Show(string message, TimeSpan? autoClose = null)
+    public void Show(string message, TimeSpan? autoClose = null)
     {
-        NotificationWindow window = null!;
         Dispatcher.UIThread.InvokeAsync(() =>
         {
-            window = new NotificationWindow(message, autoClose)
-            {
-                Topmost = true,
-                ShowInTaskbar = false
-            };
-            window.Closed += (_, _) =>
-            {
-                lock (_sync)
-                {
-                    _windows.Remove(window);
-                }
-                Reposition();
-            };
-            lock (_sync)
-            {
-                _windows.Add(window);
-            }
-            window.Opened += (_, _) => Reposition();
-            window.Show();
+            EnsureAiWindowVisible();
+
         });
-        return window;
     }
 
-    private void Reposition()
+    public void EnsureAiWindowVisible()
     {
         Dispatcher.UIThread.Post(() =>
         {
-            var screen = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desk
-                ? desk.MainWindow?.Screens?.Primary ?? desk.MainWindow?.Screens?.All?.FirstOrDefault()
-                : null;
-            var area = screen?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
-            int currentY = area.Y + StartOffsetY;
-            List<NotificationWindow> snapshot;
-            lock (_sync)
+            lock (_aiSync)
             {
-                snapshot = _windows.ToList();
-            }
-            foreach (var w in snapshot)
-            {
-                if (!w.IsVisible) continue;
-                var h = (int)w.Bounds.Height;
-                w.Position = new PixelPoint(area.X + StartOffsetX, currentY);
-                currentY += h + Gap;
+                if (_aiWindow != null && _aiWindow.IsVisible) return;
+
+                // Try to find the main chat view-model from the application's main window DataContext
+                var main = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desk
+                    ? desk.MainWindow
+                    : null;
+                if (main == null) return;
+
+                var mainDc = main.DataContext as ViewModel.ChatViewModel;
+                if (mainDc == null) return;
+
+                var aiVm = new ViewModel.AiOnlyChatViewModel(mainDc);
+                _aiWindow = new AiChatWindow(aiVm)
+                {
+                    Topmost = true,
+                    ShowInTaskbar = false
+                };
+
+                // Dock to left: position at left working area edge and vertically center-ish near top
+                var screen = main.Screens?.Primary ?? main.Screens?.All?.FirstOrDefault();
+                var area = screen?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
+                _aiWindow.Position = new PixelPoint(area.X + StartOffsetX, area.Y + StartOffsetY);
+
+                _aiWindow.Opened += (_, _) => { /* nothing for now */ };
+                _aiWindow.Closed += (_, _) =>
+                {
+                    lock (_aiSync)
+                    {
+                        _aiWindow = null;
+                    }
+                };
+                _aiWindow.Show();
             }
         });
     }

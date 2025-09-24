@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModel="clr-namespace:AvaloniaApp.ViewModel"
+        x:Class="AvaloniaApp.AiChatWindow"
+        x:DataType="viewModel:AiOnlyChatViewModel"
+        x:CompileBindings="True"
+        Width="360" Height="400"
+        Title="AI Assistant"
+        CanResize="True"
+        mc:Ignorable="d">
+  <Window.Resources>
+    <viewModel:AuthorToBackgroundBrushConverter x:Key="BgConv" />
+    <viewModel:AuthorToForegroundBrushConverter x:Key="FgConv" />
+    <viewModel:AuthorToAlignmentConverter x:Key="AlignConv" />
+  </Window.Resources>
+  <Grid Margin="8">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <ScrollViewer Grid.Row="0">
+      <ItemsControl ItemsSource="{Binding Items}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="viewModel:AiOnlyChatViewModel+AiChatItem">
+            <Border Margin="4,6" Padding="8" CornerRadius="8" Background="#1f2937">
+              <StackPanel>
+                <DockPanel LastChildFill="True">
+                  <TextBlock FontWeight="Bold" Text="{Binding PromptTitle}" DockPanel.Dock="Left" />
+                  <Button Content="Copy" HorizontalAlignment="Right" Click="CopyButton_Click" CommandParameter="{Binding Text}" />
+                </DockPanel>
+                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding Text}" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <!-- Input area -->
+    <Grid Grid.Row="1" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+  <TextBox x:Name="QuestionBox"
+       Watermark="Add info or ask a question..."
+       Grid.Column="0"
+       AcceptsReturn="True"
+       TextWrapping="Wrap"
+       MinHeight="40"
+       MaxHeight="120"
+       ScrollViewer.VerticalScrollBarVisibility="Auto"
+       ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+      <Button Content="Send" Margin="8,0,0,0" Width="50" Click="AskButton_Click" Grid.Column="1" />
+    </Grid>
+  </Grid>
+</Window>
