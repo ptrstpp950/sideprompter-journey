@@ -25,7 +25,7 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            Notifications = new NotificationService();
+            MainWindow mainWindow;
             var settings = SettingsService.Load();
             // settings.SetupCompleted = false; // TEMP: force re-setup for testing
             if (settings.AppSettingsVersion != AppSettings.CurrentVersion)
@@ -42,15 +42,21 @@ public partial class App : Application
                     var latest = SettingsService.Load();
                     latest.SetupCompleted = true;
                     SettingsService.Save(latest);
-                    desktop.MainWindow = new MainWindow(latest, Log.Logger);
+                    mainWindow = new MainWindow(latest, Log.Logger);
+                    Notifications = new NotificationService(mainWindow);
+                    desktop.MainWindow = mainWindow;
                     desktop.MainWindow.Show();
                 };
                 wizard.Show();
             }
             else
             {
-                desktop.MainWindow = new MainWindow(settings, Log.Logger);
+                mainWindow = new MainWindow(settings, Log.Logger);
+                desktop.MainWindow = mainWindow;
+                Notifications = new NotificationService(mainWindow);
             }
+
+
 
             // TODO: Re-enable background update check once Velopack API usage is confirmed.
         }
