@@ -11,9 +11,6 @@
         CanResize="True"
         mc:Ignorable="d">
   <Window.Resources>
-    <viewModel:AuthorToBackgroundBrushConverter x:Key="BgConv" />
-    <viewModel:AuthorToForegroundBrushConverter x:Key="FgConv" />
-    <viewModel:AuthorToAlignmentConverter x:Key="AlignConv" />
     <viewModel:BooleanToTextConverter x:Key="BooleanToTextConverter" />
   </Window.Resources>
   <Grid Margin="8">
@@ -26,7 +23,7 @@
       <ItemsControl ItemsSource="{Binding Items}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="viewModel:AiOnlyChatViewModel+AiChatItem">
-            <Border Margin="4,6" Padding="8" CornerRadius="8" Background="#1f2937">
+            <Border Margin="4,6" Padding="8" CornerRadius="8" BorderBrush="{StaticResource SystemChromeGrayColor}" BorderThickness="1">
               <StackPanel>
                 <DockPanel LastChildFill="True">
                   <!-- Collapse/expand toggle -->
