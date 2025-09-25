@@ -207,7 +207,7 @@ public partial class MainWindow : Window
             }));
 
 #if MACOS || OSX || MACCATALYST
-            _audioTranscriptionService = new AudioTranscriptionServiceMac(transcriptionCore);
+            _audioTranscriptionService = new AudioTranscriptionServiceMac(_logger ,transcriptionCoreMic, transcriptionCoreSpeaker);
 #elif WINDOWS
             _audioTranscriptionService = new AudioTranscriptionServiceWin(_logger ,transcriptionCoreMic, transcriptionCoreSpeaker);
 #endif
