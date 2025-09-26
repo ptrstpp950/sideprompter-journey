@@ -13,8 +13,8 @@ STAGING_DIR="./bin/wrapper-staging"
 PUBLISH_X64="./bin/Release/net9.0-macos/osx-x64"
 PUBLISH_ARM="./bin/Release/net9.0-macos/osx-arm64"
 ENTITLEMENTS="SidePrompter.entitlements"
-RUN_PUBLISH="${RUN_PUBLISH:-0}"  # Default to not publishing
-VERSION="${VERSION:-0.0.1}"
+RUN_PUBLISH="${RUN_PUBLISH:-1}"  # Default to publishing
+VERSION="${VERSION:-}"
 
 print_help() {
     sed -n '1,200p' "$0" | sed -n '1,40p' >/dev/stderr || true
@@ -45,12 +45,6 @@ for arg in "$@"; do
             print_help
             exit 0
             ;;
-            --version=*)
-                VERSION="${arg#*=}"
-                ;;
-            -v=*)
-                VERSION="${arg#*=}"
-                ;;
         *)
             ;;
     esac
@@ -59,6 +53,28 @@ done
 # Require SIGN_ID
 if [ -z "${SIGN_ID:-}" ]; then
     echo "Error: SIGN_ID is not set. Please set it and re-run."
+    exit 1
+fi
+
+
+# extract VERSION from csproj if not set
+if [ -f "${APP_PROJECT}" ]; then
+    # macOS grep doesn't support -P; use sed which is portable on macOS to extract the <Version> value
+    VERSION_FROM_CSPROJ=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "${APP_PROJECT}" | head -n1 || true)
+    if [ -n "${VERSION_FROM_CSPROJ}" ]; then
+        VERSION="${VERSION_FROM_CSPROJ}"
+        echo "Extracted version from ${APP_PROJECT}: ${VERSION}"
+    else
+        echo "Error: Could not extract version from ${APP_PROJECT}; using default ${VERSION}"
+        exit 1
+    fi
+else
+    echo "Error: ${APP_PROJECT} not found; using default version ${VERSION}"
+    exit 1
+fi
+
+if [ -z "${VERSION}" ]; then
+    echo "Error: VERSION is not set and could not be extracted. Please set it and re-run."
     exit 1
 fi
 
@@ -217,7 +233,7 @@ fi
 # If vpk produced a portable zip, unzip it into the staging dir and create a DMG
 VPK_PORTABLE_ZIP="./bin/velopack/sideprompter-osx-Portable.zip"
 PUBLISH_DIR="./bin/velopack"
-DMG_NAME="${APP_NAME}-${VERSION}.dmg"
+DMG_NAME="${APP_NAME}.dmg"
 STAGING_DMG_DIR="./bin/dmg-staging"
 BACKGROUND_IMAGE="installer_files/installer_background.jpg"
 
@@ -249,6 +265,12 @@ if [ -n "${NOTARIZE_CREDENTIALS:-}" ]; then
     NOTARIZE_ARG=(--notarize "${NOTARIZE_CREDENTIALS}")
 fi
 
+# Remove existing DMG if present
+if [ -f "${PUBLISH_DIR}/${DMG_NAME}" ]; then
+    echo "Removing existing DMG at ${PUBLISH_DIR}/${DMG_NAME}"
+    rm -f "${PUBLISH_DIR}/${DMG_NAME}"
+fi
+
 echo "Creating DMG from staging dir: ${STAGING_DMG_DIR} -> ${PUBLISH_DIR}/${DMG_NAME}"
 if command -v create-dmg >/dev/null 2>&1; then
     create-dmg \
@@ -267,4 +289,20 @@ if command -v create-dmg >/dev/null 2>&1; then
     echo "DMG creation completed: ${PUBLISH_DIR}/${DMG_NAME}"
 else
     echo "create-dmg not found; skipping DMG creation. Install create-dmg and re-run the printed command if desired."
+    exit 1
 fi
+
+# Staple the DMG if created
+if [ ! -f "${PUBLISH_DIR}/${DMG_NAME}" ]; then
+    echo "DMG not found at ${PUBLISH_DIR}/${DMG_NAME}; skipping stapling."
+    exit 1
+fi
+if ! command -v stapler >/dev/null 2>&1; then
+    echo "stapler not found; skipping stapling. Install stapler and re-run the printed command if desired."
+    exit 1
+fi
+echo "Stapling DMG: ${PUBLISH_DIR}/${DMG_NAME}"
+stapler staple "${PUBLISH_DIR}/${DMG_NAME}" || echo "Warning: stapler staple failed for ${PUBLISH_DIR}/${DMG_NAME}"
+
+echo "Packaging complete. Output located in ./bin/velopack"
+echo "Upload it using: rclone copy ./bin/velopack/ cloudflare:sideprompter-installer/mac"
