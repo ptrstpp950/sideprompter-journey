@@ -9,7 +9,7 @@ Push-Location "$ScriptDir\.."
 echo "Building from directory: $PWD"
 
 # Build and publish
-#dotnet publish .\AvaloniaApp.csproj -c Release --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o bin\publish
+dotnet publish .\AvaloniaApp.csproj -c Release --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=false -o bin\publish
 
 # Extract version from the built executable
 $exePath = ".\bin\publish\SidePrompter.exe"
@@ -29,3 +29,6 @@ Write-Host "Built version: $Version"
 vpk pack -o .\bin\velopack --packId SidePrompter --packVersion $Version --packDir .\bin\publish --mainExe SidePrompter.exe --icon .\Assets\icon.ico
 
 Pop-Location
+
+Write-Host "Packaging complete. Output located in .\bin\velopack"
+Write-Host "Upload it using: rclone copy .\bin\velopack\win\ cloudflare:sideprompter-installer/win"
