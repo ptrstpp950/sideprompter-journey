@@ -4,9 +4,6 @@ using Avalonia.Markup.Xaml;
 using AvaloniaApp.ViewModel;
 using System;
 using System.Threading.Tasks;
-#if WINDOWS
-using System.Windows.Forms;
-#endif
 
 namespace AvaloniaApp;
 
@@ -33,32 +30,12 @@ public partial class AiChatWindow : Window
         {
             try
             {
-#if WINDOWS
-                // Use a dedicated STA thread for WinForms clipboard calls.
-                // Task.Run uses a thread-pool thread (MTA) which causes a
-                // ThreadStateException when calling Ole functions.
-                var tcs = new TaskCompletionSource<bool>();
-                var thread = new System.Threading.Thread(() =>
-                {
-                    try
-                    {
-                        System.Windows.Forms.Clipboard.SetText(txt);
-                        tcs.SetResult(true);
-                    }
-                    catch (Exception ex)
-                    {
-                        tcs.SetException(ex);
-                    }
-                });
-                thread.SetApartmentState(System.Threading.ApartmentState.STA);
-                thread.IsBackground = true;
-                thread.Start();
-                await tcs.Task;
-#else
+                // Use Avalonia's cross-platform clipboard API for all platforms.
                 var top = TopLevel.GetTopLevel(this);
                 if (top?.Clipboard != null)
+                {
                     await top.Clipboard.SetTextAsync(txt);
-#endif
+                }
             }
             catch { }
         }
