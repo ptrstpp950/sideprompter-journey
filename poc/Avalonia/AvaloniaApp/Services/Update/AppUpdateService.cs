@@ -22,7 +22,11 @@ public class AppUpdateService : IAppUpdateService
     public AppUpdateService(ILogger log)
     {
         _log = log;
+#if WINDOWS
         _baseUrl = Environment.GetEnvironmentVariable("SIDEPROMPTER_UPDATE_FEED") ?? "https://cdn.sideprompter.com/win/";
+#elif MACOS || OSX || MACCATALYST
+        _baseUrl = Environment.GetEnvironmentVariable("SIDEPROMPTER_UPDATE_FEED") ?? "https://cdn.sideprompter.com/mac/";
+#endif        
         _channel = Environment.GetEnvironmentVariable("SIDEPROMPTER_UPDATE_CHANNEL") ?? "stable";
         
         // Initialize UpdateManager with the CDN URL
@@ -77,9 +81,11 @@ public class AppUpdateService : IAppUpdateService
             // Download the update
             await _updateManager.DownloadUpdatesAsync(updateCheck);
             _log.Information("Update downloaded successfully");
-            
-            // Apply the update and restart the application
-            _updateManager.ApplyUpdatesAndExit(updateCheck);
+
+            // Update will be applied on next restart
+            // For now, we just log it  
+            _log.Information("Update will be applied on next application restart");
+            //_updateManager.ApplyUpdatesAndRestart(updateCheck);
             return true;
         }
         catch (Exception ex)
