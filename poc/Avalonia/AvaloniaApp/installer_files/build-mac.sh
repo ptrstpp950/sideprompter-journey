@@ -283,7 +283,7 @@ if command -v create-dmg >/dev/null 2>&1; then
             --background "${STAGING_DMG_DIR}/.background/background.jpg" \
             --notarize "${NOTARIZE_CREDENTIALS}" \
             "${PUBLISH_DIR}/${DMG_NAME}" \
-            "${STAGING_DIR}"
+            "${STAGING_DMG_DIR}"
 
             #"${NOTARIZE_ARG[@]}" \
     echo "DMG creation completed: ${PUBLISH_DIR}/${DMG_NAME}"
