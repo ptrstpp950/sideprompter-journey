@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using System.Threading.Tasks;
@@ -34,6 +35,8 @@ public class SetupWizardViewModel : INotifyPropertyChanged
     public bool IsSettingsMode { get; }
 
     public string PrimaryButtonText => IsSettingsMode ? "Save" : (IsLastPage ? "Finish" : "Next");
+
+    public string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
 
     private readonly AppSettings _settings;
 

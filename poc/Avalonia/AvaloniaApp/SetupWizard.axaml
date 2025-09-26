@@ -40,6 +40,11 @@
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
+        <TextBlock Text="{Binding Version, StringFormat='Version {0}'}" 
+                   FontSize="12" 
+                   Foreground="{DynamicResource ThemeForegroundLowBrush}" 
+                   Margin="16,0,16,16" 
+                   HorizontalAlignment="Left" />
       </StackPanel>
     </Border>
 
