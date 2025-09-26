@@ -64,8 +64,8 @@
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Deepgram" Version="6.6.0" />
-  <!-- Velopack package (using latest available prerelease; adjust as needed) -->
-  <PackageReference Include="Velopack" Version="0.0.1362-gfa48e3c" />
+    <!-- Velopack package (using latest available prerelease; adjust as needed) -->
+    <PackageReference Include="Velopack" Version="0.0.1362-gfa48e3c" />
   </ItemGroup>
   
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">

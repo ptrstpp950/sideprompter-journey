@@ -9,7 +9,7 @@ Push-Location "$ScriptDir\.."
 echo "Building from directory: $PWD"
 
 # Build and publish
-dotnet publish .\AvaloniaApp.csproj -c Release --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=false -o bin\publish
+dotnet publish .\AvaloniaApp.csproj -c Release --self-contained true -p:PublishSingleFile=false -p:EnableCompressionInSingleFile=false -o bin\publish
 
 # Extract version from the built executable
 $exePath = ".\bin\publish\SidePrompter.exe"
