@@ -30,15 +30,15 @@
         <DockPanel Grid.Row="0" Margin="12,4,12,0" LastChildFill="False">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <ToggleButton x:Name="ToggleButton"
-                              Checked="ToggleButton_OnChecked"
-                              Unchecked="ToggleButton_OnUnchecked">
+                              Checked="StartButton_OnClick"
+                              Unchecked="PauseButton_OnClick">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon x:Name="StartIcon" IsVisible="True" Type="PlayCircle" Foreground="#22c55e" Kind="Solid" />
-                        <heroIcons:HeroIcon x:Name="StopIcon" IsVisible="False" Type="StopCircle" Foreground="#c52230" Kind="Solid" />
+                        <heroIcons:HeroIcon x:Name="PauseIcon" IsVisible="False" Type="PauseCircle" Foreground="#f59e0b" Kind="Solid" />
                     </StackPanel>
                 </ToggleButton>
-                <Button x:Name="ResetButton" Classes="IconButton" Width="40" Height="36" Click="ResetButton_OnClick" ToolTip.Tip="Reset Chat">
-                    <heroIcons:HeroIcon Type="ArrowPath" Foreground="#f59e0b" Kind="Solid" />
+                <Button x:Name="StopButton" IsVisible="False" Classes="IconButton" Width="40" Height="36" Click="StopButton_OnClick">
+                    <heroIcons:HeroIcon Type="StopCircle" Foreground="#c52230" Kind="Solid" />
                 </Button>
                 <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
                 <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">

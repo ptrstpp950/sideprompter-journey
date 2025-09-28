@@ -393,8 +393,10 @@ public partial class MainWindow : Window
         StartIcon.IsVisible = startIconVisible;
         //BeforeStartRow.IsVisible = startIconVisible;
 
-        StopIcon.IsVisible = !startIconVisible;
+        PauseIcon.IsVisible = !startIconVisible;
         //AiAssistantResponseTextBox.IsVisible = !startIconVisible;
+
+        StopButton.IsVisible = !startIconVisible;
 
         SettingsButton.IsVisible = startIconVisible;
         
@@ -405,7 +407,7 @@ public partial class MainWindow : Window
         _aiActionsManager?.InitializeButtons(AiButtonsPanel);
     }
 
-    private async void ToggleButton_OnChecked(object? sender, RoutedEventArgs e)
+    private async void StartButton_OnClick(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -417,12 +419,13 @@ public partial class MainWindow : Window
             // Start a new session when transcription starts
             _chatSessionService.NewSession();
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
-            _startedAt = DateTime.UtcNow;
+            if(_startedAt == null)
+                _startedAt = DateTime.UtcNow;
             _elapsedTimer.Start();
             UpdateElapsedTime();
 
             //TODO: remove placeholder message
-            _chatViewModel.AddMessage("Let's get started! That's just a long text that I want to add", MessageAuthor.Me);
+            //_chatViewModel.AddMessage("Let's get started! That's just a long text that I want to add", MessageAuthor.Me);
         }
         catch (Exception)
         {
@@ -431,8 +434,29 @@ public partial class MainWindow : Window
     }
 
 
+    private async void PauseButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // Stop transcription processing if available
+            if (_audioTranscriptionService != null)
+                await _audioTranscriptionService.StopProcessing();
 
-    private async void ToggleButton_OnUnchecked(object? sender, RoutedEventArgs e)
+            // Mark as not transcribing and pause elapsed timer
+            _isTranscribing = false;
+            _elapsedTimer.Stop();
+
+            // Do not clear _startedAt so we can resume later; keep elapsed shown as paused
+            // Switch UI to show the start icon (paused state)
+            SwitchStartStopIcon(true);
+        }
+        catch (Exception)
+        {
+            // Keep UI responsive on errors (consistent with other handlers)
+        }
+    }
+
+    private async void StopButton_OnClick(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -449,6 +473,7 @@ public partial class MainWindow : Window
             var lang = LanguageComboBox?.SelectedItem as string ?? _settings.Languages?.FirstOrDefault() ?? "en";
             await _chatSessionService.EnsureHeaderAsync(_chatViewModel, lang);
             await _chatSessionService.FinalizeAsync("TODO", "TODO");
+            _chatViewModel.ClearMessages();
         }
         catch (Exception)
         {
@@ -625,12 +650,9 @@ public partial class MainWindow : Window
         SetWindowsProtection(_isWindowProtected);
     }
 
-    private void ResetButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        _chatViewModel.ClearMessages();
-    }
     private void CloseButton_OnClick(object? sender, RoutedEventArgs e)
     {
+
         Close();
     }
 
