@@ -129,5 +129,6 @@ public class FileChatStorage : IChatStorage
         var options = new JsonSerializerOptions { WriteIndented = true };
         var payload = JsonSerializer.Serialize(export, options);
         await File.WriteAllTextAsync(jsonPath, payload);
+        File.Delete(jsonl);
     }
 }
