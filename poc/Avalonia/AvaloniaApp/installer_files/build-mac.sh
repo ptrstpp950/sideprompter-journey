@@ -56,6 +56,15 @@ if [ -z "${SIGN_ID:-}" ]; then
     exit 1
 fi
 
+# Optional: allow a different signing identity for installer signing (productbuild requires an "Installer" identity)
+# Example: SIGN_INSTALL_ID="Developer ID Installer: Your Name (TEAMID)"
+SIGN_INSTALL_ID="${SIGN_INSTALL_ID:-}"
+
+if [ -z "${SIGN_INSTALL_ID}" ]; then
+    echo "Note: SIGN_INSTALL_ID not set. Installer packages may fail to sign during productbuild if you only have an Application signing identity."
+    echo "If you see errors from productbuild about 'Could not find appropriate signing identity' supply SIGN_INSTALL_ID and re-run."
+fi
+
 
 # extract VERSION from csproj if not set
 if [ -f "${APP_PROJECT}" ]; then
@@ -213,6 +222,12 @@ echo "vpk pack -o ./bin/velopack -c osx -u sideprompter -v ${VERSION} -p ${WRAPP
 if command -v vpk >/dev/null 2>&1; then
     echo "vpk tool found, creating Velopack with version ${VERSION}..."
     mkdir -p ./bin/velopack
+    # Determine which identity to use for installer signing. productbuild requires an "Installer" signing identity
+    EFFECTIVE_INSTALL_SIGN_ID="${SIGN_INSTALL_ID:-${SIGN_ID}}"
+    if [ -z "${SIGN_INSTALL_ID:-}" ]; then
+        echo "Warning: SIGN_INSTALL_ID not set; falling back to SIGN_ID for installer signing. productbuild may fail if you don't have a 'Developer ID Installer' identity."
+    fi
+
     vpk pack \
         -o ./bin/velopack \
         -c osx \
@@ -224,12 +239,15 @@ if command -v vpk >/dev/null 2>&1; then
         --bundleId com.sideprompter.app \
         --signEntitlements "${ENTITLEMENTS}" \
         --signAppIdentity "${SIGN_ID}" \
+        --signInstallIdentity "${EFFECTIVE_INSTALL_SIGN_ID}" \
         --notaryProfile "${NOTARIZE_CREDENTIALS:-}" \
         --mainExe launcher || echo "Warning: vpk pack failed"
 else
     echo "vpk not found in PATH; skipping Velopack creation. Install 'vpk' or run the printed command manually."
 fi
 
+: '
+# --- DMG Creation (optional) ---
 # If vpk produced a portable zip, unzip it into the staging dir and create a DMG
 VPK_PORTABLE_ZIP="./bin/velopack/sideprompter-osx-Portable.zip"
 PUBLISH_DIR="./bin/velopack"
@@ -306,3 +324,6 @@ stapler staple "${PUBLISH_DIR}/${DMG_NAME}" || echo "Warning: stapler staple fai
 
 echo "Packaging complete. Output located in ./bin/velopack"
 echo "Upload it using: rclone copy ./bin/velopack/ cloudflare:sideprompter-installer/mac"
+
+# End of script'
+echo "DMG creation and stapling steps are commented out. Uncomment them in the script if DMG creation is desired."
