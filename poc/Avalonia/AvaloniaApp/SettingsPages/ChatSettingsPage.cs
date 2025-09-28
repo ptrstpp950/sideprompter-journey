@@ -3,9 +3,11 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using System.Diagnostics;
 using AvaloniaApp.Settings;
 using OpenAI;
 using AvaloniaApp.Services;
@@ -33,31 +35,129 @@ internal partial class ChatJsonContext : JsonSerializerContext
 public class ChatSettingsPage : SettingsPageViewModel
 {
     private readonly AppSettings _settings;
-    private readonly ComboBox _provider;
-    private readonly TextBox _endpoint;
-    private readonly TextBox _apiKey;
-    private readonly ListBox _modelList;
-    private readonly TextBox _modelSearch;
-    private readonly TextBlock _status;
+    private readonly bool _isSettingsMode;
+    private ComboBox _provider = null!;
+    private TextBox _endpoint = null!;
+    private TextBox _apiKey = null!;
+    private ListBox _modelList = null!;
+    private TextBox _modelSearch = null!;
+    private TextBlock _status = null!;
     private List<string> _availableModels = new();
     private static readonly HttpClient _http = new();
 
-    public ChatSettingsPage(AppSettings settings) : base("Chat", "💬", new StackPanel { Spacing = 8 })
+    public ChatSettingsPage(AppSettings settings, bool isSettingsMode) : base("Chat", "💬", new StackPanel { Spacing = 8 })
     {
         _settings = settings;
-        var root = (StackPanel)View;
+        _isSettingsMode = isSettingsMode;
+
+        // The base constructor gives us a StackPanel as View. We'll place a ScrollViewer inside it
+        var outer = (StackPanel)View;
+
+        var pageScroll = new ScrollViewer();
+        pageScroll.VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
+        var content = new StackPanel { Spacing = 8 };
+        pageScroll.Content = content;
+        outer.Children.Add(pageScroll);
+
+        // Instruction panel (hidden by default)
+        var instrPanel = new StackPanel { Spacing = 6, Margin = new Avalonia.Thickness(0, 8, 0, 0) };
+        instrPanel.Children.Add(new TextBlock { Text = "Use LLM for free in Side Prompter", FontSize = 16 });
+        instrPanel.Children.Add(new Separator());
+        instrPanel.Children.Add(new TextBlock { Text = "A step-by-step guide on how to get a FREE API key to use OpenRouter models:" });
+        var ol = new StackPanel { Spacing = 6 };
+        ol.Children.Add(new TextBlock { Text = "1. Sign up for an account - Visit OpenRouter and create an account:", TextWrapping = TextWrapping.Wrap });
+        var link1 = new TextBlock { Text = "https://openrouter.ai/", Foreground = TryFindBrush("SystemAccentColor") ?? Brushes.Blue };
+        link1.PointerPressed += (_, _) => OpenUrl("https://openrouter.ai/");
+        ol.Children.Add(link1);
+        ol.Children.Add(new TextBlock { Text = "2. Navigate to the API Keys section:", TextWrapping = TextWrapping.Wrap });
+        var link2 = new TextBlock { Text = "https://openrouter.ai/settings/keys", Foreground = TryFindBrush("SystemAccentColor") ?? Brushes.Blue };
+        link2.PointerPressed += (_, _) => OpenUrl("https://openrouter.ai/settings/keys");
+        ol.Children.Add(link2);
+        ol.Children.Add(new TextBlock { Text = "3. Generate New API Key - Click 'Create Key' and save it somewhere safe." });
+        ol.Children.Add(new TextBlock { Text = "4. Enter your API key into SidePrompter settings below." });
+        ol.Children.Add(new TextBlock { Text = "5. When choosing a model, search for \"free\" like:" });
+        ol.Children.Add(new TextBlock { Text = "   - `openai/gpt-oss-120b:free` to use free version of the ChatGPT model." });
+        ol.Children.Add(new TextBlock { Text = "   - `microsoft/mai-ds-r1:free` DeepSeek-R1 developed by the Microsoft AI team." });
+        ol.Children.Add(new TextBlock { Text = "   - `x-ai/grok-4-fast:free` to use free version of the Grok model." });
+        instrPanel.Children.Add(ol);
+        instrPanel.Children.Add(new Separator());
+
+        // Help button at the top that toggles the instruction panel
+        var helpStack = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+        helpStack.Children.Add(new TextBlock { Text = "Need help setting up LLM?", FontWeight = FontWeight.Bold });
+        var helpBtn = new Button
+        {
+            Content = "I need help to setup LLM",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Padding = new Avalonia.Thickness(8, 4)
+        };
+
+        // Try to use the app's theme accent colors (Avalonia Fluent/Flat resource keys)
+        IBrush? TryFindBrush(string key)
+        {
+            var theme = Application.Current?.ActualThemeVariant;
+            if (Application.Current?.TryFindResource(key, theme, out var r) == true)
+            {
+                return r switch
+                {
+                    IBrush b => b,
+                    Color c => new SolidColorBrush(c),
+                    _ => null
+                };
+            }
+            return null;
+        }
+
+        var accent = TryFindBrush("SystemAccentColor") ?? TryFindBrush("SystemAccentColorDark1");
+        var accentFg = TryFindBrush("SystemAccentColorForeground") ?? Brushes.White;
+        if (accent != null) helpBtn.Background = accent;
+        helpBtn.Foreground = accentFg;
+        helpStack.Children.Add(helpBtn);
+
+        helpBtn.Click += (_, _) =>
+        {
+            if (!content.Children.Contains(instrPanel)) content.Children.Insert(1, instrPanel);
+            else content.Children.Remove(instrPanel);
+        };
+
+        // Build main UI below the help button so fields are visible immediately
+        content.Children.Add(helpStack);
+        BuildMainUI(content);
+
+        // Preselect OpenRouter in simple (wizard) mode and clear key placeholder
+        if (!_isSettingsMode)
+        {
+            try
+            {
+                _provider.SelectedItem = "OpenRouter";
+                SuggestEndpoint();
+                _apiKey.Text = string.Empty;
+                if (!string.IsNullOrWhiteSpace(_settings.ActiveChatProviderConfig?.Model))
+                    _modelList.SelectedItem = _settings.ActiveChatProviderConfig.Model;
+            }
+            catch { }
+        }
+        else
+        {
+            SuggestEndpoint();
+            LoadProviderApiKey();
+        }
+    }
+
+    private void BuildMainUI(StackPanel root)
+    {
         root.Children.Add(new TextBlock { Text = "Chat Completion Service", FontWeight = FontWeight.Bold });
 
         _provider = new ComboBox { ItemsSource = new[] { "OpenAI", "OpenRouter", "Ollama", "Other" }, SelectedIndex = 0, Width = 160 };
-        if (!string.IsNullOrWhiteSpace(settings.ChatProvider))
+        if (!string.IsNullOrWhiteSpace(_settings.ChatProvider))
         {
-            var idx = (_provider.ItemsSource as IEnumerable<string>)!.ToList().FindIndex(p => p.Equals(settings.ChatProvider, StringComparison.OrdinalIgnoreCase));
+            var idx = (_provider.ItemsSource as IEnumerable<string>)!.ToList().FindIndex(p => p.Equals(_settings.ChatProvider, StringComparison.OrdinalIgnoreCase));
             if (idx >= 0) _provider.SelectedIndex = idx;
         }
         _provider.SelectionChanged += (_, _) => { SuggestEndpoint(); LoadProviderApiKey(); };
 
-        _endpoint = new TextBox { Watermark = "API Base URL", Text = settings.ActiveChatProviderConfig?.ApiBase ?? string.Empty };
-        _apiKey = new TextBox { Watermark = "API Key", Text = settings.ActiveChatProviderConfig?.ApiKey ?? string.Empty, PasswordChar = '•' };
+        _endpoint = new TextBox { Watermark = "API Base URL", Text = _settings.ActiveChatProviderConfig?.ApiBase ?? string.Empty };
+        _apiKey = new TextBox { Watermark = "API Key", Text = _settings.ActiveChatProviderConfig?.ApiKey ?? string.Empty, PasswordChar = '•' };
         _modelList = new ListBox { SelectionMode = SelectionMode.Single, Height = 120, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         _modelSearch = new TextBox { Watermark = "Search models", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         _modelList.SelectionChanged += (_, _) => { /* selection is the model; no separate textbox required */ };
@@ -102,9 +202,16 @@ public class ChatSettingsPage : SettingsPageViewModel
 
         _status = new TextBlock { Foreground = Brushes.OrangeRed, FontSize = 12 };
         root.Children.Add(_status);
+    }
 
-        SuggestEndpoint();
-        LoadProviderApiKey();
+    private void OpenUrl(string url)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo(url) { UseShellExecute = true };
+            Process.Start(psi);
+        }
+        catch { }
     }
 
     private void LoadProviderApiKey()
@@ -283,14 +390,14 @@ public class ChatSettingsPage : SettingsPageViewModel
         // Save provider-specific config
         try
         {
-            var cfg = new AvaloniaApp.Settings.ChatProviderConfig
+            var cfg = new ChatProviderConfig
             {
                 ProviderName = provider,
                 ApiBase = endpoint,
                 ApiKey = string.IsNullOrWhiteSpace(_apiKey.Text) ? string.Empty : _apiKey.Text.Trim(),
                 Model = model
             };
-            _settings.ChatProviders ??= new Dictionary<string, AvaloniaApp.Settings.ChatProviderConfig>();
+            _settings.ChatProviders ??= new Dictionary<string, ChatProviderConfig>();
             _settings.ChatProviders[provider] = cfg;
             _settings.ChatProvider = provider;
         }
