@@ -15,6 +15,7 @@ public class ModelSettingsPage : SettingsPageViewModel
     private readonly AppSettings _settings;
     private readonly ComboBox _modelCombo;
     private readonly TextBlock _desc;
+    private readonly TextBlock _warning;
 
     private record ModelOpt(string Key, string Label, string Params, string Vram, string Speed, string Ggml);
     private List<ModelOpt> _opts = new();
@@ -40,11 +41,16 @@ public class ModelSettingsPage : SettingsPageViewModel
                 SettingsService.Save(settings);
             }
         }
+        
         if (pre != null) _modelCombo.SelectedItem = pre;
         _modelCombo.SelectionChanged += (_, _) => UpdateDesc();
+        _warning = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 15, Text = "⚠ Warning: Do not change this setting unless you understand the implications. Changing the model can affect transcription accuracy and resource usage." };
+        root.Children.Add(_warning);
+    
         root.Children.Add(_modelCombo);
         _desc = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
         root.Children.Add(_desc);
+        
         UpdateDesc();
         // Removed explanatory text about English-only variants since they are no longer exposed.
     }
