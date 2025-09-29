@@ -98,7 +98,9 @@ public class ChatViewModel : INotifyPropertyChanged
         Dispatcher.UIThread.InvokeAsync(() =>
         {
             var lastMessage = Messages.LastOrDefault();
-            if (lastMessage?.Author == author)
+            // If the last message is from the same author and is from Me or Other, append to it
+            if ((lastMessage?.Author == MessageAuthor.Me || lastMessage?.Author == MessageAuthor.Other)
+                && lastMessage?.Author == author)
             {
                 lastMessage.Text += " " + text;
                 // This is a bit of a hack to force the UI to update
