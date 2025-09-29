@@ -378,7 +378,7 @@ public class ChatSettingsPage : SettingsPageViewModel
     public override bool ValidateAndSave(out string errorMessage)
     {
         var endpoint = _endpoint.Text?.Trim() ?? string.Empty;
-        var model = (_modelList.SelectedItem as string)?.Trim() ?? string.Empty;
+        var model = (_modelList.SelectedItem as string)?.Trim() ?? _modelSearch.Text?.Trim() ?? string.Empty;
         var provider = _provider.SelectedItem?.ToString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(endpoint) || !Uri.TryCreate(endpoint, UriKind.Absolute, out _)) { errorMessage = "Enter valid endpoint"; return false; }

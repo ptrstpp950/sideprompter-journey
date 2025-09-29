@@ -151,6 +151,8 @@ namespace AvaloniaApp.Services
                     "3. Look for any instructions or labels on the screen that might provide more context."
                     ),
                 new ChatMessage(ChatRole.System, "In responses use language: " + Language),
+                new ChatMessage(ChatRole.System, "The dialog is a speech to text transcription using Whisper" +
+                                                 "When quoting try to fix possible errors"),
             ];
         }
 
