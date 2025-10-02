@@ -17,13 +17,23 @@ namespace AvaloniaApp.Services.TranscriptionService;
 /// </summary>
 public class WhisperTranscriptionService : ITranscriptionService
 {
+    private static SemaphoreSlim InitSemaphore = new SemaphoreSlim(1, 1);
+    private static SemaphoreSlim ProcessWhisperSemaphore = new SemaphoreSlim(1, 1);
+    private static string CurrentLanguage = "en";
+    private static WhisperProcessor? WhisperProcessor;
+    private static WhisperFactory? WhisperFactoryInstance;
+    
     private readonly ILogger _logger;
-    private WhisperFactory? _whisperFactory;
-    private WhisperProcessor? _whisperProcessor;
+    
+    
     private bool _disposed;
-    private string _currentLanguage = "en";
     private readonly GgmlType _modelType;
     private readonly string _modelDirectory;
+    /// <summary>
+    /// Whether to attempt using GPU acceleration when creating the Whisper factory.
+    /// Default is false to avoid native crashes on systems without proper GPU support.
+    /// </summary>
+    public bool UseGpu { get; set; } = false;
 
     // Chunking and VAD configuration (tunable)
     public double ChunkDurationSeconds { get; set; } = 20.0; // 10-15s recommended, default 12s
@@ -162,17 +172,31 @@ public class WhisperTranscriptionService : ITranscriptionService
     /// <summary>
     /// Initialize the Whisper transcription engine with the specified language
     /// </summary>
+    /// <param name="language">Language code (e.g. "en")</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     public async Task InitializeAsync(string language, CancellationToken cancellationToken = default)
     {
-        if (_whisperProcessor != null && _currentLanguage == language)
+        await InitSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            await InitializeNotThreadSafeAsync(language, cancellationToken);
+        }
+        finally
+        {
+            InitSemaphore.Release();
+        }
+    }
+    private async Task InitializeNotThreadSafeAsync(string language, CancellationToken cancellationToken = default)
+    {
+        if (WhisperProcessor != null && CurrentLanguage == language)
             return; // Already initialized with the same language
-            
+
         // Clean up any existing resources
         DisposeResources();
-        
-    _currentLanguage = language;
-    _logger.Information("Initializing Whisper model for language {Language}", language);
-        
+
+        CurrentLanguage = language;
+        _logger.Information("Initializing Whisper model for language {Language}", language);
+
         var modelName = $"ggml-{_modelType}.bin";
         var modelPath = Path.GetFullPath(Path.Combine(_modelDirectory, modelName));
 
@@ -206,18 +230,22 @@ public class WhisperTranscriptionService : ITranscriptionService
         // Initialize the Whisper model
         try
         {
-            _whisperFactory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = true });
+            // Create a WhisperFactory and keep it alive for the lifetime of the processor.
+            // Disposing the factory immediately can free native resources used by the processor
+            // and lead to heap corruption. Use the instance-level UseGpu flag.
+            WhisperFactoryInstance = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = UseGpu });
+            WhisperProcessor = WhisperFactoryInstance.CreateBuilder()
+                .WithLanguage(language)
+                //.WithThreads(Environment.ProcessorCount)
+                .Build();
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Failed to create WhisperFactory from path {ModelPath}", modelPath);
             throw;
         }
-        _whisperProcessor = _whisperFactory.CreateBuilder()
-            .WithLanguage(language)
-            .WithThreads(Environment.ProcessorCount)
-            .Build();
-        
+
+
         StatusChanged?.Invoke($"Whisper model initialized with language: {language}");
         _logger.Information("Whisper model initialized for language {Language} using model {ModelPath}", language, modelPath);
     }
@@ -226,13 +254,31 @@ public class WhisperTranscriptionService : ITranscriptionService
     /// Transcribe raw audio data
     /// </summary>
     public async Task TranscribeAudioAsync(
-        byte[] audioData, 
-        int sampleRate = 16000, 
-        int bitsPerSample = 16, 
-        int channels = 1, 
+        byte[] audioData,
+        int sampleRate = 16000,
+        int bitsPerSample = 16,
+        int channels = 1,
         CancellationToken cancellationToken = default)
     {
-        if (_whisperProcessor == null)
+        await ProcessWhisperSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            await TranscribeAudioNotThreadSafeAsync(audioData, sampleRate, bitsPerSample, channels, cancellationToken);
+        }   
+        finally
+        {
+            try { ProcessWhisperSemaphore.Release(); } catch (SemaphoreFullException) { /* already released */ }
+        }
+    }
+
+    public async Task TranscribeAudioNotThreadSafeAsync(
+        byte[] audioData,
+        int sampleRate = 16000,
+        int bitsPerSample = 16,
+        int channels = 1,
+        CancellationToken cancellationToken = default)
+    {
+        if (WhisperProcessor == null)
         {
             _logger.Error("TranscribeAudioAsync called before InitializeAsync");
             throw new InvalidOperationException("Whisper transcription service not initialized. Call InitializeAsync first.");
@@ -328,17 +374,18 @@ public class WhisperTranscriptionService : ITranscriptionService
             if (byteCount <= 0)
                 break;
 
-            StatusChanged?.Invoke($"Processing chunk {++chunkIndex}: frames {startFrame}..{endFrame} ({(double)(endFrame - startFrame)/sampleRate:0.00}s)");
+            StatusChanged?.Invoke($"Processing chunk {++chunkIndex}: frames {startFrame}..{endFrame} ({(double)(endFrame - startFrame) / sampleRate:0.00}s)");
             _logger.Debug("Processing chunk {ChunkIndex}: frames {Start}..{End} duration={Seconds}s", chunkIndex, startFrame, endFrame, (double)(endFrame - startFrame) / sampleRate);
 
-            using (var stream = new MemoryStream())
-            {
-                await using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
-                writer.Write(audioData, startByte, byteCount);
-                writer.Flush();
-                stream.Position = 0;
+            await using var stream = new MemoryStream();
+            await using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
+            writer.Write(audioData, startByte, byteCount);
+            writer.Flush();
+            stream.Position = 0;
 
-                await foreach (var whisperResult in _whisperProcessor.ProcessAsync(stream, cancellationToken))
+            try
+            {
+                await foreach (var whisperResult in WhisperProcessor.ProcessAsync(stream, cancellationToken))
                 {
                     if (IsEmptyOrSound(whisperResult.Text))
                     {
@@ -354,6 +401,14 @@ public class WhisperTranscriptionService : ITranscriptionService
                     ));
                 }
             }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                // Log and surface the error but continue processing other chunks
+                _logger.Error(ex, "Error while processing audio chunk with Whisper");
+                StatusChanged?.Invoke($"Whisper processing error: {ex.Message}");
+            }
+
 
             if (endFrame >= totalFrames)
                 break;
@@ -361,6 +416,7 @@ public class WhisperTranscriptionService : ITranscriptionService
             // Move start forward with overlap
             startFrame = Math.Max(endFrame - overlapFrames, startFrame + 1);
         }
+
     }
     
     /// <summary>
@@ -395,25 +451,42 @@ public class WhisperTranscriptionService : ITranscriptionService
     
     private void DisposeResources()
     {
+        bool acquired = false;
         try
         {
             _logger.Debug("Disposing Whisper resources");
-            _whisperProcessor?.DisposeAsync().AsTask().Wait();
+            // Ensure no processing is in-flight before disposing native resources
+            ProcessWhisperSemaphore.Wait();
+            acquired = true;
+
+            try
+            {
+                WhisperProcessor?.DisposeAsync().AsTask().Wait();
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Error while disposing WhisperProcessor");
+            }
+
+            try
+            {
+                WhisperFactoryInstance?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Error while disposing WhisperFactoryInstance");
+            }
+
+            WhisperProcessor = null;
+            WhisperFactoryInstance = null;
         }
-        catch (Exception ex)
+        finally
         {
-            _logger.Warning(ex, "Error while disposing WhisperProcessor");
+            if (acquired)
+            {
+                try { ProcessWhisperSemaphore.Release(); } catch { }
+            }
         }
-        _whisperProcessor = null;
-        try
-        {
-            _whisperFactory?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            _logger.Warning(ex, "Error while disposing WhisperFactory");
-        }
-        _whisperFactory = null;
     }
     
     public void Dispose()

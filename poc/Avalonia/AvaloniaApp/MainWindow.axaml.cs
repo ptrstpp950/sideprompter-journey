@@ -188,6 +188,7 @@ public partial class MainWindow : Window
                 _audioTranscriptionService.Dispose();
             }
 
+            
             var transcriptionCoreMic = new WhisperTranscriptionService(desiredModel);
             var transcriptionCoreSpeaker = new WhisperTranscriptionService(desiredModel);
 
