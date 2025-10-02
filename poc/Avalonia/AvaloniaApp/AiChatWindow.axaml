@@ -12,6 +12,10 @@
         mc:Ignorable="d">
   <Window.Resources>
     <viewModel:BooleanToTextConverter x:Key="BooleanToTextConverter" />
+    <!-- Converters used by the Transcript tab (same as in ChatHistoryWindow) -->
+    <viewModel:AuthorToBackgroundBrushConverter x:Key="BgConv" />
+    <viewModel:AuthorToForegroundBrushConverter x:Key="FgConv" />
+    <viewModel:AuthorToAlignmentConverter x:Key="AlignConv" />
   </Window.Resources>
   <Grid Margin="8">
     <Grid.RowDefinitions>
@@ -19,33 +23,55 @@
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <ScrollViewer Grid.Row="0">
-      <ItemsControl ItemsSource="{Binding Items}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="viewModel:AiOnlyChatViewModel+AiChatItem">
-            <Border Margin="4,6" Padding="8" CornerRadius="8" BorderBrush="{StaticResource SystemChromeGrayColor}" BorderThickness="1">
-              <StackPanel>
-                <DockPanel LastChildFill="True">
-                  <!-- Collapse/expand toggle -->
-                  <ToggleButton DockPanel.Dock="Left"
-                                IsChecked="{Binding IsExpanded, Mode=TwoWay}"
-                                Content="{Binding IsExpanded, Converter={StaticResource BooleanToTextConverter}, ConverterParameter='▾|▸'}"
-                                VerticalAlignment="Center"
-                                Margin="0,0,8,0" />
+    <TabControl Grid.Row="0">
+      <TabItem Header="AI">
+        <ScrollViewer>
+          <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="viewModel:AiOnlyChatViewModel+AiChatItem">
+                <Border Margin="4,6" Padding="8" CornerRadius="8" BorderBrush="{StaticResource SystemChromeGrayColor}" BorderThickness="1">
+                  <StackPanel>
+                    <DockPanel LastChildFill="True">
+                      <!-- Collapse/expand toggle -->
+                      <ToggleButton DockPanel.Dock="Left"
+                                    IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                    Content="{Binding IsExpanded, Converter={StaticResource BooleanToTextConverter}, ConverterParameter='▾|▸'}"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,8,0" />
 
-                  <TextBlock FontWeight="Bold" Text="{Binding PromptTitle}" />
+                      <TextBlock FontWeight="Bold" Text="{Binding PromptTitle}" />
 
-                  <Button Content="Copy" HorizontalAlignment="Right" Click="CopyButton_Click" CommandParameter="{Binding Text}" />
-                </DockPanel>
+                      <Button Content="Copy" HorizontalAlignment="Right" Click="CopyButton_Click" CommandParameter="{Binding Text}" />
+                    </DockPanel>
 
-                <!-- Message body - visibility bound to IsExpanded -->
-                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding Text}" IsVisible="{Binding IsExpanded}" />
-              </StackPanel>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </ScrollViewer>
+                    <!-- Message body - visibility bound to IsExpanded -->
+                    <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding Text}" IsVisible="{Binding IsExpanded}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Transcript">
+        <ScrollViewer>
+          <ItemsControl ItemsSource="{Binding TranscriptionMessages}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="viewModel:ChatMessage">
+                <Border Margin="4,6" Padding="10" CornerRadius="8"
+                        Background="{Binding Author, Converter={StaticResource BgConv}}"
+                        HorizontalAlignment="{Binding Author, Converter={StaticResource AlignConv}}">
+                  <TextBlock TextWrapping="Wrap"
+                             Foreground="{Binding Author, Converter={StaticResource FgConv}}"
+                             Text="{Binding Text}"/>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
 
     <!-- Input area -->
     <Grid Grid.Row="1" Margin="0,8,0,0">
@@ -53,17 +79,17 @@
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
-  <TextBox x:Name="QuestionBox"
-    Watermark="Add context to the chat ..."
-    Grid.Column="0"
-    AcceptsReturn="True"
-    TextWrapping="Wrap"
-    MinHeight="40"
-    MaxHeight="120"
-    ScrollViewer.VerticalScrollBarVisibility="Auto"
-    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-    Text="{Binding QuestionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-   <Button Content="Send" Margin="8,0,0,0" Width="50" Command="{Binding AskCommand}" Grid.Column="1" />
+      <TextBox x:Name="QuestionBox"
+               Watermark="Add context to the chat ..."
+               Grid.Column="0"
+               AcceptsReturn="True"
+               TextWrapping="Wrap"
+               MinHeight="40"
+               MaxHeight="120"
+               ScrollViewer.VerticalScrollBarVisibility="Auto"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+               Text="{Binding QuestionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+      <Button Content="Send" Margin="8,0,0,0" Width="50" Command="{Binding AskCommand}" Grid.Column="1" />
     </Grid>
   </Grid>
 </Window>

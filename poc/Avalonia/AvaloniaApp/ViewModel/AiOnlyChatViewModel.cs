@@ -27,6 +27,10 @@ public class AiOnlyChatViewModel : System.ComponentModel.INotifyPropertyChanged
         _source.MessageAdded += Source_MessageAdded;
     }
 
+    // Expose the underlying ChatViewModel messages collection so views can bind
+    // to the full transcription/chat history if needed (read-only passthrough).
+    public System.Collections.ObjectModel.ObservableCollection<ChatMessage> TranscriptionMessages => _source.Messages;
+
     private string? _questionText;
     public string? QuestionText
     {
