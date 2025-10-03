@@ -131,6 +131,7 @@ public sealed class DeepgramTranscriptionService : ITranscriptionService
         int sampleRate = 16000,
         int bitsPerSample = 16,
         int channels = 1,
+        string source = "unknown",
         CancellationToken cancellationToken = default)
     {
         if (_client is null || !_connected)

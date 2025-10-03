@@ -139,8 +139,8 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
 
     private async Task ProcessAudioPeriodically(CancellationToken cancellationToken)
     {
-        // Process accumulated audio every 3 seconds
-        const int processIntervalMs = 3000;
+        // Process accumulated audio every 20 seconds
+        const int processIntervalMs = 20000;
         
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -160,6 +160,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
 
                 if (audioToProcess.Length > 0)
                 {
+                    _logger.Information("AudioTee start processing {Length} bytes of audio data", audioToProcess.Length);
                     await ProcessAudioChunk(audioToProcess);
                 }
             }
@@ -187,7 +188,7 @@ public class AudioTeeTranscriptionService : IAudioTranscriptionService
             StatusChanged?.Invoke($"Transcribing {audioData.Length} bytes of audio...");
             
             // Process with the transcription service
-            await _transcriptionService.TranscribeAudioAsync(audioData);
+            await _transcriptionService.TranscribeAudioAsync(audioData, source: "audiotee");
         }
         catch (Exception ex)
         {

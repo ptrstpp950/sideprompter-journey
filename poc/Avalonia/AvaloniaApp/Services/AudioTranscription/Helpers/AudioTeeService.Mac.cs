@@ -19,12 +19,12 @@ public class AudioTeeOptions
     /// <summary>
     /// Sample rate for audio capture (default: system default)
     /// </summary>
-    public int? SampleRate { get; set; }
+    public int? SampleRate { get; set; } = 16000;
 
     /// <summary>
     /// Chunk duration in milliseconds for audio data events
     /// </summary>
-    public int? ChunkDurationMs { get; set; }
+    public int? ChunkDurationMs { get; set; } = 1000;
 
     /// <summary>
     /// Whether to mute system audio during capture
@@ -239,7 +239,7 @@ public class AudioTeeService : IDisposable
         {
             args.Add("--chunk-duration");
             // Convert milliseconds to seconds for AudioTee
-            args.Add((_options.ChunkDurationMs.Value / 1000.0).ToString("F1"));
+            args.Add((_options.ChunkDurationMs.Value / 1000.0).ToString("F0"));
         }
 
         if (_options.Mute)

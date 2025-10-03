@@ -122,7 +122,7 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
 
     private async Task ProcessAudioPeriodically(CancellationToken cancellationToken)
     {
-        const int processIntervalMs = 3000;
+        const int processIntervalMs = 30000;
         
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -176,7 +176,8 @@ public class MicrophoneTranscriptionService : IAudioTranscriptionService
                 audioData,
                 sampleRate,
                 bitsPerSample,
-                channels);
+                channels,
+                source: "mic.mac");
         }
         catch (Exception ex)
         {

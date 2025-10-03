@@ -258,12 +258,13 @@ public class WhisperTranscriptionService : ITranscriptionService
         int sampleRate = 16000,
         int bitsPerSample = 16,
         int channels = 1,
+        string source = "unknown",
         CancellationToken cancellationToken = default)
     {
         await ProcessWhisperSemaphore.WaitAsync(cancellationToken);
         try
         {
-            await TranscribeAudioNotThreadSafeAsync(audioData, sampleRate, bitsPerSample, channels, cancellationToken);
+            await TranscribeAudioNotThreadSafeAsync(audioData, sampleRate, bitsPerSample, channels, source, cancellationToken);
         }   
         finally
         {
@@ -276,18 +277,19 @@ public class WhisperTranscriptionService : ITranscriptionService
         int sampleRate = 16000,
         int bitsPerSample = 16,
         int channels = 1,
+        string source = "unknown",
         CancellationToken cancellationToken = default)
     {
         if (WhisperProcessor == null)
         {
-            _logger.Error("TranscribeAudioAsync called before InitializeAsync");
+            _logger.Error($"{source} TranscribeAudioAsync called before InitializeAsync");
             throw new InvalidOperationException("Whisper transcription service not initialized. Call InitializeAsync first.");
         }
 
         if (audioData.Length == 0 || IsAllZeros(audioData))
         {
-            StatusChanged?.Invoke($"No valid audio data provided - length: {audioData.Length} or IsAllZeros - skipping transcription.");
-            _logger.Debug("Skipping transcription due to empty or all-zero audio (length={Length})", audioData.Length);
+            StatusChanged?.Invoke($"{source}: No valid audio data provided - length: {audioData.Length} or IsAllZeros - skipping transcription.");
+            _logger.Debug("Source: {Source} - Skipping transcription due to empty or all-zero audio (length={Length})", source, audioData.Length);
             return;
         }
 
@@ -299,7 +301,7 @@ public class WhisperTranscriptionService : ITranscriptionService
         int frameSizeBytes = bytesPerSample * channels; // one multi-channel frame
         if (frameSizeBytes <= 0 || audioData.Length < frameSizeBytes)
         {
-            StatusChanged?.Invoke("Audio data too short for processing.");
+            StatusChanged?.Invoke(source + ": Audio data too short for processing.");
             return;
         }
 
@@ -332,13 +334,13 @@ public class WhisperTranscriptionService : ITranscriptionService
                 var thrOff = Math.Max(thrOn * 0.6, 0.01); // hysteresis
                 speechMask = BuildSpeechMask(rms, thrOn, thrOff);
                 silenceSegments = BuildSilenceSegments(speechMask, minSilenceFrames);
-                _logger.Debug("VAD enabled: vadFrameSize={VadFrameSize}, minSilenceFrames={MinSilence}, searchWindowFrames={SearchWindow}", vadFrameSize, minSilenceFrames, searchWindowFrames);
+                _logger.Debug("{source} VAD enabled: vadFrameSize={VadFrameSize}, minSilenceFrames={MinSilence}, searchWindowFrames={SearchWindow}", source, vadFrameSize, minSilenceFrames, searchWindowFrames);
             }
             catch (Exception ex)
             {
                 vadAvailable = false;
-                StatusChanged?.Invoke($"VAD disabled due to error: {ex.Message}");
-                _logger.Warning(ex, "VAD disabled due to error");
+                StatusChanged?.Invoke($"{source}: VAD disabled due to error: {ex.Message}");
+                _logger.Warning(ex, "{Source} VAD disabled due to error", source);
             }
         }
 
@@ -374,8 +376,8 @@ public class WhisperTranscriptionService : ITranscriptionService
             if (byteCount <= 0)
                 break;
 
-            StatusChanged?.Invoke($"Processing chunk {++chunkIndex}: frames {startFrame}..{endFrame} ({(double)(endFrame - startFrame) / sampleRate:0.00}s)");
-            _logger.Debug("Processing chunk {ChunkIndex}: frames {Start}..{End} duration={Seconds}s", chunkIndex, startFrame, endFrame, (double)(endFrame - startFrame) / sampleRate);
+            StatusChanged?.Invoke($"{source}: Processing chunk {++chunkIndex}: frames {startFrame}..{endFrame} ({(double)(endFrame - startFrame) / sampleRate:0.00}s)");
+            _logger.Debug("{Source} Processing chunk {ChunkIndex}: frames {Start}..{End} duration={Seconds}s", source, chunkIndex, startFrame, endFrame, (double)(endFrame - startFrame) / sampleRate);
 
             await using var stream = new MemoryStream();
             await using var writer = new WaveFileWriter(stream, new WaveFormat(sampleRate, bitsPerSample, channels));
@@ -393,7 +395,7 @@ public class WhisperTranscriptionService : ITranscriptionService
                         _logger.Debug("Skipped transcription result: {Text}", whisperResult.Text);
                         continue;
                     }
-                    _logger.Information("Transcription chunk result: {Text}", whisperResult.Text);
+                    _logger.Information("{Source} Transcription chunk result: {Text}", source, whisperResult.Text);
                     TranscriptionReceived?.Invoke(new TranscriptionResult(
                         whisperResult.Text,
                         "audio",
@@ -405,8 +407,8 @@ public class WhisperTranscriptionService : ITranscriptionService
             catch (Exception ex)
             {
                 // Log and surface the error but continue processing other chunks
-                _logger.Error(ex, "Error while processing audio chunk with Whisper");
-                StatusChanged?.Invoke($"Whisper processing error: {ex.Message}");
+                _logger.Error(ex, "{Source} Error while processing audio chunk with Whisper", source);
+                StatusChanged?.Invoke($"{source}: Whisper processing error: {ex.Message}");
             }
 
 

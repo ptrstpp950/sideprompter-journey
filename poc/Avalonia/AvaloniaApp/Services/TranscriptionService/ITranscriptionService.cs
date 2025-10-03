@@ -30,6 +30,7 @@ public interface ITranscriptionService : IDisposable
         int sampleRate = 16000, 
         int bitsPerSample = 16, 
         int channels = 1, 
+        string source = "unknown",
         CancellationToken cancellationToken = default);
     
     /// <summary>
