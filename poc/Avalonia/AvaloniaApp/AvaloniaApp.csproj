@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <!-- Common properties -->
   <PropertyGroup>
-    <Version>0.1.9</Version>
+    <Version>0.1.11</Version>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -134,10 +134,10 @@
     </Content>
   </ItemGroup>
 
-  <Target Name="BuildActiveWindowTextGetter" Condition="$([MSBuild]::IsOSPlatform('OSX'))" BeforeTargets="Build" Inputs="libs/activeWindowTextGetter/Sources/**/*.swift" Outputs="libs/activeWindowTextGetter/.build/apple/Products/Release/activeWindowTextGetter">
+  <Target Name="BuildActiveWindowTextGetter" Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$(Configuration)' == 'Release'" BeforeTargets="Build" Inputs="libs/activeWindowTextGetter/Sources/**/*.swift" Outputs="libs/activeWindowTextGetter/.build/apple/Products/Release/activeWindowTextGetter">
     <Exec Command="cd libs/activeWindowTextGetter &amp;&amp; swift build --configuration release --arch arm64 --arch x86_64" />
   </Target>
-  <Target Name="BuildHotKeyListener" Condition="$([MSBuild]::IsOSPlatform('OSX'))" BeforeTargets="Build" Inputs="libs/hotkeyListener/Sources/**/*.swift" Outputs="libs/hotkeyListener/.build/apple/Products/Release/hotkeyListener">
+  <Target Name="BuildHotKeyListener" Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$(Configuration)' == 'Release'" BeforeTargets="Build" Inputs="libs/hotkeyListener/Sources/**/*.swift" Outputs="libs/hotkeyListener/.build/apple/Products/Release/hotkeyListener">
     <Exec Command="cd libs/hotkeyListener &amp;&amp; swift build --configuration release --arch arm64 --arch x86_64" />
   </Target>
     

@@ -68,6 +68,23 @@ public class ChatViewModel : INotifyPropertyChanged
         }
     }
 
+    private bool _updateIsReady = false;
+    /// <summary>
+    /// Indicates whether an update is available. Bind this from the UI to show an indicator.
+    /// </summary>
+    public bool UpdateIsReady
+    {
+        get => _updateIsReady;
+        set
+        {
+            if (_updateIsReady != value)
+            {
+                _updateIsReady = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     // Raised when a real chat message (Messages collection) is added or extended.
     public event EventHandler<ChatMessage>? MessageAdded;
 

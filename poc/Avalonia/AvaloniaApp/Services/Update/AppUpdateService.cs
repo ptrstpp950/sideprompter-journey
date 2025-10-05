@@ -10,6 +10,7 @@ public interface IAppUpdateService
 {
     Task<VelopackAsset?> CheckForUpdatesAsync(bool includePrerelease = false);
     Task<bool> DownloadAndApplyUpdatesAsync(VelopackAsset? updateInfo);
+    Task<bool> ApplyUpdatesAndRestartAsync();
 }
 
 public class AppUpdateService : IAppUpdateService
@@ -82,15 +83,40 @@ public class AppUpdateService : IAppUpdateService
             await _updateManager.DownloadUpdatesAsync(updateCheck);
             _log.Information("Update downloaded successfully");
 
-            // Update will be applied on next restart
-            // For now, we just log it  
+            // Update will be applied on next restart. We don't restart automatically from background checks.
             _log.Information("Update will be applied on next application restart");
-            //_updateManager.ApplyUpdatesAndRestart(updateCheck);
             return true;
         }
         catch (Exception ex)
         {
             _log.Error(ex, "Failed to download/apply update for version {Version}", updateInfo.Version);
+            return false;
+        }
+    }
+
+    public async Task<bool> ApplyUpdatesAndRestartAsync()
+    {
+        try
+        {
+            // Get current update info
+            var updateCheck = await _updateManager.CheckForUpdatesAsync();
+            if (updateCheck == null)
+            {
+                _log.Warning("No update info available to apply");
+                return false;
+            }
+
+            // Ensure updates are downloaded
+            await _updateManager.DownloadUpdatesAsync(updateCheck);
+            _log.Information("Updates downloaded; applying and restarting now");
+
+            // Apply and restart the app (may exit the process)
+            _updateManager.ApplyUpdatesAndRestart(updateCheck);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex, "Failed to apply updates and restart");
             return false;
         }
     }

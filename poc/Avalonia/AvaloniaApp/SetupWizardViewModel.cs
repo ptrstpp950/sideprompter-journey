@@ -44,6 +44,7 @@ public class SetupWizardViewModel : INotifyPropertyChanged
     public ICommand BackCommand { get; }
     public ICommand ResetCommand { get; }
     public ICommand CancelDownloadCommand { get; }
+    public ICommand UpdateNowCommand { get; }
     public ICommand ContinueFromSplashCommand { get; private set; }
     public ICommand SkipIntroCommand { get; private set; }
 
@@ -81,6 +82,30 @@ public class SetupWizardViewModel : INotifyPropertyChanged
         BackCommand = backCmd;
         ResetCommand = new DelegateCommand(_ => { foreach (var p in Pages) p.Reset(); });
         CancelDownloadCommand = new DelegateCommand(_ => _downloadCts?.Cancel(), _ => IsBusy);
+        UpdateNowCommand = new DelegateCommand(async _ =>
+        {
+            try
+            {
+                StatusMessage = "Applying update...";
+                var ok = await App.ApplyAvailableUpdateAsync();
+                StatusMessage = ok ? "Update applied (app will restart)." : "Failed to apply update.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error applying update: {ex.Message}";
+            }
+        });
+    }
+
+    private bool _updateIsReady;
+    /// <summary>
+    /// Indicates whether an update is ready. UI may bind to this to show an Update button.
+    /// Wire this up from the application logic when an update becomes available.
+    /// </summary>
+    public bool UpdateIsReady
+    {
+        get => _updateIsReady;
+        set { if (_updateIsReady != value) { _updateIsReady = value; OnPropertyChanged(); } }
     }
 
     private void BuildPages()

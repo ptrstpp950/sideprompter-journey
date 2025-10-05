@@ -126,6 +126,22 @@ public partial class MainWindow : Window
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
     }
 
+    // Called to toggle the update available indicator in the UI
+    public void SetUpdateAvailable(bool isAvailable)
+    {
+        try
+        {
+            if (DataContext is ChatViewModel vm)
+            {
+                vm.UpdateIsReady = isAvailable;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error(ex, "Failed to set update available flag");
+        }
+    }
+
     private async void ChatViewModelOnMessageAdded(object? sender, ChatMessage e)
     {
         try
@@ -599,7 +615,7 @@ public partial class MainWindow : Window
         // Open (or focus) the settings / setup wizard in settings mode
         if (_settingsWindow == null || !_settingsWindow.IsVisible)
         {
-            _settingsWindow = new SetupWizard(_settings, true)
+            _settingsWindow = new SetupWizard(_settings, true, _chatViewModel.UpdateIsReady)
             {
                 WindowStartupLocation = WindowStartupLocation.CenterOwner
             };

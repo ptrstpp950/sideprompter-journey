@@ -6,6 +6,7 @@ using AvaloniaApp.Settings;
 using AvaloniaApp.Services.Notification;
 using AvaloniaApp.Services.Update;
 using Serilog;
+using Velopack;
 using System;
 using System.Threading.Tasks;
 
@@ -15,6 +16,7 @@ public partial class App : Application
 {
     public static NotificationService Notifications { get; private set; } = null!;
     private static IAppUpdateService? _updateService;
+    private static VelopackAsset? _availableUpdate;
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -24,7 +26,7 @@ public partial class App : Application
     {
         Dispatcher.UIThread.UnhandledException += OnUiThreadUnhandledException;
 
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+    if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             MainWindow mainWindow;
             var settings = SettingsService.Load();
@@ -92,7 +94,7 @@ public partial class App : Application
                     Log.Information("Starting background update check");
                     var updateInfo = await _updateService.CheckForUpdatesAsync();
                     
-                    if (updateInfo != null)
+                        if (updateInfo != null)
                     {
                         Log.Information("Update available: {Version}. Notifying user.", updateInfo.Version);
                         
@@ -103,12 +105,23 @@ public partial class App : Application
                         // In a production app, you might want to ask user permission first
                         try
                         {
-                            Log.Information("Auto-downloading and applying update: {Version}", updateInfo.Version);
-                            await _updateService.DownloadAndApplyUpdatesAsync(updateInfo);
+                            Log.Information("Auto-downloading update: {Version}", updateInfo.Version);
+                            var ok = await _updateService.DownloadAndApplyUpdatesAsync(updateInfo);
+                            if (ok)
+                            {
+                                // Save available update and notify UI
+                                _availableUpdate = updateInfo;
+                                // If main window is active, set indicator on UI thread
+                                var desktopRef = ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
+                                if (desktopRef?.MainWindow is MainWindow mw)
+                                {
+                                    Dispatcher.UIThread.Post(() => mw.SetUpdateAvailable(true));
+                                }
+                            }
                         }
                         catch (Exception ex)
                         {
-                            Log.Error(ex, "Failed to auto-apply update");
+                            Log.Error(ex, "Failed to auto-download update");
                         }
                     }
                 }
@@ -121,6 +134,23 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to initialize update service");
+        }
+    }
+
+    // Called by UI to apply an available update (if any)
+    public static async Task<bool> ApplyAvailableUpdateAsync()
+    {
+        try
+        {
+            if (_updateService == null || _availableUpdate == null)
+                return false;
+
+            return await _updateService.ApplyUpdatesAndRestartAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to apply available update");
+            return false;
         }
     }
 }

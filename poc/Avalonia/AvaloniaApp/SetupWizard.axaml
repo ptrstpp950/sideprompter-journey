@@ -45,6 +45,12 @@
                    Foreground="{DynamicResource ThemeForegroundLowBrush}" 
                    Margin="16,0,16,16" 
                    HorizontalAlignment="Left" />
+        <!-- Update button: visible when UpdateIsReady is true -->
+        <Button Margin="16,0,16,16"
+                FontSize="12"
+                Content="Restart &amp; Update"
+                Command="{Binding UpdateNowCommand}"
+                IsVisible="{Binding UpdateIsReady}" />
       </StackPanel>
     </Border>
 
@@ -68,12 +74,12 @@
     </Border>
 
     <!-- Buttons -->
-    <Border Grid.Row="1" Grid.ColumnSpan="2" Background="{DynamicResource ThemeControlLowBrush}" BorderBrush="{DynamicResource ThemeBorderMidBrush}" BorderThickness="0,1,0,0" Padding="12 10">
+      <Border Grid.Row="1" Grid.ColumnSpan="2" Background="{DynamicResource ThemeControlLowBrush}" BorderBrush="{DynamicResource ThemeBorderMidBrush}" BorderThickness="0,1,0,0" Padding="12 10">
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
         <TextBlock Text="{Binding StatusMessage}" Foreground="Orange" Margin="0,0,12,0" VerticalAlignment="Center" />
         <Button Content="Reset" Command="{Binding ResetCommand}" IsVisible="{Binding IsSettingsMode}" />
-  <Button Content="Back" Command="{Binding BackCommand}" IsEnabled="{Binding IsNotBusy}" />
-  <Button Content="{Binding PrimaryButtonText}" Command="{Binding PrimaryCommand}" IsDefault="True" IsEnabled="{Binding IsNotBusy}" />
+        <Button Content="Back" Command="{Binding BackCommand}" IsEnabled="{Binding IsNotBusy}" />
+        <Button Content="{Binding PrimaryButtonText}" Command="{Binding PrimaryCommand}" IsDefault="True" IsEnabled="{Binding IsNotBusy}" />
       </StackPanel>
     </Border>
   </Grid>
