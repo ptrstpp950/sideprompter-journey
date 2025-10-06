@@ -259,7 +259,6 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
         {
             using var processingStream = new MemoryStream();
             var lastProcessTime = DateTime.UtcNow;
-
             try
             {
                 while (!_cancellationToken.IsCancellationRequested)
@@ -302,6 +301,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 
         private async Task Transcribe(byte[] pcmData)
         {
+            var type = _messageType == TranscriptionMessageType.Mic ? "mic" : "speaker";
             try
             {
                 //Log(MessageType.Info, $"Transcribing {_messageType} audio chunk of size {pcmData.Length} bytes.");
@@ -309,7 +309,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
                 await using var rawStream = new RawSourceWaveStream(pcmData, 0, pcmData.Length, _waveIn.WaveFormat);
                 using var resampler = new MediaFoundationResampler(rawStream, _resampleFormat);
                 using var ms = new MemoryStream();
-                
+
                 byte[] buffer = new byte[4096];
                 int bytesRead;
                 while ((bytesRead = resampler.Read(buffer, 0, buffer.Length)) > 0)
@@ -333,7 +333,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
 
                 await _transcriptionService.TranscribeAudioAsync(
                     resampledAudio, _resampleFormat.SampleRate,
-                    _resampleFormat.BitsPerSample, _resampleFormat.Channels, _cancellationToken);
+                    _resampleFormat.BitsPerSample, _resampleFormat.Channels, type, _cancellationToken);
             }
             catch (Exception ex)
             {
