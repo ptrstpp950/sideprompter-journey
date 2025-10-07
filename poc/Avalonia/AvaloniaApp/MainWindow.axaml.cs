@@ -286,6 +286,35 @@ public partial class MainWindow : Window
     {
         await ExtractAndDisplayWindowText();
     }
+
+    private async void TestConfirmButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dlg = new ConfirmDialog { Message = "Do you want to proceed with this action?" };
+            // Show as modal dialog
+            await dlg.ShowDialog(this);
+            // Inspect result
+            switch (dlg.Result)
+            {
+                case ConfirmDialogResult.Yes:
+                    _chatViewModel.AddLogMessage("[Confirm] User chose: Yes");
+                    break;
+                case ConfirmDialogResult.YesDontAskAgain:
+                    _chatViewModel.AddLogMessage("[Confirm] User chose: Yes (don't ask again)");
+                    // Persist this preference in settings if desired
+                    break;
+                case ConfirmDialogResult.No:
+                default:
+                    _chatViewModel.AddLogMessage("[Confirm] User chose: No");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _chatViewModel.AddLogMessage($"[Confirm] Error showing dialog: {ex.Message}");
+        }
+    }
     
     private async void GetWindowTextCliButton_OnClick(object? sender, RoutedEventArgs e)
     {

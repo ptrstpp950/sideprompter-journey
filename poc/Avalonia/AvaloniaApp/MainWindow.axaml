@@ -59,6 +59,10 @@
                 <Button x:Name="HistoryButton" Classes="IconButton" Width="40" Height="36" Click="HistoryButton_OnClick" ToolTip.Tip="History">
                     <heroIcons:HeroIcon Type="ChatBubbleLeftRight" Foreground="#60a5fa" Kind="Solid" />
                 </Button>
+                <!-- Test confirm dialog button -->
+                <!--Button x:Name="TestConfirmButton" Classes="HeaderChip" Height="36" Click="TestConfirmButton_OnClick" ToolTip.Tip="Test confirm dialog">
+                    <TextBlock Text="Test Confirm" Foreground="#cbd5e1" FontSize="11"/>
+                </Button-->
                 <ToggleButton x:Name="PrivacyToggleButton" IsChecked="True" Checked="PrivacyToggleButton_OnChecked" Unchecked="PrivacyToggleButton_OnUnchecked" ToolTip.Tip="Toggle Window Privacy">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon x:Name="ProtectedIcon" IsVisible="True" Type="ShieldCheck" Foreground="#22c55e" Kind="Solid" />

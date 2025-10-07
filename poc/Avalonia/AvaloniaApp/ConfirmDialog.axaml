@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:heroIcons="clr-namespace:HeroIconsAvalonia.Controls;assembly=HeroIconsAvalonia"
+        x:Class="AvaloniaApp.ConfirmDialog"
+        Width="350" Height="100"
+        Title="Confirm"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Padding="12">
+
+  <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" Margin="4">
+    <!-- Message -->
+    <TextBlock x:Name="MessageText" Grid.Row="0" Grid.Column="1" TextWrapping="Wrap" FontSize="15" Margin="10,0,0,0"
+               HorizontalAlignment="Stretch" VerticalAlignment="Center" TextAlignment="Center" />
+
+    <!-- Buttons - use HeaderChip class for flat look used elsewhere in the app -->
+    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,12,0,0">
+      <Button x:Name="YesButton" Classes="HeaderChip" Width="50" Click="YesButton_OnClick" IsDefault="True">Yes</Button>
+      <Button x:Name="YesDontAskButton" Classes="HeaderChip" Width="150" Click="YesDontAskButton_OnClick">Yes (don't ask again)</Button>
+      <Button x:Name="NoButton" Classes="HeaderChip" Width="50" Click="NoButton_OnClick" IsCancel="True">No</Button>
+    </StackPanel>
+  </Grid>
+</Window>
