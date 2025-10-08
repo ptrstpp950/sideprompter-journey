@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
 using Avalonia.Controls;
+using Avalonia.Platform;
+
 // ReSharper disable InconsistentNaming
 
 namespace AvaloniaApp.Services.EnableWindowPrivacy;
@@ -34,6 +36,27 @@ public static class EnableWindowPrivacyService
         }
     }
 
+    public static void SetProtected(IPlatformHandle? handle, bool protect)
+    {
+        if (handle == null) return;
+        try
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                SetProtectedMac(handle, protect);
+            }
+            else if (OperatingSystem.IsWindows())
+            {
+                SetProtectedWindows(handle, protect);
+            }
+            // Linux / others: not implemented (Wayland / X11 would need different APIs)
+        }
+        catch
+        {
+            // Swallow any interop exceptions to avoid crashing app.
+        }
+    }
+
     #region macOS
     // macOS sharing types
     private const nint NSWindowSharingNone = 0;       // hidden from window capture enumeration
@@ -42,6 +65,12 @@ public static class EnableWindowPrivacyService
     {
         var handle = window?.TryGetPlatformHandle();
         if (handle == null || handle.Handle == IntPtr.Zero) return;
+        SetMacSharingType(handle.Handle, protect ? NSWindowSharingNone : NSWindowSharingReadOnly);
+    }
+
+    private static void SetProtectedMac(IPlatformHandle handle, bool protect)
+    {
+        if (handle.Handle == IntPtr.Zero) return;
         SetMacSharingType(handle.Handle, protect ? NSWindowSharingNone : NSWindowSharingReadOnly);
     }
 
@@ -70,6 +99,13 @@ public static class EnableWindowPrivacyService
     {
         var handle = window?.TryGetPlatformHandle();
         if (handle == null || handle.Handle == IntPtr.Zero) return;
+        // Best-effort; ignore failures (older OS versions may not support EXCLUDEFROMCAPTURE)
+        _ = SetWindowDisplayAffinity(handle.Handle, protect ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
+    }
+
+    private static void SetProtectedWindows(IPlatformHandle handle, bool protect)
+    {
+        if (handle.Handle == IntPtr.Zero) return;
         // Best-effort; ignore failures (older OS versions may not support EXCLUDEFROMCAPTURE)
         _ = SetWindowDisplayAffinity(handle.Handle, protect ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
     }
