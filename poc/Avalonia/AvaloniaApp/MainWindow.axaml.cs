@@ -18,7 +18,6 @@ using AvaloniaApp.ViewModel;
 using AvaloniaApp.Settings;
 using Serilog;
 using AvaloniaApp.Services.Chat;
-using Avalonia.Styling;
 
 namespace AvaloniaApp;
 
@@ -41,8 +40,7 @@ public partial class MainWindow : Window
     private SetupWizard? _settingsWindow;
 
     private readonly ChatViewModel _chatViewModel = new();
-    private ChatHistoryWindow? _chatHistoryWindow;
-    private Services.AiActionsManager? _aiActionsManager;
+    private AiActionsManager? _aiActionsManager;
 
     private readonly AppSettings _settings;
     private readonly ILogger _logger;
@@ -67,7 +65,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _settings = settings ?? SettingsService.Load();
-        this._logger = logger ?? Serilog.Log.Logger;
+        this._logger = logger ?? Log.Logger;
         DataContext = _chatViewModel;
         // Initialize chat persistence services
         // Initialize chat persistence services
@@ -117,8 +115,8 @@ public partial class MainWindow : Window
         ApplySettings();
 
         // Create AI action buttons manager and initialize buttons dynamically
-        _aiActionsManager = new Services.AiActionsManager(this, _chatViewModel, _settings, () => _chatCompletionService, _logger);
-        _aiActionsManager.InitializeButtons(this.AiButtonsPanel);
+        _aiActionsManager = new AiActionsManager(this, _chatViewModel, _settings, () => _chatCompletionService, _logger);
+        _aiActionsManager.InitializeButtons(AiButtonsPanel);
 
         // No scrolling area in compact mode; keep handler for potential future UI.
         _chatViewModel.Messages.CollectionChanged += (_, _) => { };
@@ -139,7 +137,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _logger?.Error(ex, "Failed to set update available flag");
+            _logger.Error(ex, "Failed to set update available flag");
         }
     }
 
@@ -147,7 +145,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var lang = LanguageComboBox?.SelectedItem as string ?? _settings.Languages?.FirstOrDefault() ?? "en";
+            var lang = LanguageComboBox?.SelectedItem as string ?? _settings.Languages.FirstOrDefault() ?? "en";
             await _chatSessionService.EnsureHeaderAsync(_chatViewModel, lang);
             await _chatSessionService.AppendMessageAsync(e);
         }
@@ -180,7 +178,10 @@ public partial class MainWindow : Window
         {
             if (_hotKeyService is IDisposable d) d.Dispose();
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         this.Opened -= MainWindow_Opened;
         this.Closed -= MainWindow_Closed;
@@ -244,14 +245,14 @@ public partial class MainWindow : Window
         }
         else
         {
-            _chatCompletionService = new ChatCompletionService(activeProvider.ApiBase, activeProvider.ApiKey ?? string.Empty, activeProvider.Model);
+            _chatCompletionService = new ChatCompletionService(activeProvider.ApiBase, activeProvider.ApiKey, activeProvider.Model);
             _chatViewModel.AddLogMessage($"[Config] Chat provider set to: {activeProvider.ProviderName}, model: {activeProvider.Model}");
         }
 
         // Languages combo
         if (LanguageComboBox != null)
         {
-            var langs = (_settings.Languages?.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
+            var langs = (_settings.Languages.Count > 0 ? _settings.Languages : _supportedLanguages.ToList());
             LanguageComboBox.ItemsSource = langs.ToArray();
             var defaultLang = langs.Contains("pl") ? "pl" : langs.FirstOrDefault() ?? "en";
             LanguageComboBox.SelectedItem = defaultLang;
@@ -292,7 +293,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (_settings.ConfirmedDialogs != null && _settings.ConfirmedDialogs.ContainsKey(dialogId))
+            if (_settings.ConfirmedDialogs.ContainsKey(dialogId))
             {
                 // Already confirmed, skip dialog
                 return true;
@@ -308,8 +309,6 @@ public partial class MainWindow : Window
                     return true;
                 case ConfirmDialogResult.YesDontAskAgain:
                     // Persist this preference in settings
-                    if (_settings.ConfirmedDialogs == null)
-                        _settings.ConfirmedDialogs = new Dictionary<string, string>();
                     _settings.ConfirmedDialogs[dialogId] = "confirmed";
                     SettingsService.Save(_settings);
                     return true;
@@ -324,41 +323,6 @@ public partial class MainWindow : Window
             return false;
         }
     }   
-
-
-    private async void TestConfirmButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var dlg = new ConfirmDialog { Message = "Do you want to proceed with this action?" };
-            // Show as modal dialog
-            await dlg.ShowDialog(this);
-            // Inspect result
-            switch (dlg.Result)
-            {
-                case ConfirmDialogResult.Yes:
-                    _chatViewModel.AddLogMessage("[Confirm] User chose: Yes");
-                    break;
-                case ConfirmDialogResult.YesDontAskAgain:
-                    _chatViewModel.AddLogMessage("[Confirm] User chose: Yes (don't ask again)");
-                    // Persist this preference in settings if desired
-                    break;
-                case ConfirmDialogResult.No:
-                default:
-                    _chatViewModel.AddLogMessage("[Confirm] User chose: No");
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            _chatViewModel.AddLogMessage($"[Confirm] Error showing dialog: {ex.Message}");
-        }
-    }
-    
-    private async void GetWindowTextCliButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        await ExtractAndDisplayWindowTextViaCli();
-    }
     
     private async Task ExtractAndDisplayWindowTextViaCli()
     {
@@ -587,8 +551,6 @@ public partial class MainWindow : Window
     {
         _isWindowProtected = status;
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
-        if (_chatHistoryWindow != null)
-            EnableWindowPrivacyService.SetProtected(_chatHistoryWindow, _isWindowProtected);
         if(_aiChatWindow != null)
             EnableWindowPrivacyService.SetProtected(_aiChatWindow, _isWindowProtected);
         if (_settingsWindow != null)
