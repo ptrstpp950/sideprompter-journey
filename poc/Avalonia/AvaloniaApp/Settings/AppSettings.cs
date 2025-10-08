@@ -31,6 +31,8 @@ public class AppSettings
     public Dictionary<string, ChatProviderConfig> ChatProviders { get; set; } = new();
     // Selected provider name (must match a key in ChatProviders). Kept so UI/logic can pick an active provider.
     public string ChatProvider { get; set; } = string.Empty;
+    // Dictionary of dialog IDs that have been confirmed as not show more (e.g. "Do you want to use this provider?")
+    public Dictionary<string, string> ConfirmedDialogs { get; set; } = new();
     public ObservableCollection<Prompt> Prompts { get; set; } = new();
 
     [JsonIgnore]

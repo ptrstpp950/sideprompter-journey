@@ -26,7 +26,7 @@ public partial class App : Application
     {
         Dispatcher.UIThread.UnhandledException += OnUiThreadUnhandledException;
 
-    if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             MainWindow mainWindow;
             var settings = SettingsService.Load();

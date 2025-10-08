@@ -69,10 +69,11 @@ public partial class MainWindow : Window
         _settings = settings ?? SettingsService.Load();
         this._logger = logger ?? Serilog.Log.Logger;
         DataContext = _chatViewModel;
-    // Initialize chat persistence services
-    var pathProvider = new AppPathProvider();
-    var storage = new FileChatStorage(pathProvider);
-    _chatSessionService = new ChatSessionService(storage, _settings);
+        // Initialize chat persistence services
+        // Initialize chat persistence services
+        var pathProvider = new AppPathProvider();
+        var storage = new FileChatStorage(pathProvider);
+        _chatSessionService = new ChatSessionService(storage, _settings);
         // Position window top-center with margin from top (e.g., 20px)
         var screen = Screens.Primary;
         if (screen != null)
@@ -286,6 +287,44 @@ public partial class MainWindow : Window
     {
         await ExtractAndDisplayWindowText();
     }
+
+    private async Task<bool> ShowConfirmDialogIfNeeded(string dialogId, string message)
+    {
+        try
+        {
+            if (_settings.ConfirmedDialogs != null && _settings.ConfirmedDialogs.ContainsKey(dialogId))
+            {
+                // Already confirmed, skip dialog
+                return true;
+            }
+
+            var dlg = new ConfirmDialog { Message = message };
+            // Show as modal dialog
+            await dlg.ShowDialog(this);
+            // Inspect result
+            switch (dlg.Result)
+            {
+                case ConfirmDialogResult.Yes:
+                    return true;
+                case ConfirmDialogResult.YesDontAskAgain:
+                    // Persist this preference in settings
+                    if (_settings.ConfirmedDialogs == null)
+                        _settings.ConfirmedDialogs = new Dictionary<string, string>();
+                    _settings.ConfirmedDialogs[dialogId] = "confirmed";
+                    SettingsService.Save(_settings);
+                    return true;
+                case ConfirmDialogResult.No:
+                default:
+                    return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _chatViewModel.AddLogMessage($"[Confirm] Error showing dialog: {ex.Message}");
+            return false;
+        }
+    }   
+
 
     private async void TestConfirmButton_OnClick(object? sender, RoutedEventArgs e)
     {
@@ -506,6 +545,13 @@ public partial class MainWindow : Window
     {
         try
         {
+            var confirmed = await ShowConfirmDialogIfNeeded(
+                "stop_transcription",
+                "Are you sure you want to stop transcription?\n" +
+                "It will delete the current session and all messages.\n" +
+                "To keep the session active, please pause (\u23F8\uFE0F) instead.");
+            if (!confirmed) return;
+
             SwitchStartStopIcon(true);
             if (!_isTranscribing) return;
             await _audioTranscriptionService!.StopProcessing();

@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:heroIcons="clr-namespace:HeroIconsAvalonia.Controls;assembly=HeroIconsAvalonia"
         x:Class="AvaloniaApp.ConfirmDialog"
-        Width="350" Height="100"
+        SizeToContent="WidthAndHeight"
         Title="Confirm"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
