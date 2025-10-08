@@ -18,6 +18,7 @@ using AvaloniaApp.ViewModel;
 using AvaloniaApp.Settings;
 using Serilog;
 using AvaloniaApp.Services.Chat;
+using AvaloniaApp.Services.MicSessionMonitor;
 
 namespace AvaloniaApp;
 
@@ -46,6 +47,8 @@ public partial class MainWindow : Window
     private readonly ILogger _logger;
     private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
     private readonly ChatSessionService _chatSessionService;
+
+    private readonly MicrophoneSessionMonitor _microphoneSessionMonitor;
 
     private AiChatWindow? _aiChatWindow;
     public AiChatWindow? AiChatWindow
@@ -104,12 +107,12 @@ public partial class MainWindow : Window
         _hotKeyService = new HotKeyServiceWindows(this);
 #endif
 
-    // Defer registering macOS hotkeys until the window is opened. In debug builds
-    // the Objective-C runtime and native services may not be fully initialized
-    // at constructor time which can cause NullReferenceExceptions. Register
-    // on the Opened event instead.
-    this.Opened += MainWindow_Opened;
-    this.Closed += MainWindow_Closed;
+        // Defer registering macOS hotkeys until the window is opened. In debug builds
+        // the Objective-C runtime and native services may not be fully initialized
+        // at constructor time which can cause NullReferenceExceptions. Register
+        // on the Opened event instead.
+        this.Opened += MainWindow_Opened;
+        this.Closed += MainWindow_Closed;
         _elapsedTimer.Tick += (_, _) => UpdateElapsedTime();
 
         ApplySettings();
@@ -123,6 +126,42 @@ public partial class MainWindow : Window
         _chatViewModel.MessageAdded += ChatViewModelOnMessageAdded;
 
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
+
+        _microphoneSessionMonitor = new MicrophoneSessionMonitor(_logger);
+
+        _microphoneSessionMonitor.ProcessMicrophoneUsageChanged += async (processId, processName, inUse) =>
+        {
+            // Ensure dialog interaction and subsequent UI actions run on the UI thread
+            await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                try
+                {
+                    if (inUse)
+                    {
+                        // only care about start events
+                        var confirmed = await ShowConfirmDialogIfNeeded("mic_in_use_start",
+                            $"New meeting started by {processName}.\n\nDo you want to start transcription?");
+                        if (confirmed)
+                        {
+                            StartButton_OnClick(this, new RoutedEventArgs());
+                        }
+                    }
+                    else
+                    {
+                        var confirmed = await ShowConfirmDialogIfNeeded("mic_in_use_stop",
+                            $"New meeting stopped in {processName}.\n\nDo you want to stop transcription?");
+                        if (confirmed)
+                        {
+                            StopButton_OnClick(this, new RoutedEventArgs());
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _chatViewModel.AddLogMessage($"[MicMonitor] Error handling mic usage change: {ex.Message}");
+                }
+            });
+        };
     }
 
     // Called to toggle the update available indicator in the UI
@@ -164,6 +203,7 @@ public partial class MainWindow : Window
                 _hotKeyService.RegisterAiHelpNeededHotKey(Key.OemQuestion, KeyModifiers.Meta, OnAiHelpNeededPressed);
                 _hotKeyService.RegisterWindowCaptureHotKey(Key.OemQuestion, KeyModifiers.Alt, OnAiContextHelpPressed);
             }
+            _microphoneSessionMonitor.Start();
         }
         catch (Exception ex)
         {
@@ -301,6 +341,7 @@ public partial class MainWindow : Window
 
             var dlg = new ConfirmDialog { Message = message };
             // Show as modal dialog
+            dlg.Topmost = true;
             await dlg.ShowDialog(this);
             // Inspect result
             switch (dlg.Result)
@@ -700,6 +741,10 @@ public partial class MainWindow : Window
         {
             _chatHistoryWindow.Activate();
         }*/
+        Dispatcher.UIThread.Post(() => 
+        {
+            _microphoneSessionMonitor.GetProcessThatUsesMicrophone();
+        });
         App.Notifications.EnsureAiWindowVisible();
         SetWindowsProtection(_isWindowProtected);
     }
