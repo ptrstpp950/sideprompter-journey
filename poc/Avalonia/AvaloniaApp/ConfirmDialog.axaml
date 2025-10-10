@@ -8,16 +8,19 @@
         WindowStartupLocation="CenterOwner"
         Padding="12">
 
-  <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" Margin="4">
+  <Grid ColumnDefinitions="*" RowDefinitions="Auto,Auto,Auto" Margin="4">
     <!-- Message -->
-    <TextBlock x:Name="MessageText" Grid.Row="0" Grid.Column="1" TextWrapping="Wrap" FontSize="15" Margin="10,0,0,0"
+    <TextBlock x:Name="MessageText" Grid.Row="0" TextWrapping="Wrap" FontSize="15" Margin="10,0,10,0"
                HorizontalAlignment="Stretch" VerticalAlignment="Center" TextAlignment="Center" />
 
+    <!-- Checkbox - Remember my answer -->
+    <CheckBox x:Name="RememberCheckBox" Grid.Row="1" Content="Remember my answer and don't ask again" 
+              HorizontalAlignment="Center" Margin="0,12,0,0" />
+
     <!-- Buttons - use HeaderChip class for flat look used elsewhere in the app -->
-    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,12,0,0">
-      <Button x:Name="YesButton" Classes="HeaderChip" Width="50" Click="YesButton_OnClick" IsDefault="True">Yes</Button>
-      <Button x:Name="YesDontAskButton" Classes="HeaderChip" Width="150" Click="YesDontAskButton_OnClick">Yes (don't ask again)</Button>
-      <Button x:Name="NoButton" Classes="HeaderChip" Width="50" Click="NoButton_OnClick" IsCancel="True">No</Button>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,12,0,0">
+      <Button x:Name="YesButton" Classes="HeaderChip" Width="80" Click="YesButton_OnClick" IsDefault="True">Yes</Button>
+      <Button x:Name="NoButton" Classes="HeaderChip" Width="80" Click="NoButton_OnClick" IsCancel="True">No</Button>
     </StackPanel>
   </Grid>
 </Window>

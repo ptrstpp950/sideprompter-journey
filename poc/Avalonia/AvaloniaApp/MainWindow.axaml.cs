@@ -139,7 +139,8 @@ public partial class MainWindow : Window
                     if (inUse)
                     {
                         // only care about start events
-                        var confirmed = await ShowConfirmDialogIfNeeded("mic_in_use_start",
+                        var confirmed = await ShowConfirmDialogIfNeeded(
+                            ConfirmDialogType.StartTranscriptionWhenMicrophoneIsActive,
                             $"New meeting started by {processName}.\n\nDo you want to start transcription?");
                         if (confirmed)
                         {
@@ -148,7 +149,8 @@ public partial class MainWindow : Window
                     }
                     else
                     {
-                        var confirmed = await ShowConfirmDialogIfNeeded("mic_in_use_stop",
+                        var confirmed = await ShowConfirmDialogIfNeeded(
+                            ConfirmDialogType.StopTranscriptionWhenMicrophoneIsInActive,
                             $"New meeting stopped in {processName}.\n\nDo you want to stop transcription?");
                         if (confirmed)
                         {
@@ -329,29 +331,30 @@ public partial class MainWindow : Window
         await ExtractAndDisplayWindowText();
     }
 
-    private async Task<bool> ShowConfirmDialogIfNeeded(string dialogId, string message)
+    private async Task<bool> ShowConfirmDialogIfNeeded(ConfirmDialogType dialog, string message)
     {
         try
         {
+            var dialogId = dialog.ToString();
             if (_settings.ConfirmedDialogs.ContainsKey(dialogId))
             {
-                // Already confirmed, skip dialog
-                return true;
+                return _settings.ConfirmedDialogs[dialogId] == ConfirmDialogResult.Yes.ToString();
             }
 
             var dlg = new ConfirmDialog { Message = message };
             // Show as modal dialog
             dlg.Topmost = true;
             await dlg.ShowDialog(this);
+            if( dlg.RememberAnswer )
+            {
+                // Persist this preference in settings
+                _settings.ConfirmedDialogs[dialogId] = dlg.Result.ToString();
+                SettingsService.Save(_settings);
+            }
             // Inspect result
             switch (dlg.Result)
             {
                 case ConfirmDialogResult.Yes:
-                    return true;
-                case ConfirmDialogResult.YesDontAskAgain:
-                    // Persist this preference in settings
-                    _settings.ConfirmedDialogs[dialogId] = "confirmed";
-                    SettingsService.Save(_settings);
                     return true;
                 case ConfirmDialogResult.No:
                 default:
@@ -551,7 +554,7 @@ public partial class MainWindow : Window
         try
         {
             var confirmed = await ShowConfirmDialogIfNeeded(
-                "stop_transcription",
+                ConfirmDialogType.StopSessionOnStopButton,
                 "Are you sure you want to stop transcription?\n" +
                 "It will delete the current session and all messages.\n" +
                 "To keep the session active, please pause (\u23F8\uFE0F) instead.");
