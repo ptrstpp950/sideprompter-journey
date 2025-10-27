@@ -89,45 +89,60 @@ public partial class App : Application
             {
                 try
                 {
+                    // Initial delay to allow app to settle
                     await Task.Delay(TimeSpan.FromSeconds(30)); // Wait 30 seconds after startup
-                    
-                    Log.Information("Starting background update check");
-                    var updateInfo = await _updateService.CheckForUpdatesAsync();
-                    
-                        if (updateInfo != null)
+
+                    // Periodically check for updates every 4 hours
+                    while (true)
                     {
-                        Log.Information("Update available: {Version}. Notifying user.", updateInfo.Version);
-                        
-                        // Log the update availability (for now, we can improve the notification system later)
-                        Log.Information("Update notification: Version {Version} is available for download", updateInfo.Version);
-                        
-                        // For now, we'll automatically download and apply the update
-                        // In a production app, you might want to ask user permission first
                         try
                         {
-                            Log.Information("Auto-downloading update: {Version}", updateInfo.Version);
-                            var ok = await _updateService.DownloadAndApplyUpdatesAsync(updateInfo);
-                            if (ok)
+                            Log.Information("Starting background update check");
+                            var updateInfo = await _updateService.CheckForUpdatesAsync();
+
+                            if (updateInfo != null)
                             {
-                                // Save available update and notify UI
-                                _availableUpdate = updateInfo;
-                                // If main window is active, set indicator on UI thread
-                                var desktopRef = ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
-                                if (desktopRef?.MainWindow is MainWindow mw)
+                                Log.Information("Update available: {Version}. Notifying user.", updateInfo.Version);
+
+                                // Log the update availability
+                                Log.Information("Update notification: Version {Version} is available for download", updateInfo.Version);
+
+                                // For now, we'll automatically download and apply the update
+                                // In a production app, you might want to ask user permission first
+                                try
                                 {
-                                    Dispatcher.UIThread.Post(() => mw.SetUpdateAvailable(true));
+                                    Log.Information("Auto-downloading update: {Version}", updateInfo.Version);
+                                    var ok = await _updateService.DownloadAndApplyUpdatesAsync(updateInfo);
+                                    if (ok)
+                                    {
+                                        // Save available update and notify UI
+                                        _availableUpdate = updateInfo;
+                                        // If main window is active, set indicator on UI thread
+                                        var desktopRef = ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
+                                        if (desktopRef?.MainWindow is MainWindow mw)
+                                        {
+                                            Dispatcher.UIThread.Post(() => mw.SetUpdateAvailable(true));
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Error(ex, "Failed to auto-download update");
                                 }
                             }
                         }
                         catch (Exception ex)
                         {
-                            Log.Error(ex, "Failed to auto-download update");
+                            Log.Error(ex, "Background update check failed");
                         }
+
+                        // Wait 4 hours before next check
+                        await Task.Delay(TimeSpan.FromHours(4));
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "Background update check failed");
+                    Log.Error(ex, "Background update check loop terminated unexpectedly");
                 }
             });
         }
