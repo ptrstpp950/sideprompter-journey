@@ -141,7 +141,8 @@ public partial class MainWindow : Window
                         // only care about start events
                         var confirmed = await ShowConfirmDialogIfNeeded(
                             ConfirmDialogType.StartTranscriptionWhenMicrophoneIsActive,
-                            $"New meeting started by {processName}.\n\nDo you want to start transcription?");
+                            $"New meeting started by {processName}.\n\nDo you want to start transcription?",
+                            true);
                         if (confirmed)
                         {
                             StartButton_OnClick(this, new RoutedEventArgs());
@@ -151,7 +152,8 @@ public partial class MainWindow : Window
                     {
                         var confirmed = await ShowConfirmDialogIfNeeded(
                             ConfirmDialogType.StopTranscriptionWhenMicrophoneIsInActive,
-                            $"New meeting stopped in {processName}.\n\nDo you want to stop transcription?");
+                            $"New meeting stopped in {processName}.\n\nDo you want to stop transcription?",
+                            true);
                         if (confirmed)
                         {
                             StopButton_OnClick(this, new RoutedEventArgs());
@@ -331,7 +333,8 @@ public partial class MainWindow : Window
         await ExtractAndDisplayWindowText();
     }
 
-    private async Task<bool> ShowConfirmDialogIfNeeded(ConfirmDialogType dialog, string message)
+    private async Task<bool> ShowConfirmDialogIfNeeded(
+        ConfirmDialogType dialog, string message, bool notification)
     {
         try
         {
@@ -342,10 +345,22 @@ public partial class MainWindow : Window
             }
 
             var dlg = new ConfirmDialog { Message = message };
-            // Show as modal dialog
+            // Optionally show as a corner notification (non-modal) when enabled in settings
             dlg.Topmost = true;
-            await dlg.ShowDialog(this);
-            if( dlg.RememberAnswer )
+            if (notification)
+            {
+                dlg.Width = 200;
+                dlg.Height = 200;
+                // Show as a small non-modal notification near the system clock.
+                await dlg.ShowAsCornerNotificationAsync(this);
+            }
+            else
+            {
+                // Show modal dialog centered on owner (existing behavior)
+                await dlg.ShowDialog(this);
+            }
+
+            if (dlg.RememberAnswer)
             {
                 // Persist this preference in settings
                 _settings.ConfirmedDialogs[dialogId] = dlg.Result.ToString();
@@ -549,19 +564,29 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void ShowDialog_OnClick(object? sender, RoutedEventArgs e)
+    {
+        await ShowConfirmDialogIfNeeded(
+            ConfirmDialogType.TestDialog,
+            "This is a test dialog. Do you want to proceed?",
+            true);
+    }
+
     private async void StopButton_OnClick(object? sender, RoutedEventArgs e)
     {
         try
         {
+            if (!_isTranscribing) return;
+
             var confirmed = await ShowConfirmDialogIfNeeded(
                 ConfirmDialogType.StopSessionOnStopButton,
                 "Are you sure you want to stop transcription?\n" +
                 "It will delete the current session and all messages.\n" +
-                "To keep the session active, please pause (\u23F8\uFE0F) instead.");
+                "To keep the session active, please pause (\u23F8\uFE0F) instead."
+                , true);
             if (!confirmed) return;
 
             SwitchStartStopIcon(true);
-            if (!_isTranscribing) return;
             await _audioTranscriptionService!.StopProcessing();
 
             _isTranscribing = false;

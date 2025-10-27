@@ -41,6 +41,9 @@
                     <heroIcons:HeroIcon Type="StopCircle" Foreground="#c52230" Kind="Solid" />
                 </Button>
                 <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
+                <Button x:Name="TestButton" Classes="IconButton" Width="40" Height="36" Click="ShowDialog_OnClick">
+                    <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#c52230" Kind="Solid" />
+                </Button>
                 <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />
