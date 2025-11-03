@@ -92,9 +92,9 @@ public partial class LanguagesSettingsPageView : UserControl
 
     private void AddSelected()
     {
-    if (AllList.SelectedItem is string s)
+        if (AllList.SelectedItem is string s)
         {
-            var code = s.Split('–')[0].Trim();
+            var code = s.Split('–')[0].Trim().ToLowerInvariant();
             if (!_settings.Languages.Contains(code))
             {
                 _settings.Languages.Add(code);

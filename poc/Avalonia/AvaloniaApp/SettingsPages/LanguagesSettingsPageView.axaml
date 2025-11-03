@@ -14,12 +14,23 @@
       </ScrollViewer>
     </StackPanel>
 
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
-      <TextBlock Grid.Column="0" Text="&#xf002;"
-           FontFamily="{StaticResource SomeFontKey}" 
-           FontWeight="Bold"
-           VerticalAlignment="Center"/>
-      <TextBox Grid.Column="1" x:Name="SearchBox" Watermark="Type the language"/>
+    <!-- Unified search control: rounded background with icon + textbox visually merged -->
+    <Grid Grid.Row="2">
+  <!-- Use Fluent theme brushes so the control follows light/dark and accent settings -->
+  <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" CornerRadius="6" Padding="6" VerticalAlignment="Center">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
+          <TextBlock Grid.Column="0" Text="&#xf002;"
+                     FontFamily="{StaticResource SomeFontKey}"
+                     FontWeight="Bold"
+                     VerticalAlignment="Center"
+                     Foreground="{DynamicResource ThemeForegroundBrush}"
+                     Margin="4,0"/>
+          <!-- TextBox set to transparent background and no border so it looks merged with the Border -->
+          <TextBox Grid.Column="1" x:Name="SearchBox" Watermark="Type the language"
+                   Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeForegroundBrush}"
+                   CaretBrush="{DynamicResource ThemeForegroundBrush}" VerticalContentAlignment="Center"/>
+        </Grid>
+      </Border>
     </Grid>
 
     <ListBox Grid.Row="3" x:Name="AllList" Margin="0,4,0,0"/>

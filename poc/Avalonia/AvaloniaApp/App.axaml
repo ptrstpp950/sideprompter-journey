@@ -7,6 +7,14 @@
         <FontFamily x:Key="SomeFontKey">avares://SidePrompter/Assets/Fonts#Font Awesome 7 Free</FontFamily>
     </Application.Resources>
     <Application.Styles>
-        <FluentTheme DensityStyle="Compact" />
+        <FluentTheme DensityStyle="Compact">
+              <FluentTheme.Palettes>
+                <!-- Palette for Light theme variant -->
+                <ColorPaletteResources x:Key="Light" Accent="#4E5779" RegionColor="White" ErrorText="Red" />
+                <!-- Palette for Dark theme variant -->
+                <ColorPaletteResources x:Key="Dark"
+                    Accent="#4E5779" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
     </Application.Styles>
 </Application>
