@@ -45,7 +45,7 @@ public class ChatSettingsPage : SettingsPageViewModel
     private List<string> _availableModels = new();
     private static readonly HttpClient _http = new();
 
-    public ChatSettingsPage(AppSettings settings, bool isSettingsMode) : base("Chat", "💬", new StackPanel { Spacing = 8 })
+    public ChatSettingsPage(AppSettings settings, bool isSettingsMode) : base("Chat", "\uf086", new StackPanel { Spacing = 8 })
     {
         _settings = settings;
         _isSettingsMode = isSettingsMode;

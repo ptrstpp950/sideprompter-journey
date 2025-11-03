@@ -7,7 +7,7 @@ public class PromptsSettingsPage : SettingsPageViewModel
 {
     private readonly AppSettings _settings;
 
-    public PromptsSettingsPage(AppSettings settings) : base("Prompts", "💡", new PromptsSettingsPageView(settings))
+    public PromptsSettingsPage(AppSettings settings) : base("Prompts", "\uf0eb", new PromptsSettingsPageView(settings))
     {
         _settings = settings;
     }

@@ -9,8 +9,6 @@
     <Application.Styles>
         <FluentTheme DensityStyle="Compact">
               <FluentTheme.Palettes>
-                <!-- Palette for Light theme variant -->
-                <ColorPaletteResources x:Key="Light" Accent="#4E5779" RegionColor="White" ErrorText="Red" />
                 <!-- Palette for Dark theme variant -->
                 <ColorPaletteResources x:Key="Dark"
                     Accent="#4E5779" />

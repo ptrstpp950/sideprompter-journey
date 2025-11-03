@@ -6,7 +6,7 @@ public class LanguagesSettingsPage : SettingsPageViewModel
 {
     private readonly AppSettings _settings;
 
-    public LanguagesSettingsPage(AppSettings settings) : base("Languages", "🌐", new LanguagesSettingsPageView(settings))
+    public LanguagesSettingsPage(AppSettings settings) : base("Languages", "\uf7a2", new LanguagesSettingsPageView(settings))
     {
         _settings = settings;
     }

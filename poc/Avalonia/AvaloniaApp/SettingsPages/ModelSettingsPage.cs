@@ -20,7 +20,7 @@ public class ModelSettingsPage : SettingsPageViewModel
     private record ModelOpt(string Key, string Label, string Params, string Vram, string Speed, string Ggml);
     private List<ModelOpt> _opts = new();
 
-    public ModelSettingsPage(AppSettings settings) : base("Model", "🧠", new StackPanel { Spacing = 8 })
+    public ModelSettingsPage(AppSettings settings) : base("Model", "\ue064;", new StackPanel { Spacing = 8 })
     {
         _settings = settings;
         var root = (StackPanel)View;
