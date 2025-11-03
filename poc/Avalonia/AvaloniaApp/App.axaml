@@ -2,6 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AvaloniaApp.App"
              RequestedThemeVariant="Default">
+
+    <Application.Resources>
+        <FontFamily x:Key="SomeFontKey">avares://SidePrompter/Assets/Fonts#Font Awesome 7 Free</FontFamily>
+    </Application.Resources>
     <Application.Styles>
         <FluentTheme DensityStyle="Compact" />
     </Application.Styles>

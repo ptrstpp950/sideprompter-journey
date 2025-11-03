@@ -24,6 +24,11 @@
     <VeloPackChannel Condition=" '$(VeloPackChannel)' == '' ">stable</VeloPackChannel>
   </PropertyGroup>
 
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/Fonts/**"/>
+  </ItemGroup>
+
   
   <!-- Windows specific properties -->
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
