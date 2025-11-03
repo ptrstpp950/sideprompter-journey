@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -136,4 +137,25 @@ public class BooleanToTextConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotImplementedException();
+}
+
+public class StringMatchConverter : IMultiValueConverter
+{
+    public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (values.Count != 2)
+            return false;
+
+        // Assuming the first value is the string to check, and the second is the expected value
+        return values[0]?.ToString() == values[1]?.ToString();
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+public static class ObjectConverters
+{
+    public static readonly IValueConverter IsZero =
+        new FuncValueConverter<int, bool>(count => count == 0);
 }

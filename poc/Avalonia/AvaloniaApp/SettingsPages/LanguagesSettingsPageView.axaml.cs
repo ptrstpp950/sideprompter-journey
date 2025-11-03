@@ -33,7 +33,6 @@ public partial class LanguagesSettingsPageView : UserControl
         AddButton.Click += (_, _) => AddSelected();
         UndoButton.Click += (_, _) => UndoLast();
         ClearButton.Click += (_, _) => { _settings.Languages.Clear(); RefreshSelected(); RefreshAllList(); };
-        AllList.PropertyChanged += (_, e) => { if (e.Property == SelectingItemsControl.ItemCountProperty) UpdateCounts(); };
         RefreshSelected();
         RefreshAllList();
     }
@@ -59,9 +58,6 @@ public partial class LanguagesSettingsPageView : UserControl
         _settings.Languages.AddRange(picked);
     }
 
-    private void UpdateCounts()
-        => CountsText.Text = $"Selected: {_settings.Languages.Count} • Showing: {AllList.ItemCount}";
-
     [AvaloniaHotReload]
     private void RefreshSelected()
     {
@@ -74,15 +70,14 @@ public partial class LanguagesSettingsPageView : UserControl
             var tag = new Border
             {
                 Background = Brushes.DimGray,
-                CornerRadius = new Avalonia.CornerRadius(6),
-                Padding = new Avalonia.Thickness(8, 4),
-                Margin = new Avalonia.Thickness(2),
-                Child = new TextBlock { Text = code + " • " + lang, FontSize = 12 }
+                CornerRadius = new Avalonia.CornerRadius(10),
+                Padding = new Avalonia.Thickness(10, 6),
+                Margin = new Avalonia.Thickness(4),
+                Child = new TextBlock { Text = code.ToUpper() + " - " + lang, FontSize = 12 }
             };
             tag.PointerPressed += (_, _) => { _settings.Languages.Remove(code); RefreshSelected(); RefreshAllList(); };
             SelectedPanel.Children.Add(tag);
         }
-        UpdateCounts();
     }
     [AvaloniaHotReload]
     private void RefreshAllList()
@@ -92,8 +87,7 @@ public partial class LanguagesSettingsPageView : UserControl
         if (!string.IsNullOrWhiteSpace(filter))
             data = data.Where(l => l.Code.Contains(filter!) || l.Name.ToLowerInvariant().Contains(filter!));
         data = data.Where(d => !_settings.Languages.Contains(d.Code)).Take(200);
-        AllList.ItemsSource = data.Select(d => $"{d.Code} – {d.Name}").ToList();
-        UpdateCounts();
+        AllList.ItemsSource = data.Select(d => $"{d.Code.ToUpper()} – {d.Name}").ToList();
     }
 
     private void AddSelected()
