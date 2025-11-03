@@ -22,6 +22,17 @@
     Opacity="0.7"
     -->
 
+    <Window.Styles>
+        <Style Selector="ToggleButton">
+            <!-- Default setters here -->
+
+            <Style Selector="^:checked /template/ ContentPresenter#PART_ContentPresenter">
+                <!-- Checked setters here -->
+                <Setter Property="Background" Value="Transparent"/>
+            </Style>
+        </Style>
+    </Window.Styles>
+
     <Window.Resources>
         <viewModel:BooleanToTextConverter x:Key="BoolToText" />
     </Window.Resources>
@@ -29,47 +40,44 @@
         <!-- Controls row -->
         <DockPanel Grid.Row="0" Margin="12,24,12,0" LastChildFill="False">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <ToggleButton x:Name="ToggleButton"
-                              Checked="StartButton_OnClick"
-                              Unchecked="PauseButton_OnClick">
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <heroIcons:HeroIcon x:Name="StartIcon" IsVisible="True" Type="PlayCircle" Foreground="#22c55e" Kind="Solid" />
-                        <heroIcons:HeroIcon x:Name="PauseIcon" IsVisible="False" Type="PauseCircle" Foreground="#f59e0b" Kind="Solid" />
-                    </StackPanel>
-                </ToggleButton>
-                <Button x:Name="StopButton" IsVisible="False" Classes="IconButton" Width="40" Height="36" Click="StopButton_OnClick">
-                    <heroIcons:HeroIcon Type="StopCircle" Foreground="#c52230" Kind="Solid" />
+                <Button x:Name="StartButton" Background="Transparent" IsVisible="True" Click="StartButton_OnClick">
+                    <heroIcons:HeroIcon Type="Microphone" Height="16" Width="16" Foreground="#7CAFFF" Background="Transparent" Kind="Outline" />
                 </Button>
-                <ComboBox x:Name="LanguageComboBox" Width="65" MinHeight="32" IsVisible="True"/>
-                <Button x:Name="TestButton" Classes="IconButton" Width="40" Height="36" Click="ShowDialog_OnClick">
-                    <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#c52230" Kind="Solid" />
+                <Button x:Name="PauseButton" Background="Transparent" IsVisible="True" Click="PauseButton_OnClick">
+                    <heroIcons:HeroIcon Type="Pause" Height="16" Width="16" Foreground="#7CAFFF" Background="Transparent" Kind="Solid" />
                 </Button>
-                <Border Classes="HeaderChip" ToolTip.Tip="Elapsed time">
+                <Button x:Name="StopButton" Background="Transparent" IsVisible="True" Click="StopButton_OnClick">
+                    <heroIcons:HeroIcon Type="Stop" Height="16" Width="16" Foreground="#7CAFFF" Background="Transparent" Kind="Outline" />
+                </Button>
+                <ComboBox x:Name="LanguageComboBox" Width="60" MinHeight="36" IsVisible="True" BorderThickness="0">
+                </ComboBox>
+                
+                <Border ToolTip.Tip="Elapsed time">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Solid" />
-                        <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontWeight="SemiBold" Foreground="#e5e7eb" />
+                        <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Outline" />
+                        <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontWeight="SemiBold" Foreground="#FFFFFF" />
                     </StackPanel>
                 </Border>
-                <Grid Width="40" Height="36">
-                    <Button x:Name="SettingsButton" Classes="IconButton" Width="40" Height="36" Click="SettingsButton_OnClick" ToolTip.Tip="Settings">
-                        <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#9ca3af" Kind="Solid" />
+                <Grid>
+                    <Button x:Name="SettingsButton" Background="Transparent" Click="SettingsButton_OnClick" ToolTip.Tip="Settings">
+                        <heroIcons:HeroIcon Type="Cog6Tooth" Height="16" Width="16" Foreground="#FFD101" Background="Transparent" Kind="Outline" />
                     </Button>
                     <!-- Green dot indicating an update is ready. Binds to ViewModel bool `UpdateIsReady` -->
                     <Ellipse Width="10" Height="10" Fill="#10b981"
                              HorizontalAlignment="Right" VerticalAlignment="Top" Margin="-4,-4,0,0"
                              IsVisible="{Binding UpdateIsReady}" />
                 </Grid>
-                <Button x:Name="HistoryButton" Classes="IconButton" Width="40" Height="36" Click="HistoryButton_OnClick" ToolTip.Tip="History">
-                    <heroIcons:HeroIcon Type="ChatBubbleLeftRight" Foreground="#60a5fa" Kind="Solid" />
+                <Button x:Name="HistoryButton" Background="Transparent" Click="HistoryButton_OnClick" ToolTip.Tip="AI tooltips">
+                    <heroIcons:HeroIcon Type="ChatBubbleLeftRight" Height="16" Width="16" Foreground="#FFD101" Kind="Solid" />
                 </Button>
                 <!-- Test confirm dialog button -->
                 <!--Button x:Name="TestConfirmButton" Classes="HeaderChip" Height="36" Click="TestConfirmButton_OnClick" ToolTip.Tip="Test confirm dialog">
                     <TextBlock Text="Test Confirm" Foreground="#cbd5e1" FontSize="11"/>
                 </Button-->
-                <ToggleButton x:Name="PrivacyToggleButton" IsChecked="True" Checked="PrivacyToggleButton_OnChecked" Unchecked="PrivacyToggleButton_OnUnchecked" ToolTip.Tip="Toggle Window Privacy">
+                <ToggleButton x:Name="PrivacyToggleButton" IsChecked="True" Background="Transparent" Checked="PrivacyToggleButton_OnChecked" Unchecked="PrivacyToggleButton_OnUnchecked" ToolTip.Tip="Toggle Window Privacy">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <heroIcons:HeroIcon x:Name="ProtectedIcon" IsVisible="True" Type="ShieldCheck" Foreground="#22c55e" Kind="Solid" />
-                        <heroIcons:HeroIcon x:Name="UnprotectedIcon" IsVisible="False" Type="ShieldExclamation" Foreground="#c52230" Kind="Solid" />
+                        <heroIcons:HeroIcon x:Name="ProtectedIcon" Height="16" Width="16" IsVisible="True" Type="EyeSlash" Foreground="#FFD101" Kind="Outline" />
+                        <heroIcons:HeroIcon x:Name="UnprotectedIcon" Height="16" Width="16" IsVisible="False" Type="Eye" Foreground="#FFD101" Kind="Outline" />
                     </StackPanel>
                 </ToggleButton>
                 <!-- TODO: In next version I will enable this-->
@@ -78,6 +86,17 @@
                         <heroIcons:HeroIcon Type="PlusCircle" Foreground="#10b981" Width="16" Height="16" Kind="Solid" />
                         <TextBlock Text="Add Ctx (Alt+?)" Foreground="#cbd5e1" FontSize="11"/>
                     </StackPanel>
+                </Button>
+                <ToggleButton x:Name="ToggleButton"
+                              Checked="StartButton_OnClick"
+                              Unchecked="PauseButton_OnClick">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <heroIcons:HeroIcon x:Name="StartIcon" IsVisible="True" Type="PlayCircle" Foreground="#7CAFFF" Background="Transparent" Kind="Solid" />
+                        <heroIcons:HeroIcon x:Name="PauseIcon" IsVisible="False" Type="PauseCircle" Foreground="#f59e0b" Background="Transparent" Kind="Solid" />
+                    </StackPanel>
+                </ToggleButton>
+                <Button x:Name="TestButton" Classes="IconButton" Width="40" Height="36" Click="ShowDialog_OnClick">
+                    <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#c52230" Background="Transparent" Kind="Solid" />
                 </Button>
             </StackPanel>
         </DockPanel>
