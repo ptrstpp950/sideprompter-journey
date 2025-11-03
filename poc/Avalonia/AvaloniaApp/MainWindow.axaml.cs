@@ -19,6 +19,7 @@ using AvaloniaApp.Settings;
 using Serilog;
 using AvaloniaApp.Services.Chat;
 using AvaloniaApp.Services.MicSessionMonitor;
+using HotAvalonia;
 
 namespace AvaloniaApp;
 
@@ -231,9 +232,11 @@ public partial class MainWindow : Window
         this.Closed -= MainWindow_Closed;
     }
 
-    
+    [AvaloniaHotReload]
     private void ApplySettings()
     {
+        if (_settings == null)
+            return;
         // (Re)initialize transcription service if model changed
         var desiredModel = _settings.WhisperModelType;
         if (_audioTranscriptionService == null || desiredModel != _currentWhisperModelType)
@@ -250,14 +253,14 @@ public partial class MainWindow : Window
                 _audioTranscriptionService.Dispose();
             }
 
-            
+
             var transcriptionCoreMic = new WhisperTranscriptionService(desiredModel);
             var transcriptionCoreSpeaker = new WhisperTranscriptionService(desiredModel);
 
             //var transcriptionCore = new DeepgramTranscriptionService();
-            transcriptionCoreMic.StatusChanged += (status) => Dispatcher.UIThread.Post(() => TranscriptionServiceOnLogReceived(new LogMessage(){MessageType = MessageType.Info, Message = status, Timestamp = DateTime.UtcNow}));
+            transcriptionCoreMic.StatusChanged += (status) => Dispatcher.UIThread.Post(() => TranscriptionServiceOnLogReceived(new LogMessage() { MessageType = MessageType.Info, Message = status, Timestamp = DateTime.UtcNow }));
             transcriptionCoreSpeaker.StatusChanged += (status) => Dispatcher.UIThread.Post(() => TranscriptionServiceOnLogReceived(new LogMessage() { MessageType = MessageType.Info, Message = status, Timestamp = DateTime.UtcNow }));
-            
+
             transcriptionCoreMic.TranscriptionReceived += (msg) => Dispatcher.UIThread.Post(() => OnMessageGenerated(new TranscriptionMessage()
             {
                 Message = msg.Text,
@@ -272,7 +275,7 @@ public partial class MainWindow : Window
 #if MACOS || OSX || MACCATALYST
             _audioTranscriptionService = new AudioTranscriptionServiceMac(_logger ,transcriptionCoreMic, transcriptionCoreSpeaker);
 #elif WINDOWS
-            _audioTranscriptionService = new AudioTranscriptionServiceWin(_logger ,transcriptionCoreMic, transcriptionCoreSpeaker);
+            _audioTranscriptionService = new AudioTranscriptionServiceWin(_logger, transcriptionCoreMic, transcriptionCoreSpeaker);
 #endif
             _audioTranscriptionService.LogReceived += TranscriptionServiceOnLogReceived;
             _audioTranscriptionService.StatusChanged += TranscriptionServiceOnStatusChanged;
@@ -510,6 +513,7 @@ public partial class MainWindow : Window
         
     }
 
+    [AvaloniaHotReload]
     private void InitializeAiButtons()
     {
         _aiActionsManager?.InitializeButtons(AiButtonsPanel);
@@ -732,7 +736,7 @@ public partial class MainWindow : Window
                 // Recreate/reinitialize AI action buttons after settings change
                 try
                 {
-                    _aiActionsManager?.InitializeButtons(AiButtonsPanel);
+                    InitializeAiButtons();
                 }
                 catch (Exception ex)
                 {
