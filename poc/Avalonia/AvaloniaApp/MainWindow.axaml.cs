@@ -351,8 +351,6 @@ public partial class MainWindow : Window
             // Optionally show as a corner notification (non-modal) when enabled in settings
             if (notification)
             {
-                dlg.Width = 200;
-                dlg.Height = 200;
                 // Show as a small non-modal notification near the system clock.
                 await dlg.ShowAsCornerNotificationAsync(this);
             }

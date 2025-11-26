@@ -4,6 +4,7 @@
         x:Class="AvaloniaApp.ConfirmDialog"
         Title="Confirm"
         CanResize="False"
+        SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterOwner"
         Padding="12">
 
