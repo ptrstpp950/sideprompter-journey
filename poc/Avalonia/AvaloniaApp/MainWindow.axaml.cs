@@ -367,14 +367,11 @@ public partial class MainWindow : Window
                 SettingsService.Save(_settings);
             }
             // Inspect result
-            switch (dlg.Result)
+            return dlg.Result switch
             {
-                case ConfirmDialogResult.Yes:
-                    return true;
-                case ConfirmDialogResult.No:
-                default:
-                    return false;
-            }
+                ConfirmDialogResult.Yes => true,
+                _ => false
+            };
         }
         catch (Exception ex)
         {
