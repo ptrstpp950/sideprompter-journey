@@ -502,6 +502,10 @@ public partial class MainWindow : Window
     private async void StartButton_OnClick(object? sender, RoutedEventArgs e)
     {
         await StartButtonClick();
+        Dispatcher.UIThread.Post(() =>
+        {
+            StartButton.IsChecked = _isTranscribing;
+        });
     }
     private async Task StartButtonClick()
     {
@@ -509,6 +513,7 @@ public partial class MainWindow : Window
         {
             if (_isTranscribing) return;
             _isTranscribing = true;
+
             //_chatViewModel.ClearMessages();
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
             // Start a new session when transcription starts
@@ -558,6 +563,10 @@ public partial class MainWindow : Window
     private async void StopButton_OnClick(object? sender, RoutedEventArgs e)
     {
         await StopButtonClick(false);
+        Dispatcher.UIThread.Post(() =>
+        {
+            StartButton.IsChecked = _isTranscribing;
+        });
     }
     private async Task StopButtonClick(bool notification)
     {
@@ -576,6 +585,10 @@ public partial class MainWindow : Window
             await _audioTranscriptionService!.StopProcessing();
 
             _isTranscribing = false;
+            Dispatcher.UIThread.Post(() =>
+            {
+                StartButton.IsChecked = _isTranscribing;
+            });
             _elapsedTimer.Stop();
             _startedAt = null;
             UpdateElapsedTime();
