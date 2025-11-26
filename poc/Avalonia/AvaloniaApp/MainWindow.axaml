@@ -22,16 +22,7 @@
     Opacity="0.7"
     -->
 
-    <Window.Styles>
-        <Style Selector="ToggleButton">
-            <!-- Default setters here -->
 
-            <Style Selector="^:checked /template/ ContentPresenter#PART_ContentPresenter">
-                <!-- Checked setters here -->
-                <Setter Property="Background" Value="Transparent"/>
-            </Style>
-        </Style>
-    </Window.Styles>
 
     <Window.Resources>
         <viewModel:BooleanToTextConverter x:Key="BoolToText" />
@@ -40,9 +31,9 @@
         <!-- Controls row -->
         <DockPanel Grid.Row="0" Margin="12,24,12,0" LastChildFill="False">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button x:Name="StartButton" Background="Transparent" IsVisible="True" Click="StartButton_OnClick">
+                <ToggleButton Classes="KeepBackground" x:Name="StartButton" Background="Transparent" IsVisible="True" Checked="StartButton_OnClick" Unchecked="StopButton_OnClick">
                     <heroIcons:HeroIcon Type="Microphone" Height="16" Width="16" Foreground="#7CAFFF" Background="Transparent" Kind="Outline" />
-                </Button>
+                </ToggleButton>
                 <Button x:Name="PauseButton" Background="Transparent" IsVisible="True" Click="PauseButton_OnClick">
                     <heroIcons:HeroIcon Type="Pause" Height="16" Width="16" Foreground="#7CAFFF" Background="Transparent" Kind="Solid" />
                 </Button>
@@ -74,7 +65,7 @@
                 <!--Button x:Name="TestConfirmButton" Classes="HeaderChip" Height="36" Click="TestConfirmButton_OnClick" ToolTip.Tip="Test confirm dialog">
                     <TextBlock Text="Test Confirm" Foreground="#cbd5e1" FontSize="11"/>
                 </Button-->
-                <ToggleButton x:Name="PrivacyToggleButton" IsChecked="True" Background="Transparent" Checked="PrivacyToggleButton_OnChecked" Unchecked="PrivacyToggleButton_OnUnchecked" ToolTip.Tip="Toggle Window Privacy">
+                <ToggleButton x:Name="PrivacyToggleButton" IsChecked="False" Background="Transparent" Unchecked="PrivacyToggleButton_OnChecked" Checked="PrivacyToggleButton_OnUnchecked" ToolTip.Tip="Toggle Window Privacy">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon x:Name="ProtectedIcon" Height="16" Width="16" IsVisible="True" Type="EyeSlash" Foreground="#FFD101" Kind="Outline" />
                         <heroIcons:HeroIcon x:Name="UnprotectedIcon" Height="16" Width="16" IsVisible="False" Type="Eye" Foreground="#FFD101" Kind="Outline" />
@@ -87,7 +78,7 @@
                         <TextBlock Text="Add Ctx (Alt+?)" Foreground="#cbd5e1" FontSize="11"/>
                     </StackPanel>
                 </Button>
-                <ToggleButton x:Name="ToggleButton"
+                <!--ToggleButton x:Name="ToggleButton"
                               Checked="StartButton_OnClick"
                               Unchecked="PauseButton_OnClick">
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -97,7 +88,7 @@
                 </ToggleButton>
                 <Button x:Name="TestButton" Classes="IconButton" Width="40" Height="36" Click="ShowDialog_OnClick">
                     <heroIcons:HeroIcon Type="Cog6Tooth" Foreground="#c52230" Background="Transparent" Kind="Solid" />
-                </Button>
+                </Button-->
             </StackPanel>
         </DockPanel>
         <UniformGrid Grid.Row="2" x:Name="AiButtonsPanel" Columns="1" VerticalAlignment="Center" IsVisible="True" ScrollViewer.VerticalScrollBarVisibility="Visible" />

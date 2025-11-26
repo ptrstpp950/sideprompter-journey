@@ -30,8 +30,8 @@ public partial class MainWindow : Window
     private ChatCompletionService? _chatCompletionService; // now nullable until configured
     private bool _isTranscribing;
     private readonly string[] _supportedLanguages = { "en", "pl" };
-    private DateTime? _startedAt; 
-    private readonly DispatcherTimer _elapsedTimer = new() { Interval = TimeSpan.FromSeconds(1)}; 
+    private DateTime? _startedAt;
+    private readonly DispatcherTimer _elapsedTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly IHotKeyService? _hotKeyService;
 #if MACOS || OSX || MACCATALYST
     private readonly IMacOsPermissionsService? _macOsPermissionsService;
@@ -146,7 +146,7 @@ public partial class MainWindow : Window
                             true);
                         if (confirmed)
                         {
-                            StartButton_OnClick(this, new RoutedEventArgs());
+                            await StartButtonClick();
                         }
                     }
                     else
@@ -157,7 +157,7 @@ public partial class MainWindow : Window
                             true);
                         if (confirmed)
                         {
-                            StopButton_OnClick(this, new RoutedEventArgs());
+                            await StopButtonClick(true);
                         }
                     }
                 }
@@ -306,7 +306,7 @@ public partial class MainWindow : Window
         }
     }
 
-    
+
     private void TranscriptionServiceOnStatusChanged(string message)
     {
         _chatViewModel.AddLogMessage($"[Log][Status] {message}");
@@ -326,11 +326,11 @@ public partial class MainWindow : Window
             TranscriptionMessageType.Speaker => MessageAuthor.Other,
             _ => MessageAuthor.Other
         };
-        
+
         _chatViewModel.AddMessage(message.Message, author);
 
     }
-    
+
     private async void GetWindowTextButton_OnClick(object? sender, RoutedEventArgs e)
     {
         await ExtractAndDisplayWindowText();
@@ -342,14 +342,13 @@ public partial class MainWindow : Window
         try
         {
             var dialogId = dialog.ToString();
-            if (_settings.ConfirmedDialogs.ContainsKey(dialogId))
+            if (_settings.ConfirmedDialogs.TryGetValue(dialogId, out var result))
             {
-                return _settings.ConfirmedDialogs[dialogId] == ConfirmDialogResult.Yes.ToString();
+                return result == ConfirmDialogResult.Yes.ToString();
             }
 
-            var dlg = new ConfirmDialog { Message = message };
+            var dlg = new ConfirmDialog { Message = message, Topmost = true };
             // Optionally show as a corner notification (non-modal) when enabled in settings
-            dlg.Topmost = true;
             if (notification)
             {
                 dlg.Width = 200;
@@ -384,16 +383,16 @@ public partial class MainWindow : Window
             _chatViewModel.AddLogMessage($"[Confirm] Error showing dialog: {ex.Message}");
             return false;
         }
-    }   
-    
+    }
+
     private async Task ExtractAndDisplayWindowTextViaCli()
     {
         try
         {
             AddMessage("--- Running CLI tool to extract window text ---");
-            
+
             var binaryPath = GetActiveWindowTextGetterBinaryPath();
-            
+
             var processStartInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = binaryPath,
@@ -409,7 +408,7 @@ public partial class MainWindow : Window
 
             var output = await process.StandardOutput.ReadToEndAsync();
             var error = await process.StandardError.ReadToEndAsync();
-            
+
             await process.WaitForExitAsync();
 
             if (process.ExitCode == 0)
@@ -425,7 +424,7 @@ public partial class MainWindow : Window
                 if (!string.IsNullOrEmpty(output))
                     AddMessage(output);
             }
-            
+
             AddMessage("--- End of CLI output ---");
         }
         catch (Exception ex)
@@ -433,13 +432,13 @@ public partial class MainWindow : Window
             AddMessage($"Error running CLI tool: {ex.Message}");
         }
     }
-    
+
     private string GetActiveWindowTextGetterBinaryPath()
     {
         // For macOS app bundles, check Resources first
         if (OperatingSystem.IsMacOS())
         {
-            var resourcesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
+            var resourcesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                 "..", "Resources", "libs", "activeWindowTextGetter", "activeWindowTextGetter");
             if (File.Exists(resourcesPath))
                 return resourcesPath;
@@ -448,26 +447,26 @@ public partial class MainWindow : Window
         // For regular builds, try the libs directory
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         var libsPath = Path.Combine(baseDir, "libs", "activeWindowTextGetter", "activeWindowTextGetter");
-        
+
         if (File.Exists(libsPath))
             return libsPath;
 
         // Fallback to looking in the current directory structure
         var currentDir = Directory.GetCurrentDirectory();
         var projectPath = Path.Combine(currentDir, "libs", "activeWindowTextGetter", "activeWindowTextGetter");
-        
+
         if (File.Exists(projectPath))
             return projectPath;
 
         // Last resort - assume it's in PATH
         return "activeWindowTextGetter";
     }
-    
+
     private async Task ExtractAndDisplayWindowText()
     {
         try
         {
-            if(_windowTextExtractionService == null)
+            if (_windowTextExtractionService == null)
             {
                 AddMessage("Window text extraction service not available on this platform.");
                 return;
@@ -482,35 +481,21 @@ public partial class MainWindow : Window
             AddMessage($"Error extracting window text: {ex.Message}");
         }
     }
-    
+
     // Removed UI for active window title in compact redesign; keep extraction helpers for future use.
-    
+
     // Hotkey registration button removed in compact UI.
-    
+
     private async void OnWindowTextHotkeyPressed()
     {
         await ExtractAndDisplayWindowTextViaCli();
     }
-    
+
     // Privacy mode checkbox removed in compact UI.
 
     private void AddMessage(string message)
     {
         _chatViewModel.AddLogMessage(message);
-    }
-
-    private void SwitchStartStopIcon(bool startIconVisible = false)
-    {
-        StartIcon.IsVisible = startIconVisible;
-        //BeforeStartRow.IsVisible = startIconVisible;
-
-        PauseIcon.IsVisible = !startIconVisible;
-        //AiAssistantResponseTextBox.IsVisible = !startIconVisible;
-
-        StopButton.IsVisible = !startIconVisible;
-
-        SettingsButton.IsVisible = startIconVisible;
-        
     }
 
     [AvaloniaHotReload]
@@ -521,9 +506,12 @@ public partial class MainWindow : Window
 
     private async void StartButton_OnClick(object? sender, RoutedEventArgs e)
     {
+        await StartButtonClick();
+    }
+    private async Task StartButtonClick()
+    {
         try
         {
-            SwitchStartStopIcon(false);
             if (_isTranscribing) return;
             _isTranscribing = true;
             //_chatViewModel.ClearMessages();
@@ -531,7 +519,7 @@ public partial class MainWindow : Window
             // Start a new session when transcription starts
             _chatSessionService.NewSession();
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
-            if(_startedAt == null)
+            if (_startedAt == null)
                 _startedAt = DateTime.UtcNow;
             _elapsedTimer.Start();
             UpdateElapsedTime();
@@ -557,10 +545,6 @@ public partial class MainWindow : Window
             // Mark as not transcribing and pause elapsed timer
             _isTranscribing = false;
             _elapsedTimer.Stop();
-
-            // Do not clear _startedAt so we can resume later; keep elapsed shown as paused
-            // Switch UI to show the start icon (paused state)
-            SwitchStartStopIcon(true);
         }
         catch (Exception)
         {
@@ -578,6 +562,10 @@ public partial class MainWindow : Window
 
     private async void StopButton_OnClick(object? sender, RoutedEventArgs e)
     {
+        await StopButtonClick(false);
+    }
+    private async Task StopButtonClick(bool notification)
+    {
         try
         {
             if (!_isTranscribing) return;
@@ -586,11 +574,10 @@ public partial class MainWindow : Window
                 ConfirmDialogType.StopSessionOnStopButton,
                 "Are you sure you want to stop transcription?\n" +
                 "It will delete the current session and all messages.\n" +
-                "To keep the session active, please pause (\u23F8\uFE0F) instead."
-                , true);
+                "To keep the session active, please pause (\u23F8\uFE0F) instead.",
+                notification);
             if (!confirmed) return;
 
-            SwitchStartStopIcon(true);
             await _audioTranscriptionService!.StopProcessing();
 
             _isTranscribing = false;
@@ -624,7 +611,7 @@ public partial class MainWindow : Window
     {
         _isWindowProtected = status;
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
-        if(_aiChatWindow != null)
+        if (_aiChatWindow != null)
             EnableWindowPrivacyService.SetProtected(_aiChatWindow, _isWindowProtected);
         if (_settingsWindow != null)
             EnableWindowPrivacyService.SetProtected(_settingsWindow, _isWindowProtected);
@@ -773,7 +760,7 @@ public partial class MainWindow : Window
         {
             _chatHistoryWindow.Activate();
         }*/
-        Dispatcher.UIThread.Post(() => 
+        Dispatcher.UIThread.Post(() =>
         {
             _microphoneSessionMonitor.GetProcessThatUsesMicrophone();
         });
@@ -809,7 +796,7 @@ public partial class MainWindow : Window
     {
         if (sender is not Button btn)
             return;
-        
+
         var kind = btn.Tag as string ?? "quick_summary";
         await AskAiWithKindAsync(kind);
     }
