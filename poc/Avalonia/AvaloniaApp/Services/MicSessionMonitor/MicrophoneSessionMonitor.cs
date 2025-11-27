@@ -17,13 +17,8 @@ namespace AvaloniaApp.Services.MicSessionMonitor
     ///
     /// Usage: create an instance, subscribe to <see cref="MicrophoneInUseChanged"/> and call <see cref="Start"/>.
     /// </summary>
-    public class MicrophoneSessionMonitor : IDisposable
+    public class MicrophoneSessionMonitorWin : IMicrophoneSessionMonitor, IDisposable
     {
-        /// <summary>
-        /// Raised when microphone usage changes. Parameter is true if mic is in use.
-        /// </summary>
-        public event Action<bool>? MicrophoneInUseChanged;
-
         /// <summary>
         /// Raised when a specific process started/stopped using the microphone.
         /// </summary>
@@ -169,7 +164,6 @@ namespace AvaloniaApp.Services.MicSessionMonitor
             _reportedProcesses.Clear();
 
             _isRunning = false;
-            MicrophoneInUseChanged?.Invoke(false);
         }
 
 

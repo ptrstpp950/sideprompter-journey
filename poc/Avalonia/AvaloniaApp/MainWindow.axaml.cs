@@ -49,7 +49,7 @@ public partial class MainWindow : Window
     private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
     private readonly ChatSessionService _chatSessionService;
 
-    private readonly MicrophoneSessionMonitor _microphoneSessionMonitor;
+    private readonly IMicrophoneSessionMonitor _microphoneSessionMonitor;
 
     private AiChatWindow? _aiChatWindow;
     public AiChatWindow? AiChatWindow
@@ -128,7 +128,7 @@ public partial class MainWindow : Window
 
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
 
-        _microphoneSessionMonitor = new MicrophoneSessionMonitor(_logger);
+        _microphoneSessionMonitor = new MicrophoneSessionMonitorWin(_logger);
 
         _microphoneSessionMonitor.ProcessMicrophoneUsageChanged += async (processId, processName, inUse) =>
         {
