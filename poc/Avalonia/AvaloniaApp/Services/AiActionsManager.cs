@@ -89,7 +89,7 @@ public class AiActionsManager : IDisposable
             {
                 panel.MaxWidth = _owner.Bounds.Width;
 
-                var desiredButtonWidth = 150.0;
+                var desiredButtonWidth = 130.0;
 
                 // Update MaxWidth when window size changes
                 _owner.SizeChanged += (s, e) =>
