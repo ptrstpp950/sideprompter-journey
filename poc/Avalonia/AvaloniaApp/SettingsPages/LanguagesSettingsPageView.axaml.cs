@@ -25,6 +25,15 @@ public partial class LanguagesSettingsPageView : UserControl
         InitializeComponent();
 
         // Resolve controls explicitly (covers scenarios where generated fields are not present)
+
+         // PROPER WAY: Explicitly find controls by name after InitializeComponent
+        // This connects your C# variables to the XAML elements.
+        SearchBox = this.FindControl<TextBox>("SearchBox") ?? throw new Exception("SearchBox not found");
+        AllList = this.FindControl<ListBox>("AllList") ?? throw new Exception("AllList not found");
+        AddButton = this.FindControl<Button>("AddButton") ?? throw new Exception("AddButton not found");
+        UndoButton = this.FindControl<Button>("UndoButton") ?? throw new Exception("UndoButton not found");
+        ClearButton = this.FindControl<Button>("ClearButton") ?? throw new Exception("ClearButton not found");
+        SelectedPanel = this.FindControl<WrapPanel>("SelectedPanel") ?? throw new Exception("SelectedPanel not found");
         
         EnsureSystemLanguagesIfEmpty();
 
