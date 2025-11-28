@@ -137,9 +137,9 @@ public partial class MainWindow : Window
             {
                 try
                 {
-                    if (inUse)
+                    if (inUse && !_isTranscribing)
                     {
-                        // only care about start events
+                        // only care about start events and when transcription is not active
                         var confirmed = await ShowConfirmDialogIfNeeded(
                             ConfirmDialogType.StartTranscriptionWhenMicrophoneIsActive,
                             $"New meeting started by {processName}.\n\nDo you want to start transcription?",
@@ -149,8 +149,9 @@ public partial class MainWindow : Window
                             await StartButtonClick();
                         }
                     }
-                    else
+                    else if (!inUse && _isTranscribing)
                     {
+                        // only care about stop events and when transcription is active
                         var confirmed = await ShowConfirmDialogIfNeeded(
                             ConfirmDialogType.StopTranscriptionWhenMicrophoneIsInActive,
                             $"New meeting stopped in {processName}.\n\nDo you want to stop transcription?",
