@@ -134,6 +134,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <TargetPath>libs/hotkeyListener/hotkeyListener</TargetPath>
     </Content>
+    <Content Include="libs/microphoneMonitor/.build/apple/Products/Release/microphoneMonitor">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>libs/microphoneMonitor/microphoneMonitor</TargetPath>
+    </Content>
     <Content Include="libs/audiotee/bin/audiotee">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <TargetPath>libs/audiotee/bin/audiotee</TargetPath>
@@ -146,7 +150,10 @@
   <Target Name="BuildHotKeyListener" Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$(Configuration)' == 'Release'" BeforeTargets="Build" Inputs="libs/hotkeyListener/Sources/**/*.swift" Outputs="libs/hotkeyListener/.build/apple/Products/Release/hotkeyListener">
     <Exec Command="cd libs/hotkeyListener &amp;&amp; swift build --configuration release --arch arm64 --arch x86_64" />
   </Target>
-    
+  <Target Name="BuildMicrophoneMonitor" Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$(Configuration)' == 'Release'" BeforeTargets="Build" Inputs="libs/microphoneMonitor/Sources/**/*.swift" Outputs="libs/microphoneMonitor/.build/apple/Products/Release/microphoneMonitor">
+    <Exec Command="cd libs/microphoneMonitor &amp;&amp; swift build --configuration release --arch arm64 --arch x86_64" />
+  </Target> 
+
   <!-- Move whisper native libs from MonoBundle/runtimes/macos-x64 -> MonoBundle for osx-x64 builds -->
   <Target Name="FlattenMonoBundleWhisperRuntimes" AfterTargets="_CompileToNative" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <PropertyGroup>

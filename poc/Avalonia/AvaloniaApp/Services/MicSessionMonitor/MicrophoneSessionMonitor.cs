@@ -33,7 +33,7 @@ namespace AvaloniaApp.Services.MicSessionMonitor
         private readonly ILogger _logger;
         private byte _pollInProgress;
 
-        public MicrophoneSessionMonitor(ILogger logger)
+        public MicrophoneSessionMonitorWin(ILogger logger)
         {
             _logger = logger;
         }
@@ -43,7 +43,7 @@ namespace AvaloniaApp.Services.MicSessionMonitor
         /// </summary>
         public void Start()
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(MicrophoneSessionMonitor));
+            if (_isDisposed) throw new ObjectDisposedException(nameof(MicrophoneSessionMonitorWin));
             if (_isRunning) return;
 
             try

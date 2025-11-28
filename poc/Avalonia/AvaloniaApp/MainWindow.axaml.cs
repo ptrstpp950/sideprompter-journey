@@ -128,8 +128,11 @@ public partial class MainWindow : Window
 
         EnableWindowPrivacyService.SetProtected(this, _isWindowProtected);
 
+#if MACOS || OSX || MACCATALYST
+        _microphoneSessionMonitor = new MicrophoneSessionMonitorMac(_logger);
+#elif WINDOWS
         _microphoneSessionMonitor = new MicrophoneSessionMonitorWin(_logger);
-
+#endif
         _microphoneSessionMonitor.ProcessMicrophoneUsageChanged += async (processId, processName, inUse) =>
         {
             // Ensure dialog interaction and subsequent UI actions run on the UI thread
