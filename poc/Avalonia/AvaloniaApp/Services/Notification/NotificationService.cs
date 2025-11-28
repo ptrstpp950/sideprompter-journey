@@ -40,7 +40,15 @@ public class NotificationService : INotificationService
         {
             lock (_aiSync)
             {
-                if (_aiWindow != null && _aiWindow.IsVisible) return;
+                if (_aiWindow != null && _aiWindow.IsVisible)
+                {
+                    if (_aiWindow.WindowState == Avalonia.Controls.WindowState.Minimized)
+                    {
+                        _aiWindow.WindowState = Avalonia.Controls.WindowState.Normal;
+                    }
+                    _aiWindow.Activate();
+                    return;
+                }
 
                 // Try to find the main chat view-model from the application's main window DataContext
                 var main = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desk

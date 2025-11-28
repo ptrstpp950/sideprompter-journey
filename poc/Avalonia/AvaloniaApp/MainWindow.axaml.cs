@@ -754,24 +754,6 @@ public partial class MainWindow : Window
 
     private void HistoryButton_OnClick(object? sender, RoutedEventArgs e)
     {
-        /*if (_chatHistoryWindow == null || !_chatHistoryWindow.IsVisible)
-        {
-            _chatHistoryWindow = new ChatHistoryWindow
-            {
-                DataContext = _chatViewModel,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner
-            };
-            _chatHistoryWindow.Closed += (_, _) => _chatHistoryWindow = null;
-            _chatHistoryWindow.Show(this);
-        }
-        else
-        {
-            _chatHistoryWindow.Activate();
-        }*/
-        Dispatcher.UIThread.Post(() =>
-        {
-            _microphoneSessionMonitor.GetProcessThatUsesMicrophone();
-        });
         App.Notifications.EnsureAiWindowVisible();
         SetWindowsProtection(_isWindowProtected);
     }
