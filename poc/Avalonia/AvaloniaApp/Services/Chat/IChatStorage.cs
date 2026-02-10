@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace AvaloniaApp.Services.Chat;
@@ -25,4 +26,26 @@ public interface IChatStorage
     /// applying the provided title and summary, and deduplicating messages.
     /// </summary>
     Task FinalizeSessionAsync(Guid sessionId, string title, string summary);
+
+    /// <summary>
+    /// List all finalized sessions, ordered by date descending.
+    /// </summary>
+    Task<List<ChatSessionExport>> ListSessionsAsync();
+
+    /// <summary>
+    /// Load a full session (header + messages) by session ID.
+    /// </summary>
+    Task<ChatSessionExport?> LoadSessionAsync(Guid sessionId);
+
+    /// <summary>
+    /// Update the title of a finalized session.
+    /// </summary>
+    Task UpdateSessionTitleAsync(Guid sessionId, string newTitle);
+
+    /// <summary>
+    /// Re-open a finalized session for continued recording.
+    /// Converts the JSON back to JSONL so new messages can be appended.
+    /// Returns the session header info.
+    /// </summary>
+    Task<ChatSessionHeader?> ReopenSessionAsync(Guid sessionId);
 }

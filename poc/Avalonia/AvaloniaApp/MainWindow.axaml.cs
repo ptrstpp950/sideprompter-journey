@@ -40,6 +40,7 @@ public partial class MainWindow : Window
 
     // Settings window (singleton per main window lifetime)
     private SetupWizard? _settingsWindow;
+    private SessionHistoryWindow? _sessionHistoryWindow;
 
     private readonly ChatViewModel _chatViewModel = new();
     private AiActionsManager? _aiActionsManager;
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
     private readonly ILogger _logger;
     private Whisper.net.Ggml.GgmlType _currentWhisperModelType;
     private readonly ChatSessionService _chatSessionService;
+    private readonly IChatStorage _chatStorage;
 
     private readonly IMicrophoneSessionMonitor _microphoneSessionMonitor;
 
@@ -72,10 +74,9 @@ public partial class MainWindow : Window
         this._logger = logger ?? Log.Logger;
         DataContext = _chatViewModel;
         // Initialize chat persistence services
-        // Initialize chat persistence services
         var pathProvider = new AppPathProvider();
-        var storage = new FileChatStorage(pathProvider);
-        _chatSessionService = new ChatSessionService(storage, _settings);
+        _chatStorage = new FileChatStorage(pathProvider);
+        _chatSessionService = new ChatSessionService(_chatStorage, _settings);
         // Position window top-center with margin from top (e.g., 20px)
         var screen = Screens.Primary;
         if (screen != null)
@@ -520,16 +521,14 @@ public partial class MainWindow : Window
 
             //_chatViewModel.ClearMessages();
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
-            // Start a new session when transcription starts
-            _chatSessionService.NewSession();
+            // Only start a new session if we don't have messages loaded from history
+            if (_chatViewModel.Messages.Count == 0)
+                _chatSessionService.NewSession();
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
             if (_startedAt == null)
                 _startedAt = DateTime.UtcNow;
             _elapsedTimer.Start();
             UpdateElapsedTime();
-
-            //TODO: remove placeholder message
-            //_chatViewModel.AddMessage("Let's get started! That's just a long text that I want to add", MessageAuthor.Me);
         }
         catch (Exception)
         {
@@ -581,7 +580,7 @@ public partial class MainWindow : Window
             var confirmed = await ShowConfirmDialogIfNeeded(
                 ConfirmDialogType.StopSessionOnStopButton,
                 "Are you sure you want to stop transcription?\n" +
-                "It will delete the current session and all messages.\n" +
+                "The session will be saved to history.\n" +
                 "To keep the session active, please pause (\u23F8\uFE0F) instead.",
                 notification);
             if (!confirmed) return;
@@ -597,10 +596,35 @@ public partial class MainWindow : Window
             _startedAt = null;
             UpdateElapsedTime();
 
-            // Ensure header exists and append a placeholder summary/title
+            // Ensure header exists
             var lang = LanguageComboBox?.SelectedItem as string ?? _settings.Languages?.FirstOrDefault() ?? "en";
             await _chatSessionService.EnsureHeaderAsync(_chatViewModel, lang);
-            await _chatSessionService.FinalizeAsync("TODO", "TODO");
+
+            // Generate a session title using LLM (if available)
+            var title = "Untitled Session";
+            try
+            {
+                if (_chatCompletionService != null && _chatViewModel.Messages.Count > 0)
+                {
+                    _chatCompletionService.Language = lang;
+                    var messageTexts = _chatViewModel.Messages
+                        .Where(m => m.Author == MessageAuthor.Me || m.Author == MessageAuthor.Other)
+                        .Select(m => $"[{(m.Author == MessageAuthor.Me ? "m" : "o")}] {m.Text}")
+                        .ToList();
+                    if (messageTexts.Count > 0)
+                    {
+                        var generated = await _chatCompletionService.GenerateSessionTitleAsync(messageTexts);
+                        if (!string.IsNullOrWhiteSpace(generated))
+                            title = generated;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _chatViewModel.AddLogMessage($"[Session] Failed to generate title: {ex.Message}");
+            }
+
+            await _chatSessionService.FinalizeAsync(title, string.Empty);
             _chatViewModel.ClearMessages();
         }
         catch (Exception)
@@ -627,6 +651,8 @@ public partial class MainWindow : Window
             EnableWindowPrivacyService.SetProtected(_aiChatWindow, _isWindowProtected);
         if (_settingsWindow != null)
             EnableWindowPrivacyService.SetProtected(_settingsWindow, _isWindowProtected);
+        if (_sessionHistoryWindow != null)
+            EnableWindowPrivacyService.SetProtected(_sessionHistoryWindow, _isWindowProtected);
         SwitchPrivacyIcon(status);
     }
 
@@ -760,6 +786,105 @@ public partial class MainWindow : Window
     {
         App.Notifications.EnsureAiWindowVisible();
         SetWindowsProtection(_isWindowProtected);
+    }
+
+    private void SessionHistoryButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (_sessionHistoryWindow != null && _sessionHistoryWindow.IsVisible)
+        {
+            _sessionHistoryWindow.Activate();
+            return;
+        }
+
+        _sessionHistoryWindow = new SessionHistoryWindow(_chatStorage)
+        {
+            Topmost = true,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        _sessionHistoryWindow.SessionOpenRequested += async (_, sessionId) =>
+        {
+            await LoadSessionFromHistory(sessionId);
+        };
+        _sessionHistoryWindow.Closed += (_, _) => { _sessionHistoryWindow = null; };
+        _sessionHistoryWindow.Show(this);
+        SetWindowsProtection(_isWindowProtected);
+    }
+
+    /// <summary>
+    /// Load a previous session from history into the current ChatViewModel.
+    /// The session is reopened so new messages can be appended (continue recording).
+    /// </summary>
+    private async Task LoadSessionFromHistory(Guid sessionId)
+    {
+        try
+        {
+            // Stop current transcription if active
+            if (_isTranscribing)
+            {
+                await _audioTranscriptionService!.StopProcessing();
+                _isTranscribing = false;
+                _elapsedTimer.Stop();
+                Dispatcher.UIThread.Post(() => StartButton.IsChecked = false);
+            }
+
+            var export = await _chatSessionService.LoadAndResumeSessionAsync(sessionId);
+            if (export == null)
+            {
+                _chatViewModel.AddLogMessage("[History] Failed to load session.");
+                return;
+            }
+
+            // Clear current messages and load the historical ones
+            _chatViewModel.ClearMessages();
+
+            // Wait a tick for the clear to process
+            await Task.Delay(50);
+
+            // Populate ChatViewModel with historical messages (without re-persisting them)
+            _chatViewModel.MessageAdded -= ChatViewModelOnMessageAdded;
+            try
+            {
+                foreach (var msg in export.Messages)
+                {
+                    var author = msg.Author switch
+                    {
+                        ChatAuthorDto.Me => MessageAuthor.Me,
+                        ChatAuthorDto.Other => MessageAuthor.Other,
+                        ChatAuthorDto.AiAssistant => MessageAuthor.AiAssistant,
+                        ChatAuthorDto.Context => MessageAuthor.Context,
+                        _ => MessageAuthor.Other
+                    };
+                    // Add directly without dedup/merge logic
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        _chatViewModel.Messages.Add(new ChatMessage
+                        {
+                            Text = msg.Text,
+                            Author = author,
+                            PromptId = null,
+                            Timestamp = msg.TimestampUtc.ToLocalTime()
+                        });
+                    });
+                }
+            }
+            finally
+            {
+                // Re-subscribe so new messages will be persisted
+                _chatViewModel.MessageAdded += ChatViewModelOnMessageAdded;
+            }
+
+            var titleDisplay = string.IsNullOrWhiteSpace(export.Title) || export.Title == "TODO"
+                ? $"Session {export.StartedUtc:g}"
+                : export.Title;
+            _chatViewModel.AddLogMessage($"[History] Loaded session: {titleDisplay} ({export.Messages.Count} messages)");
+
+            // Show the AI chat window with loaded messages
+            App.Notifications.EnsureAiWindowVisible();
+        }
+        catch (Exception ex)
+        {
+            _chatViewModel.AddLogMessage($"[History] Error loading session: {ex.Message}");
+        }
     }
 
     private void CloseButton_OnClick(object? sender, RoutedEventArgs e)

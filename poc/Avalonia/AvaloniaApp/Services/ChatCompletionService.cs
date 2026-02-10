@@ -182,6 +182,33 @@ namespace AvaloniaApp.Services
             return response.Text;
         }
 
+        public async Task<string?> GenerateSessionTitleAsync(IList<string> messages, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var chatMessages = new List<ChatMessage>
+                {
+                    new ChatMessage(ChatRole.System,
+                        "You are a helpful assistant that generates short, descriptive titles for conversation sessions. " +
+                        "Given a transcript of a conversation, generate a concise title (max 6 words) that captures the main topic. " +
+                        "Return ONLY the title text, nothing else. No quotes, no prefix, no explanation."),
+                    new ChatMessage(ChatRole.System, "In responses use language: " + Language),
+                };
+                // Take a sample of messages (first few and last few to capture topic)
+                var sample = messages.Take(10).Concat(messages.Skip(Math.Max(0, messages.Count - 5))).Distinct().ToList();
+                chatMessages.Add(new ChatMessage(ChatRole.User, string.Join("\n", sample)));
+
+                var response = await _chatClient.GetResponseAsync(chatMessages, cancellationToken: cancellationToken);
+                var title = response.Text?.Trim();
+                return string.IsNullOrWhiteSpace(title) ? null : title;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Exception generating session title: {ex}");
+                return null;
+            }
+        }
+
         public async Task<string> GetCompletionAsync(string prompt, IList<string> messages, CancellationToken cancellationToken = default)
         {
             try

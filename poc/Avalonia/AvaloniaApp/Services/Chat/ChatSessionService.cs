@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using AvaloniaApp.Settings;
 using AvaloniaApp.ViewModel;
@@ -13,6 +14,8 @@ public class ChatSessionService
     private Guid _currentSessionId = Guid.NewGuid();
     private DateTime _startedUtc = DateTime.UtcNow;
     private bool _headerWritten;
+
+    public Guid CurrentSessionId => _currentSessionId;
 
     public ChatSessionService(IChatStorage storage, AppSettings settings)
     {
@@ -47,6 +50,7 @@ public class ChatSessionService
                 MessageAuthor.Me => ChatAuthorDto.Me,
                 MessageAuthor.Other => ChatAuthorDto.Other,
                 MessageAuthor.AiAssistant => ChatAuthorDto.AiAssistant,
+                MessageAuthor.Context => ChatAuthorDto.Context,
                 _ => ChatAuthorDto.Other
             },
             Text = message.Text ?? string.Empty
@@ -63,4 +67,52 @@ public class ChatSessionService
 
     public Task FinalizeAsync(string title, string summary)
         => _storage.FinalizeSessionAsync(_currentSessionId, title, summary);
+
+    /// <summary>
+    /// Load a previously saved session and set it as the current session
+    /// so new messages get appended to it.
+    /// Returns the session export (header + messages) for populating the ChatViewModel.
+    /// </summary>
+    public async Task<ChatSessionExport?> LoadAndResumeSessionAsync(Guid sessionId)
+    {
+        // First load the full session data for display
+        var export = await _storage.LoadSessionAsync(sessionId);
+        if (export == null) return null;
+
+        // Re-open the finalized JSON back to JSONL for continued recording
+        var header = await _storage.ReopenSessionAsync(sessionId);
+        if (header != null)
+        {
+            _currentSessionId = header.SessionId;
+            _startedUtc = header.StartedUtc;
+            _headerWritten = true; // Header already exists in the reopened JSONL
+        }
+        else
+        {
+            // Session was already in JSONL form (in-progress) - just point to it
+            _currentSessionId = export.SessionId;
+            _startedUtc = export.StartedUtc;
+            _headerWritten = true;
+        }
+
+        return export;
+    }
+
+    /// <summary>
+    /// Load a session for read-only viewing (no re-opening for recording).
+    /// </summary>
+    public Task<ChatSessionExport?> LoadSessionAsync(Guid sessionId)
+        => _storage.LoadSessionAsync(sessionId);
+
+    /// <summary>
+    /// List all saved sessions.
+    /// </summary>
+    public Task<List<ChatSessionExport>> ListSessionsAsync()
+        => _storage.ListSessionsAsync();
+
+    /// <summary>
+    /// Update the title of a finalized session.
+    /// </summary>
+    public Task UpdateSessionTitleAsync(Guid sessionId, string newTitle)
+        => _storage.UpdateSessionTitleAsync(sessionId, newTitle);
 }

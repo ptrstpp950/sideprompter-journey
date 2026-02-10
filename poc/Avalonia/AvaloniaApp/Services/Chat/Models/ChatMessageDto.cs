@@ -6,7 +6,8 @@ public enum ChatAuthorDto
 {
     Me,
     Other,
-    AiAssistant
+    AiAssistant,
+    Context
 }
 
 public class ChatMessageDto

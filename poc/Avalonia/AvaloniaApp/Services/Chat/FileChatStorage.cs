@@ -41,10 +41,6 @@ public class FileChatStorage : IChatStorage
 
     public async Task AppendMessageAsync(Guid sessionId, ChatMessageDto message)
     {
-        // We need the filename. We assume first header already created in this run; to avoid caching state here,
-        // we encode sessionId into filename via a convention: the newest file matching sessionId is used.
-        // For simplicity, we also allow writing using a "current" header on first call.
-        // In practice, ChatSessionService will call AppendSessionHeaderAsync before the first message.
         var dir = _paths.GetChatsDirectory();
         var pattern = $"*__{sessionId}.jsonl";
         var matches = Directory.GetFiles(dir, pattern);
@@ -108,7 +104,6 @@ public class FileChatStorage : IChatStorage
                 }
                 else if (type == "summary")
                 {
-                    // If there was an earlier summary record, keep latest
                     if (doc.RootElement.TryGetProperty("title", out var te)) export.Title = te.GetString();
                     if (doc.RootElement.TryGetProperty("summary", out var se)) export.Summary = se.GetString();
                 }
@@ -130,5 +125,179 @@ public class FileChatStorage : IChatStorage
         var payload = JsonSerializer.Serialize(export, options);
         await File.WriteAllTextAsync(jsonPath, payload);
         File.Delete(jsonl);
+    }
+
+    public async Task<List<ChatSessionExport>> ListSessionsAsync()
+    {
+        var dir = _paths.GetChatsDirectory();
+        var sessions = new List<ChatSessionExport>();
+
+        // Load finalized .json sessions
+        var jsonFiles = Directory.GetFiles(dir, "*.json");
+        foreach (var file in jsonFiles)
+        {
+            try
+            {
+                var content = await File.ReadAllTextAsync(file);
+                var export = JsonSerializer.Deserialize<ChatSessionExport>(content);
+                if (export != null)
+                    sessions.Add(export);
+            }
+            catch
+            {
+                // Skip malformed files
+            }
+        }
+
+        // Also include active .jsonl sessions (header only, to show them as "in progress")
+        var jsonlFiles = Directory.GetFiles(dir, "*.jsonl");
+        foreach (var file in jsonlFiles)
+        {
+            try
+            {
+                var firstLine = (await File.ReadAllLinesAsync(file)).FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(firstLine)) continue;
+                using var doc = JsonDocument.Parse(firstLine);
+                if (doc.RootElement.TryGetProperty("type", out var typeEl) && typeEl.GetString() == "header"
+                    && doc.RootElement.TryGetProperty("header", out var headerEl))
+                {
+                    var export = new ChatSessionExport
+                    {
+                        SessionId = headerEl.GetProperty("SessionId").GetGuid(),
+                        StartedUtc = headerEl.GetProperty("StartedUtc").GetDateTime(),
+                        Language = headerEl.GetProperty("Language").GetString() ?? string.Empty,
+                        Title = headerEl.TryGetProperty("Title", out var t) ? t.GetString() : null,
+                        Summary = "(In progress)"
+                    };
+                    sessions.Add(export);
+                }
+            }
+            catch
+            {
+                // Skip malformed files
+            }
+        }
+
+        return sessions.OrderByDescending(s => s.StartedUtc).ToList();
+    }
+
+    public async Task<ChatSessionExport?> LoadSessionAsync(Guid sessionId)
+    {
+        var dir = _paths.GetChatsDirectory();
+
+        // Try finalized .json first
+        var jsonPattern = $"*__{sessionId}.json";
+        var jsonMatches = Directory.GetFiles(dir, jsonPattern);
+        if (jsonMatches.Length > 0)
+        {
+            var content = await File.ReadAllTextAsync(jsonMatches[0]);
+            return JsonSerializer.Deserialize<ChatSessionExport>(content);
+        }
+
+        // Try active .jsonl
+        var jsonlPattern = $"*__{sessionId}.jsonl";
+        var jsonlMatches = Directory.GetFiles(dir, jsonlPattern);
+        if (jsonlMatches.Length > 0)
+        {
+            // Parse JSONL into export model (similar to finalize but without writing)
+            var export = new ChatSessionExport();
+            var messages = new List<ChatMessageDto>();
+            var lines = await File.ReadAllLinesAsync(jsonlMatches[0]);
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                using var doc = JsonDocument.Parse(line);
+                if (!doc.RootElement.TryGetProperty("type", out var typeEl)) continue;
+                var type = typeEl.GetString();
+                if (type == "header" && doc.RootElement.TryGetProperty("header", out var headerEl))
+                {
+                    export.SessionId = headerEl.GetProperty("SessionId").GetGuid();
+                    export.StartedUtc = headerEl.GetProperty("StartedUtc").GetDateTime();
+                    export.Language = headerEl.GetProperty("Language").GetString() ?? string.Empty;
+                    export.PromptId = headerEl.TryGetProperty("PromptId", out var pid) ? pid.GetString() : null;
+                    export.PromptText = headerEl.TryGetProperty("PromptText", out var ptxt) ? ptxt.GetString() : null;
+                    export.WhisperModel = headerEl.TryGetProperty("WhisperModel", out var w) ? w.GetString() : null;
+                    export.ChatModel = headerEl.TryGetProperty("ChatModel", out var c) ? c.GetString() : null;
+                    export.Title = headerEl.TryGetProperty("Title", out var t) ? t.GetString() : null;
+                    export.Summary = headerEl.TryGetProperty("Summary", out var s) ? s.GetString() : null;
+                }
+                else if (type == "message" && doc.RootElement.TryGetProperty("message", out var msgEl))
+                {
+                    messages.Add(new ChatMessageDto
+                    {
+                        TimestampUtc = msgEl.GetProperty("TimestampUtc").GetDateTime(),
+                        Author = (ChatAuthorDto)msgEl.GetProperty("Author").GetInt32(),
+                        Text = msgEl.GetProperty("Text").GetString() ?? string.Empty
+                    });
+                }
+            }
+            export.Messages = messages;
+            return export;
+        }
+
+        return null;
+    }
+
+    public async Task UpdateSessionTitleAsync(Guid sessionId, string newTitle)
+    {
+        var dir = _paths.GetChatsDirectory();
+        var jsonPattern = $"*__{sessionId}.json";
+        var jsonMatches = Directory.GetFiles(dir, jsonPattern);
+        if (jsonMatches.Length == 0) return;
+
+        var file = jsonMatches[0];
+        var content = await File.ReadAllTextAsync(file);
+        var export = JsonSerializer.Deserialize<ChatSessionExport>(content);
+        if (export == null) return;
+
+        export.Title = newTitle;
+        var options = new JsonSerializerOptions { WriteIndented = true };
+        await File.WriteAllTextAsync(file, JsonSerializer.Serialize(export, options));
+    }
+
+    public async Task<ChatSessionHeader?> ReopenSessionAsync(Guid sessionId)
+    {
+        var dir = _paths.GetChatsDirectory();
+        var jsonPattern = $"*__{sessionId}.json";
+        var jsonMatches = Directory.GetFiles(dir, jsonPattern);
+        if (jsonMatches.Length == 0) return null;
+
+        var jsonFile = jsonMatches[0];
+        var content = await File.ReadAllTextAsync(jsonFile);
+        var export = JsonSerializer.Deserialize<ChatSessionExport>(content);
+        if (export == null) return null;
+
+        // Convert back to JSONL for continued recording
+        var jsonlFile = Path.ChangeExtension(jsonFile, ".jsonl");
+        var header = new ChatSessionHeader
+        {
+            SessionId = export.SessionId,
+            StartedUtc = export.StartedUtc,
+            Language = export.Language,
+            PromptId = export.PromptId,
+            PromptText = export.PromptText,
+            WhisperModel = export.WhisperModel,
+            ChatModel = export.ChatModel,
+            Title = export.Title,
+            Summary = export.Summary
+        };
+
+        await using (var fs = new FileStream(jsonlFile, FileMode.Create, FileAccess.Write, FileShare.Read))
+        await using (var sw = new StreamWriter(fs))
+        {
+            // Write header
+            await sw.WriteLineAsync(JsonSerializer.Serialize(new { type = "header", header }));
+
+            // Write all existing messages
+            foreach (var msg in export.Messages)
+            {
+                await sw.WriteLineAsync(JsonSerializer.Serialize(new { type = "message", message = msg }));
+            }
+        }
+
+        // Delete the finalized JSON (we're back to JSONL now)
+        File.Delete(jsonFile);
+
+        return header;
     }
 }
