@@ -47,6 +47,9 @@
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <heroIcons:HeroIcon Type="Clock" Foreground="#9ca3af" Width="16" Height="16" Kind="Outline" />
                         <TextBlock x:Name="ElapsedTimeText" Text="00:00" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                        <TextBlock x:Name="SessionIndicator" Text="" FontSize="10" Foreground="#10b981"
+                                   VerticalAlignment="Center" IsVisible="False"
+                                   MaxWidth="100" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
                 <Grid>

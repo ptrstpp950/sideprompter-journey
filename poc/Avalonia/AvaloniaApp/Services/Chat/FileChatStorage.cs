@@ -127,29 +127,12 @@ public class FileChatStorage : IChatStorage
         File.Delete(jsonl);
     }
 
-    public async Task<List<ChatSessionExport>> ListSessionsAsync()
+    public async Task<List<ChatSessionExport>> ListSessionsAsync(Guid? currentSessionId = null)
     {
         var dir = _paths.GetChatsDirectory();
         var sessions = new List<ChatSessionExport>();
 
-        // Load finalized .json sessions
-        var jsonFiles = Directory.GetFiles(dir, "*.json");
-        foreach (var file in jsonFiles)
-        {
-            try
-            {
-                var content = await File.ReadAllTextAsync(file);
-                var export = JsonSerializer.Deserialize<ChatSessionExport>(content);
-                if (export != null)
-                    sessions.Add(export);
-            }
-            catch
-            {
-                // Skip malformed files
-            }
-        }
-
-        // Also include active .jsonl sessions (header only, to show them as "in progress")
+        // Auto-finalize orphaned .jsonl sessions (any that aren't the current active session)
         var jsonlFiles = Directory.GetFiles(dir, "*.jsonl");
         foreach (var file in jsonlFiles)
         {
@@ -161,16 +144,33 @@ public class FileChatStorage : IChatStorage
                 if (doc.RootElement.TryGetProperty("type", out var typeEl) && typeEl.GetString() == "header"
                     && doc.RootElement.TryGetProperty("header", out var headerEl))
                 {
-                    var export = new ChatSessionExport
-                    {
-                        SessionId = headerEl.GetProperty("SessionId").GetGuid(),
-                        StartedUtc = headerEl.GetProperty("StartedUtc").GetDateTime(),
-                        Language = headerEl.GetProperty("Language").GetString() ?? string.Empty,
-                        Title = headerEl.TryGetProperty("Title", out var t) ? t.GetString() : null,
-                        Summary = "(In progress)"
-                    };
-                    sessions.Add(export);
+                    var sessionId = headerEl.GetProperty("SessionId").GetGuid();
+                    if (currentSessionId.HasValue && sessionId == currentSessionId.Value)
+                        continue; // Skip the current active session
+
+                    // Auto-finalize this orphaned session
+                    var title = headerEl.TryGetProperty("Title", out var t) && !string.IsNullOrWhiteSpace(t.GetString())
+                        ? t.GetString()!
+                        : "Untitled Session";
+                    await FinalizeSessionAsync(sessionId, title, string.Empty);
                 }
+            }
+            catch
+            {
+                // Skip malformed files
+            }
+        }
+
+        // Load all finalized .json sessions
+        var jsonFiles = Directory.GetFiles(dir, "*.json");
+        foreach (var file in jsonFiles)
+        {
+            try
+            {
+                var content = await File.ReadAllTextAsync(file);
+                var export = JsonSerializer.Deserialize<ChatSessionExport>(content);
+                if (export != null)
+                    sessions.Add(export);
             }
             catch
             {
@@ -299,5 +299,22 @@ public class FileChatStorage : IChatStorage
         File.Delete(jsonFile);
 
         return header;
+    }
+
+    public Task DeleteSessionAsync(Guid sessionId)
+    {
+        var dir = _paths.GetChatsDirectory();
+
+        // Delete finalized .json
+        var jsonMatches = Directory.GetFiles(dir, $"*__{sessionId}.json");
+        foreach (var f in jsonMatches)
+            File.Delete(f);
+
+        // Delete in-progress .jsonl
+        var jsonlMatches = Directory.GetFiles(dir, $"*__{sessionId}.jsonl");
+        foreach (var f in jsonlMatches)
+            File.Delete(f);
+
+        return Task.CompletedTask;
     }
 }

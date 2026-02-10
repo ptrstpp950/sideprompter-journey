@@ -3,8 +3,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Input;
 using AvaloniaApp.Services.Chat;
 
 namespace AvaloniaApp.ViewModel;
@@ -17,6 +17,7 @@ public class SessionHistoryViewModel : INotifyPropertyChanged
 
     private string _searchText = string.Empty;
     private SessionListItem? _selectedSession;
+    private CancellationTokenSource? _searchDebounce;
 
     public SessionHistoryViewModel(IChatStorage storage)
     {
@@ -37,7 +38,7 @@ public class SessionHistoryViewModel : INotifyPropertyChanged
             if (_searchText == value) return;
             _searchText = value;
             OnPropertyChanged();
-            ApplyFilter();
+            DebouncedFilter();
         }
     }
 
@@ -53,27 +54,52 @@ public class SessionHistoryViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Raised when a session is selected for opening. 
-    /// The handler receives the session ID to load.
+    /// Raised when a session is deleted (so the caller can react if needed).
     /// </summary>
-    public event EventHandler<Guid>? SessionOpenRequested;
+    public event EventHandler<Guid>? SessionDeleted;
 
-    public async Task LoadSessionsAsync()
+    public async Task LoadSessionsAsync(Guid? currentSessionId = null)
     {
-        var list = await _storage.ListSessionsAsync();
+        var list = await _storage.ListSessionsAsync(currentSessionId);
         _allSessions = new ObservableCollection<SessionListItem>(
-            list.Select(s => new SessionListItem
+            list.Select(s =>
             {
-                SessionId = s.SessionId,
-                Title = string.IsNullOrWhiteSpace(s.Title) || s.Title == "TODO" 
-                    ? $"Session {s.StartedUtc:g}" 
-                    : s.Title,
-                Date = s.StartedUtc.ToLocalTime(),
-                Summary = s.Summary,
-                MessageCount = s.Messages.Count,
-                IsInProgress = s.Summary == "(In progress)"
+                // Build a single searchable text blob from all message content
+                var messageTexts = string.Join(" ", s.Messages.Select(m => m.Text));
+
+                return new SessionListItem
+                {
+                    SessionId = s.SessionId,
+                    Title = string.IsNullOrWhiteSpace(s.Title) || s.Title == "TODO"
+                        ? $"Session {s.StartedUtc:g}"
+                        : s.Title,
+                    Date = s.StartedUtc.ToLocalTime(),
+                    Summary = s.Summary,
+                    MessageCount = s.Messages.Count,
+                    SearchableContent = messageTexts
+                };
             }));
         ApplyFilter();
+    }
+
+    private async void DebouncedFilter()
+    {
+        // Cancel any pending debounce
+        _searchDebounce?.Cancel();
+        _searchDebounce = new CancellationTokenSource();
+        var token = _searchDebounce.Token;
+
+        try
+        {
+            // Wait 250ms before applying filter (allows typing to settle)
+            await Task.Delay(250, token);
+            if (!token.IsCancellationRequested)
+                ApplyFilter();
+        }
+        catch (TaskCanceledException)
+        {
+            // Expected when user keeps typing
+        }
     }
 
     private void ApplyFilter()
@@ -89,7 +115,8 @@ public class SessionHistoryViewModel : INotifyPropertyChanged
                 _allSessions.Where(s =>
                     (s.Title?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
                     (s.Summary?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    s.Date.ToString("g").Contains(q, StringComparison.OrdinalIgnoreCase)));
+                    s.Date.ToString("g").Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    (s.SearchableContent?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)));
         }
     }
 
@@ -103,9 +130,14 @@ public class SessionHistoryViewModel : INotifyPropertyChanged
         if (visibleItem != null) visibleItem.Title = newTitle;
     }
 
-    public void RequestOpenSession(Guid sessionId)
+    public async Task DeleteSessionAsync(Guid sessionId)
     {
-        SessionOpenRequested?.Invoke(this, sessionId);
+        await _storage.DeleteSessionAsync(sessionId);
+        var item = _allSessions.FirstOrDefault(s => s.SessionId == sessionId);
+        if (item != null) _allSessions.Remove(item);
+        var visibleItem = Sessions.FirstOrDefault(s => s.SessionId == sessionId);
+        if (visibleItem != null) Sessions.Remove(visibleItem);
+        SessionDeleted?.Invoke(this, sessionId);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -132,12 +164,14 @@ public class SessionListItem : INotifyPropertyChanged
     public DateTime Date { get; set; }
     public string? Summary { get; set; }
     public int MessageCount { get; set; }
-    public bool IsInProgress { get; set; }
+
+    /// <summary>
+    /// Concatenated text of all messages in the session, used for full-text search.
+    /// </summary>
+    public string? SearchableContent { get; set; }
 
     public string DateFormatted => Date.ToString("yyyy-MM-dd HH:mm");
-    public string Subtitle => IsInProgress 
-        ? "In progress" 
-        : $"{MessageCount} messages";
+    public string Subtitle => $"{MessageCount} messages";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }

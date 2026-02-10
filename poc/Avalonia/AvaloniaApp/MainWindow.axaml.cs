@@ -54,6 +54,10 @@ public partial class MainWindow : Window
     private readonly IMicrophoneSessionMonitor _microphoneSessionMonitor;
 
     private AiChatWindow? _aiChatWindow;
+
+    // Track loaded session info to preserve title when no new messages are added
+    private string? _loadedSessionTitle;
+    private int _loadedSessionMessageCount;
     public AiChatWindow? AiChatWindow
     {
         get => _aiChatWindow;
@@ -523,7 +527,16 @@ public partial class MainWindow : Window
             var selectedLanguage = LanguageComboBox.SelectedItem as string ?? "pl";
             // Only start a new session if we don't have messages loaded from history
             if (_chatViewModel.Messages.Count == 0)
+            {
                 _chatSessionService.NewSession();
+                _loadedSessionTitle = null;
+                _loadedSessionMessageCount = 0;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (SessionIndicator != null)
+                        SessionIndicator.IsVisible = false;
+                });
+            }
             await _audioTranscriptionService!.StartProcessing((selectedLanguage));
             if (_startedAt == null)
                 _startedAt = DateTime.UtcNow;
@@ -601,31 +614,53 @@ public partial class MainWindow : Window
             await _chatSessionService.EnsureHeaderAsync(_chatViewModel, lang);
 
             // Generate a session title using LLM (if available)
+            // If we loaded a session from history and no new messages were added, keep the original title
             var title = "Untitled Session";
-            try
+            var currentConversationCount = _chatViewModel.Messages
+                .Count(m => m.Author == MessageAuthor.Me || m.Author == MessageAuthor.Other);
+            var loadedConversationCount = _loadedSessionTitle != null
+                ? _loadedSessionMessageCount
+                : 0;
+
+            if (_loadedSessionTitle != null && currentConversationCount <= loadedConversationCount)
             {
-                if (_chatCompletionService != null && _chatViewModel.Messages.Count > 0)
+                // No new conversation messages added since loading; preserve the original title
+                title = _loadedSessionTitle;
+            }
+            else
+            {
+                try
                 {
-                    _chatCompletionService.Language = lang;
-                    var messageTexts = _chatViewModel.Messages
-                        .Where(m => m.Author == MessageAuthor.Me || m.Author == MessageAuthor.Other)
-                        .Select(m => $"[{(m.Author == MessageAuthor.Me ? "m" : "o")}] {m.Text}")
-                        .ToList();
-                    if (messageTexts.Count > 0)
+                    if (_chatCompletionService != null && _chatViewModel.Messages.Count > 0)
                     {
-                        var generated = await _chatCompletionService.GenerateSessionTitleAsync(messageTexts);
-                        if (!string.IsNullOrWhiteSpace(generated))
-                            title = generated;
+                        _chatCompletionService.Language = lang;
+                        var messageTexts = _chatViewModel.Messages
+                            .Where(m => m.Author == MessageAuthor.Me || m.Author == MessageAuthor.Other)
+                            .Select(m => $"[{(m.Author == MessageAuthor.Me ? "m" : "o")}] {m.Text}")
+                            .ToList();
+                        if (messageTexts.Count > 0)
+                        {
+                            var generated = await _chatCompletionService.GenerateSessionTitleAsync(messageTexts);
+                            if (!string.IsNullOrWhiteSpace(generated))
+                                title = generated;
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                _chatViewModel.AddLogMessage($"[Session] Failed to generate title: {ex.Message}");
+                catch (Exception ex)
+                {
+                    _chatViewModel.AddLogMessage($"[Session] Failed to generate title: {ex.Message}");
+                }
             }
 
             await _chatSessionService.FinalizeAsync(title, string.Empty);
             _chatViewModel.ClearMessages();
+            _loadedSessionTitle = null;
+            _loadedSessionMessageCount = 0;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (SessionIndicator != null)
+                    SessionIndicator.IsVisible = false;
+            });
         }
         catch (Exception)
         {
@@ -796,7 +831,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _sessionHistoryWindow = new SessionHistoryWindow(_chatStorage)
+        _sessionHistoryWindow = new SessionHistoryWindow(_chatStorage, _chatSessionService.CurrentSessionId)
         {
             Topmost = true,
             WindowStartupLocation = WindowStartupLocation.CenterOwner
@@ -876,7 +911,20 @@ public partial class MainWindow : Window
             var titleDisplay = string.IsNullOrWhiteSpace(export.Title) || export.Title == "TODO"
                 ? $"Session {export.StartedUtc:g}"
                 : export.Title;
+            _loadedSessionTitle = titleDisplay;
+            _loadedSessionMessageCount = export.Messages.Count;
             _chatViewModel.AddLogMessage($"[History] Loaded session: {titleDisplay} ({export.Messages.Count} messages)");
+
+            // Show session indicator in toolbar
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (SessionIndicator != null)
+                {
+                    SessionIndicator.Text = titleDisplay;
+                    SessionIndicator.IsVisible = true;
+                    ToolTip.SetTip(SessionIndicator, $"Continuing: {titleDisplay}");
+                }
+            });
 
             // Show the AI chat window with loaded messages
             App.Notifications.EnsureAiWindowVisible();

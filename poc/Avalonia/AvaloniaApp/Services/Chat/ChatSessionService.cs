@@ -105,14 +105,20 @@ public class ChatSessionService
         => _storage.LoadSessionAsync(sessionId);
 
     /// <summary>
-    /// List all saved sessions.
+    /// List all saved sessions, auto-finalizing any orphaned in-progress sessions.
     /// </summary>
     public Task<List<ChatSessionExport>> ListSessionsAsync()
-        => _storage.ListSessionsAsync();
+        => _storage.ListSessionsAsync(_currentSessionId);
 
     /// <summary>
-    /// Update the title of a finalized session.
+    /// Update the title of a session.
     /// </summary>
     public Task UpdateSessionTitleAsync(Guid sessionId, string newTitle)
         => _storage.UpdateSessionTitleAsync(sessionId, newTitle);
+
+    /// <summary>
+    /// Delete a session permanently.
+    /// </summary>
+    public Task DeleteSessionAsync(Guid sessionId)
+        => _storage.DeleteSessionAsync(sessionId);
 }

@@ -30,24 +30,43 @@
         <DataTemplate x:DataType="viewModel:SessionListItem">
           <Border Margin="2,4" Padding="10" CornerRadius="8" BorderBrush="#444" BorderThickness="1">
             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-              <!-- Title (editable on click) -->
+              <!-- Title -->
               <TextBlock Grid.Row="0" Grid.Column="0"
                          Text="{Binding Title}"
                          FontWeight="SemiBold"
                          FontSize="14"
-                         TextTrimming="CharacterEllipsis" />
+                         TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" />
 
-              <!-- Date -->
-              <TextBlock Grid.Row="0" Grid.Column="1"
-                         Text="{Binding DateFormatted}"
-                         FontSize="11"
-                         Foreground="#9ca3af"
-                         VerticalAlignment="Center"
-                         Margin="8,0,0,0" />
+              <!-- Action buttons -->
+              <StackPanel Grid.Row="0" Grid.Column="1"
+                          Orientation="Horizontal" Spacing="2"
+                          VerticalAlignment="Center">
+                <Button Background="Transparent" Padding="4"
+                        ToolTip.Tip="Open session"
+                        Click="OpenSession_Click"
+                        Tag="{Binding}">
+                  <heroIcons:HeroIcon Type="FolderOpen" Height="14" Width="14" Foreground="#9ca3af" Kind="Outline" />
+                </Button>
+                <Button Background="Transparent" Padding="4"
+                        ToolTip.Tip="Rename session"
+                        Click="RenameSession_Click"
+                        Tag="{Binding}">
+                  <heroIcons:HeroIcon Type="Pencil" Height="14" Width="14" Foreground="#9ca3af" Kind="Outline" />
+                </Button>
+                <Button Background="Transparent" Padding="4"
+                        ToolTip.Tip="Delete session"
+                        Click="DeleteSession_Click"
+                        Tag="{Binding}">
+                  <heroIcons:HeroIcon Type="Trash" Height="14" Width="14" Foreground="#ef4444" Kind="Outline" />
+                </Button>
+              </StackPanel>
 
-              <!-- Subtitle (message count or in progress) -->
+              <!-- Subtitle row: date + message count -->
               <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                           Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                <TextBlock Text="{Binding DateFormatted}"
+                           FontSize="11" Foreground="#9ca3af" />
                 <TextBlock Text="{Binding Subtitle}"
                            FontSize="11" Foreground="#9ca3af" />
               </StackPanel>
@@ -58,6 +77,5 @@
     </ListBox>
   </Grid>
 
-  <!-- Context menu for the window (right-click actions on list items) -->
 
 </Window>

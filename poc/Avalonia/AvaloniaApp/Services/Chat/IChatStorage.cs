@@ -28,9 +28,11 @@ public interface IChatStorage
     Task FinalizeSessionAsync(Guid sessionId, string title, string summary);
 
     /// <summary>
-    /// List all finalized sessions, ordered by date descending.
+    /// List all sessions, ordered by date descending.
+    /// Any orphaned in-progress sessions (not matching <paramref name="currentSessionId"/>)
+    /// will be auto-finalized before listing.
     /// </summary>
-    Task<List<ChatSessionExport>> ListSessionsAsync();
+    Task<List<ChatSessionExport>> ListSessionsAsync(Guid? currentSessionId = null);
 
     /// <summary>
     /// Load a full session (header + messages) by session ID.
@@ -38,7 +40,7 @@ public interface IChatStorage
     Task<ChatSessionExport?> LoadSessionAsync(Guid sessionId);
 
     /// <summary>
-    /// Update the title of a finalized session.
+    /// Update the title of a session.
     /// </summary>
     Task UpdateSessionTitleAsync(Guid sessionId, string newTitle);
 
@@ -48,4 +50,9 @@ public interface IChatStorage
     /// Returns the session header info.
     /// </summary>
     Task<ChatSessionHeader?> ReopenSessionAsync(Guid sessionId);
+
+    /// <summary>
+    /// Delete a session permanently (both finalized .json and in-progress .jsonl).
+    /// </summary>
+    Task DeleteSessionAsync(Guid sessionId);
 }
