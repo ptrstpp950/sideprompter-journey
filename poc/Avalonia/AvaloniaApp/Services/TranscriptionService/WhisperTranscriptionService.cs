@@ -37,7 +37,7 @@ public class WhisperTranscriptionService : ITranscriptionService
 
     // Chunking and VAD configuration (tunable)
     public double ChunkDurationSeconds { get; set; } = 20.0; // 10-15s recommended, default 12s
-    public double ChunkOverlapSeconds { get; set; } = 3;    // 2-3s overlap, default 2.5s
+    public double ChunkOverlapSeconds { get; set; } = 1.5;    // 1-2s overlap, default 1.5s
     public bool EnableVad { get; set; } = true;               // Energy-based VAD for intelligent cuts
     public double VadFrameDurationMs { get; set; } = 30.0;    // Typical 20-30ms frame
     public double VadMinSilenceMs { get; set; } = 200.0;      // Require >=200ms silence for a cut
@@ -234,9 +234,11 @@ public class WhisperTranscriptionService : ITranscriptionService
             // Disposing the factory immediately can free native resources used by the processor
             // and lead to heap corruption. Use the instance-level UseGpu flag.
             WhisperFactoryInstance = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions() { UseGpu = UseGpu });
+            var threadCount = Math.Max(2, Environment.ProcessorCount / 2);
+            _logger.Information("Whisper thread count capped to {ThreadCount} (of {Total} available)", threadCount, Environment.ProcessorCount);
             WhisperProcessor = WhisperFactoryInstance.CreateBuilder()
                 .WithLanguage(language)
-                //.WithThreads(Environment.ProcessorCount)
+                .WithThreads(threadCount)
                 .Build();
         }
         catch (Exception ex)

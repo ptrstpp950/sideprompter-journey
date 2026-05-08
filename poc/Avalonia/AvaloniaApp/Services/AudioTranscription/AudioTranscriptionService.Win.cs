@@ -268,7 +268,7 @@ public class AudioTranscriptionServiceWin : IAudioTranscriptionService
                         processingStream.Write(chunk, 0, chunk.Length);
                     }
 
-                    var shouldProcess = (DateTime.UtcNow - lastProcessTime > TimeSpan.FromSeconds(5) && processingStream.Length > 0);
+                    var shouldProcess = (DateTime.UtcNow - lastProcessTime > TimeSpan.FromSeconds(10) && processingStream.Length > 0);
 
                     if (shouldProcess)
                     {
