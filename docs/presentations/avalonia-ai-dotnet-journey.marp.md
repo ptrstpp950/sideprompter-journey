@@ -471,7 +471,7 @@ The answer was not "write more native code."
 
 The answer was:
 
-## **use sidecars for platform-specific pain**
+## **use sidecars (with CLI) for platform-specific pain**
 
 - `AudioTee` for macOS audio capture
 - helper binaries for hotkeys and active-window text
