@@ -1,0 +1,61 @@
+flowchart TB
+  %% SidePrompter architecture
+  %% Shared product logic, platform-specific pain.
+
+  subgraph SHARED["Shared Core (.NET + Avalonia)"]
+    UI["UI Layer<br/>windows, settings, setup wizard"]
+    ORCH["App Orchestration<br/>session flow, prompt execution, routing"]
+    CHAT["Chat Abstraction<br/>OpenAI / OpenRouter / Ollama"]
+    STORE["Persistence<br/>app settings + chat/session history"]
+    PRIV["Privacy Facade<br/>single API for capture protection"]
+    AUDIO["Audio/Transcription Facade<br/>single app-facing API"]
+  end
+
+  subgraph WIN["Windows region"]
+    W_PRIV["SetWindowDisplayAffinity<br/>(WDA_EXCLUDEFROMCAPTURE)"]
+    W_AUDIO["Windows audio capture service"]
+    W_HOTKEY["Global hotkeys adapter"]
+    W_TEXT["Window text extraction adapter"]
+  end
+
+  subgraph MAC["macOS region"]
+    M_PRIV["NSWindow setSharingType<br/>(capture exclusion)"]
+    M_AUDIO["AudioTee sidecar adapter"]
+    M_HOTKEY["Swift hotkeyListener sidecar"]
+    M_TEXT["Swift activeWindowTextGetter sidecar"]
+    M_MIC["Swift microphoneMonitor sidecar"]
+    M_PERM["Permissions + signing + notarization concerns"]
+  end
+
+  subgraph RUNTIME["Runtime / External Services"]
+    WHISPER["Local Whisper models (Whisper.net)"]
+    DG["Cloud STT optional (Deepgram)"]
+    LLM["LLM providers (OpenAI-compatible endpoints)"]
+    UPD["Update + Delivery<br/>Velopack + CDN feeds"]
+  end
+
+  UI --> ORCH
+  ORCH --> CHAT
+  ORCH --> STORE
+  ORCH --> PRIV
+  ORCH --> AUDIO
+
+  PRIV --> W_PRIV
+  PRIV --> M_PRIV
+
+  AUDIO --> W_AUDIO
+  AUDIO --> M_AUDIO
+  AUDIO --> WHISPER
+  AUDIO --> DG
+
+  CHAT --> LLM
+  ORCH --> UPD
+
+  ORCH --> W_HOTKEY
+  ORCH --> W_TEXT
+  ORCH --> M_HOTKEY
+  ORCH --> M_TEXT
+  ORCH --> M_MIC
+  M_PRIV --- M_PERM
+  M_AUDIO --- M_PERM
+
